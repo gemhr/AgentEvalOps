@@ -1,0 +1,120 @@
+---
+title: "Framework adapters"
+description: "One-call factories for LangGraph, LangChain, DeepAgents, CrewAI, Claude Agent SDK, and OpenAI Agents"
+icon: "link"
+---
+
+Turn detection is the **only** thing that differs per framework. All six adapters share identical self-healing: the same mailbox, the same toolset, the same system context, the same validation. Each `Harness.for_<framework>()` factory wires the framework's natural turn boundary to `on_turn_end` and preserves its session resolution (session identity comes from the PandaProbe SDK's session context, so harness evaluations and SDK traces line up automatically).
+
+| Factory | Framework | Turn detector | Extra |
+| --- | --- | --- | --- |
+| `Harness.for_langgraph()` | LangGraph | LangChain callback: root `on_chain_end` (via `harness.adapter.make_callback()`) | `[langgraph]` |
+| `Harness.for_langchain()` | LangChain | Same root-chain-end callback | `[langchain]` |
+| `Harness.for_deepagents()` | DeepAgents | Same root-chain-end callback | `[deepagents]` |
+| `Harness.for_crewai()` | CrewAI | Patches `Crew.kickoff` (auto-`instrument()`) | `[crewai]` |
+| `Harness.for_claude_agent_sdk()` | Claude Agent SDK | Patches `ClaudeSDKClient.receive_response` — one stream = one turn | `[claude-agent-sdk]` |
+| `Harness.for_openai_agents()` | OpenAI Agents SDK | `TracingProcessor` — fires on trace end; one `Runner.run` = one turn | `[openai-agents]` |
+
+Adapters are optional, import-guarded extras:
+
+<Tabs>
+  <Tab title="pip">
+    ```bash
+    pip install "pandaprobe-harness[langgraph]"   # or [all]
+    ```
+  </Tab>
+  <Tab title="uv">
+    ```bash
+    uv add "pandaprobe-harness[langgraph]"
+    ```
+  </Tab>
+</Tabs>
+
+Every factory accepts the same keywords: `session_id=` (a fixed session for single-conversation processes), `config=`, `cli=`, and `replay=` for [closed-loop validation](/harness/closed-loop/rule-validation).
+
+## LangGraph (LangChain & DeepAgents work the same way)
+
+```python
+import pandaprobe
+from pandaprobe_harness import Harness
+from pandaprobe_harness.agent_tools.native import as_langchain_tools
+
+harness = Harness.for_langgraph()
+handler = harness.adapter.make_callback()          # the turn detector
+
+graph = build_graph(
+    system=harness.system_context() + PROMPT,
+    tools=my_tools + as_langchain_tools(harness.toolset),
+)
+
+with pandaprobe.session(session_id):               # harness + SDK traces share the session
+    await graph.ainvoke(
+        state,
+        config={"callbacks": [handler],
+                "configurable": {"thread_id": session_id}},
+    )
+```
+
+<Warning>
+  Like the SDK's [LangGraph tracing integration](/tracing/integrations/langgraph), the handler must be passed via `config["callbacks"]` on each invocation — the LangChain family has no `instrument()` pattern.
+</Warning>
+
+## CrewAI
+
+```python
+import pandaprobe
+from pandaprobe_harness import Harness
+
+harness = Harness.for_crewai()      # instruments Crew.kickoff automatically
+
+crew = build_crew(
+    system=harness.system_context() + PROMPT,
+    # deliver the toolset via the companion CLI + harness.shell,
+    # or wrap harness.toolset ops as CrewAI tools
+)
+
+with pandaprobe.session(session_id):
+    crew.kickoff(inputs=...)        # each kickoff = one evaluated turn
+```
+
+## Claude Agent SDK
+
+```python
+import pandaprobe
+from pandaprobe_harness import Harness
+from pandaprobe_harness.agent_tools.native import as_anthropic_tools
+
+harness = Harness.for_claude_agent_sdk()   # instruments receive_response
+
+specs, dispatch = as_anthropic_tools(harness.toolset)
+
+with pandaprobe.session(session_id):
+    async with ClaudeSDKClient(options) as client:
+        await client.query(user_input)
+        async for message in client.receive_response():   # stream end = turn end
+            ...
+```
+
+## OpenAI Agents SDK
+
+```python
+import pandaprobe
+from pandaprobe_harness import Harness
+from pandaprobe_harness.agent_tools.native import as_openai_function_tools
+
+harness = Harness.for_openai_agents()      # registers the tracing processor
+
+agent = Agent(
+    instructions=harness.system_context() + PROMPT,
+    tools=my_tools + as_openai_function_tools(harness.toolset),
+)
+
+with pandaprobe.session(session_id):
+    result = await Runner.run(agent, user_input)   # one run = one evaluated turn
+```
+
+## Rebuilding the preamble per turn
+
+Frameworks that rebuild the system prompt each turn get the live banner and freshly-retrieved rules for free. For frameworks that fix the prompt at construction time, either rebuild the agent per conversation, or rely on the standing protocol (the agent checks its mailbox every turn regardless) — the notices are in the workspace either way.
+
+Runnable end-to-end sketches for every framework live in the repository's `examples/` directory.

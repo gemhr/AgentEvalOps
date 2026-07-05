@@ -15,9 +15,12 @@ PandaProbe is built around a continuous loop:
 1. **Trace** — capture what your agent actually did.
 2. **Evaluate** — score those traces and sessions for quality and reliability.
 3. **Monitor** — re-run evaluations on a schedule so regressions surface automatically.
+4. **Heal** — feed those scores back to the agent itself, so it learns validated operating
+   rules from its own failures.
 
 Each stage feeds the next: traces are the raw signal, evaluation turns that signal into
-scores, and monitoring keeps those scores fresh as new data arrives.
+scores, monitoring keeps those scores fresh as new data arrives — and the harness closes
+the loop by turning scores into behavior change, automatically.
 
 ## How data flows
 
@@ -43,6 +46,12 @@ scores, and monitoring keeps those scores fresh as new data arrives.
     Save an eval configuration as a **monitor** to re-run it on a recurring cadence, so new
     traces and sessions are checked automatically.
   </Step>
+  <Step title="Close the loop with the harness">
+    Optionally wrap the agent in the [self-healing harness](/harness/get-started/concepts):
+    it evaluates every completed turn, posts a **diagnostic notice** when quality degrades,
+    and the agent itself diagnoses the flagged traces and records a mitigation rule — which
+    the harness validates before trusting.
+  </Step>
   <Step title="Review in the dashboard">
     Inspect traces, drill into spans, and track scores and trends over time in the dashboard —
     or query everything through the API and CLI.
@@ -63,6 +72,12 @@ scores, and monitoring keeps those scores fresh as new data arrives.
   </Card>
   <Card title="Monitors" icon="clock" href="/evaluation/setup/scheduling">
     Saved evaluations that run on a schedule to catch regressions in production.
+  </Card>
+  <Card title="Notices & Rules" icon="inbox" href="/harness/loop/notices-and-mailbox">
+    The harness posts diagnostic notices; the agent answers with validated operating rules.
+  </Card>
+  <Card title="Self-Healing Harness" icon="shield-check" href="/harness/get-started/concepts">
+    The operational envelope that turns evaluation scores into agent behavior change.
   </Card>
 </CardGroup>
 
@@ -94,7 +109,7 @@ PandaProbe separates how applications send data from how people manage their wor
 
 ## Next steps
 
-<CardGroup cols={3}>
+<CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/tracing/get-started/quickstart">
     Trace your first LLM call in under 2 minutes.
   </Card>
@@ -103,5 +118,8 @@ PandaProbe separates how applications send data from how people manage their wor
   </Card>
   <Card title="Evaluation" icon="drafting-compass" href="/evaluation/get-started/concepts">
     Learn how metrics, scores, and monitors work.
+  </Card>
+  <Card title="Harness" icon="shield-check" href="/harness/get-started/quickstart">
+    Turn a traced agent into a self-healing agent.
   </Card>
 </CardGroup>

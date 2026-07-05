@@ -1,0 +1,124 @@
+---
+title: "The agent toolset"
+description: "The 14 self-diagnostic operations and how to deliver them to your agent"
+icon: "wrench"
+---
+
+The toolset is the consuming side of the pull model: the operations your agent uses to read its mailbox, investigate its traces, and manage its rules. Every operation returns a JSON envelope with an `"ok"` key — **failures never raise into the agent loop**; they come back as `{"ok": false, "error": "..."}`.
+
+## Operations
+
+### Mailbox
+
+| Operation | Purpose |
+| --- | --- |
+| `harness_mailbox_list` | Pending notice summaries plus mailbox status (count, max severity). |
+| `harness_mailbox_read` | One notice in full, including its trace dump. |
+| `harness_mailbox_ack` | Acknowledge a pending notice, optionally linking the resolving rule. |
+
+### Investigation
+
+| Operation | Purpose |
+| --- | --- |
+| `harness_trace_inspect` | One flagged trace via the platform: the trace, its TOOL spans, and its trace-level scores. |
+| `harness_history` | Score trajectory for a metric: the local per-session series plus backend session scores. |
+| `harness_journal` | Recent journal events — the cross-run memory for spotting recurring patterns. |
+
+### Rules
+
+| Operation | Purpose |
+| --- | --- |
+| `harness_rule_add` | Record a mitigation rule with rationale and provenance. Starts as a **candidate** (see [Rule validation](/harness/closed-loop/rule-validation)); dedup-safe; fails at the rule cap. |
+| `harness_rule_retire` | Retire a rule (candidate or active) that proved ineffective or obsolete. |
+| `harness_rule_status` | A rule's lifecycle state plus its validation bookkeeping — baseline vs. trial breach rate, sessions observed, and the verdict — so the agent can see *why* a rule was promoted or retired. |
+| `harness_rules_search` | Search the whole rule set by lexical relevance — everything beyond the context top-k stays reachable. |
+| `harness_rules_list` | List rules by lifecycle status (`candidate` / `active` / `retired`). |
+| `harness_reflect` | Assembled cross-run context for a rules refactor: recent notices, active + candidate rules, recent validation outcomes, and per-rule effectiveness counts. |
+
+### Eval set
+
+| Operation | Purpose |
+| --- | --- |
+| `harness_evalset_list` | Captured eval cases: failure scenarios and protected wins. |
+| `harness_evalset_attach` | Attach a replay input to an eval case so it becomes replayable. |
+
+## Example: one healing pass
+
+The standing protocol drives this sequence for each pending notice:
+
+```python
+listing = await harness.toolset.call("harness_mailbox_list", {})
+notice_id = listing["pending"][0]["id"]
+
+read = await harness.toolset.call("harness_mailbox_read", {"notice_id": notice_id})
+trace_id = read["notice"]["flagged_traces"][0]
+
+await harness.toolset.call("harness_trace_inspect", {"trace_id": trace_id})
+await harness.toolset.call("harness_journal", {"limit": 10})
+
+added = await harness.toolset.call("harness_rule_add", {
+    "rule": "Never call the payment tool twice without verifying the transaction status.",
+    "rationale": "Repeated identical payment call flagged by the reliability eval.",
+    "notice_id": notice_id,               # provenance + auto-derived retrieval tags
+    "metric": "agent_reliability",
+})
+# added["rule"]["status"] == "candidate" — validation happens automatically
+
+await harness.toolset.call("harness_mailbox_ack", {
+    "notice_id": notice_id,
+    "rule_id": added["rule"]["id"],
+    "note": "mitigated",
+})
+```
+
+In practice your *agent* makes these calls itself, guided by the protocol in its system context — the snippet above is what a healthy healing turn looks like in a trace.
+
+## Delivery channels
+
+### Native tool registration
+
+Convert the toolset into your framework's tool format in one call:
+
+<Tabs>
+  <Tab title="Anthropic">
+    ```python
+    from pandaprobe_harness.agent_tools.native import as_anthropic_tools
+
+    specs, dispatch = as_anthropic_tools(harness.toolset)
+    # specs -> tool definitions for the Messages API
+    # dispatch(name, args) -> awaitable result envelope
+    ```
+  </Tab>
+  <Tab title="LangChain">
+    ```python
+    from pandaprobe_harness.agent_tools.native import as_langchain_tools
+
+    tools = as_langchain_tools(harness.toolset)   # list of StructuredTool
+    ```
+  </Tab>
+  <Tab title="OpenAI Agents">
+    ```python
+    from pandaprobe_harness.agent_tools.native import as_openai_function_tools
+
+    tools = as_openai_function_tools(harness.toolset)  # list of FunctionTool
+    ```
+  </Tab>
+</Tabs>
+
+### The companion CLI
+
+For sandboxed or framework-less agents, the same operations ship as an allow-listed binary the agent can call through a restricted shell:
+
+```bash
+pandaprobe-harness-agent harness_mailbox_list
+pandaprobe-harness-agent harness_rule_add \
+    --rule "Never retry a failed charge blindly" \
+    --rationale "duplicate charges observed" \
+    --notice-id n-20260703T053511-f2019e57
+```
+
+- The workspace is resolved from `HARNESS_*` environment variables; the platform is reached through the `pandaprobe` binary.
+- `--key value` pairs; values are parsed as JSON when possible, else taken as strings; `--dashed-keys` map to `snake_case`.
+- Output is the JSON envelope on stdout; exit code `0` iff `ok`.
+
+The harness's `RestrictedShellTool` (`harness.shell`) allow-lists exactly this binary and `pandaprobe`, scrubs credential-shaped environment variables from everything else, and blocks path escapes — see the [security model](/harness/reference/security).

@@ -1,0 +1,106 @@
+---
+title: "Configuration"
+description: "Every knob: environment variables, defaults, and what they control"
+icon: "sliders-horizontal"
+---
+
+All configuration lives on one frozen `HarnessConfig` object. Build it from the environment (every knob has a `HARNESS_*` variable) with explicit overrides winning:
+
+```python
+from pandaprobe_harness import HarnessConfig
+
+config = HarnessConfig.from_env(capture_eval_cases=True)   # env + overrides
+harness = Harness.create(config)
+```
+
+<Note>
+  Three fields have no environment variable and are set programmatically only: `thresholds` (a per-metric threshold map), `signal_weights` (forwarded to the platform's signal aggregation), and `session_metrics` (the metric set to evaluate). Derived workspace paths (`mailbox/`, `journal.jsonl`, …) are computed from `HARNESS_ROOT` and cannot be overridden individually.
+</Note>
+
+## Workspace & CLI
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_ROOT` | `/harness` | Workspace root (mailbox, journal, rules, traces, eval set, state). |
+| `HARNESS_CLI_BINARY` | `pandaprobe` | The CLI binary — every platform call goes through it. |
+| `HARNESS_CLI_TIMEOUT_S` | `30` | Per-invocation subprocess timeout. |
+
+## Evaluation & polling
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_POLL_INTERVAL_S` | `1.0` | Delay between eval-run score polls. |
+| `HARNESS_POLL_MAX_ATTEMPTS` | `20` | Poll budget per run. |
+| `HARNESS_EVAL_RETRY_ATTEMPTS` | `3` | Retries for transiently unscoreable sessions (trace-ingestion lag). |
+| `HARNESS_EVAL_RETRY_BACKOFF_S` | `1.0` | Linear backoff base between retries. |
+| `HARNESS_DRAIN_TIMEOUT_S` | `15` | Budget for `refresh` / `refresh_all` / `drain_validation` joins. |
+| `HARNESS_EVAL_RELIABILITY` | `true` | Evaluate `agent_reliability`. |
+| `HARNESS_EVAL_CONSISTENCY` | `true` | Evaluate `agent_consistency`. |
+
+## Thresholds & detection
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_RELIABILITY_THRESHOLD` | `0.5` | Absolute breach floor for `agent_reliability`. |
+| `HARNESS_CONSISTENCY_THRESHOLD` | `0.5` | Absolute breach floor for `agent_consistency`. |
+| `HARNESS_ENABLE_TREND` | `true` | Dual-EWMA trend detection. |
+| `HARNESS_EWMA_FAST_SPAN` | `3` | Fast EWMA span. |
+| `HARNESS_EWMA_SLOW_SPAN` | `10` | Slow EWMA span. |
+| `HARNESS_TREND_MARGIN_CROSS` | `0.05` | Fast-below-slow margin that flags a decline. |
+| `HARNESS_TREND_MIN_SAMPLES` | `4` | Samples required before trend verdicts. |
+| `HARNESS_ADAPTIVE_THRESHOLD` | `false` | Relative-drop detector (vs. the session's own baseline). |
+| `HARNESS_ADAPTIVE_MARGIN_DROP` | `0.15` | Drop below baseline that counts as a relative breach. |
+| `HARNESS_PERCENTILE_WINDOW` | `0` | Percentile-corroborator window (`0` = off). |
+| `HARNESS_PERCENTILE_FLOOR` | `0.25` | Low-tail quantile for the corroborator. |
+
+## Noticing
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_ALERT_COOLDOWN_TURNS` | `0` | Re-notice cooldown for persisting conditions (`0` = only on new conditions). |
+| `HARNESS_ENRICH_FLAGGED_TRACES` | `false` | Fetch the worst flagged trace's TOOL spans into the notice dump. |
+| `HARNESS_OBSERVE_ONLY` | `false` | Shadow mode: evaluate + journal, never post notices. |
+| `HARNESS_CIRCUIT_BREAKER_MAX_NOTICES` | `5` | Notices per window before escalating to `needs_human` (`0` = off). |
+| `HARNESS_CIRCUIT_BREAKER_WINDOW_S` | `600` | The breaker window. |
+
+## Cost & sampling
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_EVAL_SAMPLE_EVERY` | `1` | Evaluate every Nth turn per session. |
+| `HARNESS_SESSION_MIN_EVAL_INTERVAL_S` | `0` | Per-session rate limit between eval launches. |
+| `HARNESS_MAX_CONCURRENT_EVALS` | `4` | Global concurrency cap across sessions. |
+| `HARNESS_MAX_EVALS_PER_RUN` | `0` | Hard per-process eval budget (`0` = unlimited). |
+
+## Rules & retrieval
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_MAX_ACTIVE_RULES` | `50` | Live-rule cap, active + candidate (the agent must retire to add). |
+| `HARNESS_SANITIZE_MAX_LEN` | `2000` | Length cap in the sanitization trust boundary. |
+| `HARNESS_RULE_RETRIEVAL` | `true` | Task-conditioned rule injection (`false` = render every active rule). |
+| `HARNESS_RULES_CONTEXT_TOPK` | `8` | Tagged rules kept in the context per query. |
+
+## Validation & the closed loop
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_RULE_VALIDATION` | `true` | Candidate lifecycle: promote only on evidence (`false` = add → active, pre-v0.6). |
+| `HARNESS_RULE_TRIAL_MIN_SESSIONS` | `5` | Forward trial: distinct sessions observed before a verdict. |
+| `HARNESS_RULE_PROMOTE_MARGIN` | `0.05` | Minimum targeted-metric improvement to promote. |
+| `HARNESS_RULE_REGRESS_MARGIN` | `0.05` | Maximum tolerated drop before a case counts as regressed. |
+| `HARNESS_REPLAY_TIMEOUT_S` | `300` | Hard bound per replay invocation (hung replays degrade, never wedge). |
+| `HARNESS_CAPTURE_EVAL_CASES` | `false` | Capture breaching sessions as replayable eval cases. |
+| `HARNESS_EVAL_CASE_MAX` | `200` | Eval-set cap; oldest failures evict first, wins never. |
+| `HARNESS_REGRESSION_SAMPLE` | `0` | Cases replayed per regression run (`0` = all). |
+
+## Robustness & scale
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_HEALTH_CHECK` | `true` | Startup CLI/auth verification (degrades gracefully on failure). |
+| `HARNESS_HYDRATE_HISTORY_FROM_BACKEND` | `false` | Seed trend history from the backend once per session (for horizontally-scaled agents). |
+
+## Platform credentials
+
+The `pandaprobe` subprocess inherits your environment, so the standard SDK/CLI variables apply unchanged: `PANDAPROBE_API_KEY`, `PANDAPROBE_PROJECT_NAME`, and `PANDAPROBE_ENDPOINT` for self-hosting. The harness itself never reads them — authentication is entirely the CLI's concern.

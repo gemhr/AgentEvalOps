@@ -1,0 +1,101 @@
+---
+title: "Calibration"
+description: "Does a breach mean a real failure? Measure and tune your thresholds offline"
+icon: "ruler"
+---
+
+Everything downstream of the harness — notices, candidate validation, regression classification — keys off one predicate: *score below threshold*. The default threshold (`0.5`) is a starting point, not a measurement. `pandaprobe-harness-calibrate` is the out-of-band diagnostic that tells you whether a `breach` actually corresponds to a real failure on **your** traffic, and what threshold would serve you better.
+
+<Note>
+  Calibration is an **operator tool**, not a runtime gate — it never enters the healing loop. It reads scores, computes statistics, and prints a report; acting on it (changing `HARNESS_RELIABILITY_THRESHOLD`, say) is your call.
+</Note>
+
+## With ground-truth labels
+
+If you can label sessions as failed/ok — even a few dozen — you get the full picture:
+
+```bash
+pandaprobe-harness-calibrate --labels labels.json
+```
+
+Accepted label formats:
+
+<Tabs>
+  <Tab title="JSON dict">
+    ```json
+    { "s-001": true, "s-002": false, "s-003": true }
+    ```
+  </Tab>
+  <Tab title="JSON list">
+    ```json
+    [
+      { "session_id": "s-001", "failed": true },
+      { "session_id": "s-002", "failed": false }
+    ]
+    ```
+  </Tab>
+  <Tab title="CSV">
+    ```csv
+    session_id,failed
+    s-001,true
+    s-002,0
+    ```
+  </Tab>
+  <Tab title="Eval-set proxy">
+    ```bash
+    pandaprobe-harness-calibrate --from-evalset
+    ```
+    Zero labeling effort: captured `failure` cases count as failed, `win` cases as ok.
+  </Tab>
+</Tabs>
+
+Per metric, the report gives you:
+
+- **Precision / recall / F1** of the breach predicate at your configured threshold, with the confusion matrix.
+- **A threshold sweep** (`0.05 … 0.95`) with the confusion at every point.
+- **Two recommendations:** the F1-maximizing threshold, and the lowest threshold reaching a target precision (`--target-precision`, default `0.9`) with non-zero recall.
+
+```text
+agent_reliability  (configured threshold 0.50, 12 scores)
+  distribution: min 0.20  median 0.62  mean 0.59  max 0.90  stdev 0.23
+  histogram [0.0..1.0): 0 0 1 2 1 1 2 2 2 1
+  at threshold 0.50: precision 0.80  recall 1.00  F1 0.89  (tp 4 fp 1 fn 0 tn 7 over 12 labeled)
+  best F1 1.00 at threshold 0.50
+  precision ≥ 0.90 first at threshold 0.35
+```
+
+## Without labels
+
+No labels yet? The unsupervised report is still enough to pick a threshold sanely: the score **distribution** (min/median/mean/max/stdev + a 10-bucket histogram), the **breach count at every candidate threshold**, and **inter-metric agreement** — the fraction of fully-scored sessions where `agent_reliability` and `agent_consistency` agree on breach vs. no-breach (low agreement usually means one threshold is mis-set relative to the other).
+
+## Where the scores come from
+
+Three sources, merged with precedence and each degrading independently:
+
+1. **The platform** — `pandaprobe evals scores list --target session` through the CLI seam (highest precedence).
+2. **The local history store** — `state/score_history.json`, the per-session series the trend detector maintains.
+3. **The eval set** — captured cases' `baseline_scores`.
+
+So calibration works fully offline against a workspace that has seen traffic, even when the platform is unreachable. If no source yields anything, the CLI exits `1` with a message naming all three.
+
+## Library use
+
+The same machinery is importable for notebooks and pipelines:
+
+```python
+from pandaprobe_harness import HarnessConfig, calibrate
+
+report = calibrate(
+    scores,                      # {session_id: {metric: value}}
+    config=HarnessConfig.from_env(),
+    labels=labels,               # {session_id: failed} or None
+    target_precision=0.9,
+)
+print(report.render_text())      # or report.to_json()
+```
+
+`pandaprobe-harness-calibrate --json` emits the identical structure from the command line. A self-contained walkthrough lives at `examples/calibration_demo.py` in the repository.
+
+<Tip>
+  Pair calibration with **shadow mode**: run with `observe_only=true` for a week, label a sample of sessions, calibrate, set your thresholds — then let the agent act.
+</Tip>

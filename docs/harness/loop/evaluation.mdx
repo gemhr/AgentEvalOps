@@ -1,0 +1,82 @@
+---
+title: "Evaluation & detection"
+description: "How each turn is scored, and the four detectors that decide when to alert"
+icon: "activity"
+---
+
+## What gets evaluated
+
+The harness evaluates two **session-level** metrics after every turn (both scored `0.0–1.0`, higher is better):
+
+| Metric | What it measures |
+| --- | --- |
+| `agent_reliability` | Trajectory risk — worst-case failure signals across the turn's traces. |
+| `agent_consistency` | Session stability — coherence of behavior across the whole session. |
+
+Both aggregate the platform's per-trace signals (`confidence`, `coherence`, `loop_detection`, `tool_correctness`), and the per-trace breakdown rides along in the score metadata — so a notice can point at exactly *which* trace and *which* signal degraded without any extra API call.
+
+## How a turn is scored
+
+Because the metrics are session-level, one completed turn triggers a single batched run:
+
+```bash
+pandaprobe evals runs batch --target session --session-ids <id> \
+    --metrics agent_consistency,agent_reliability      # async; returns run_id
+pandaprobe evals runs scores <run_id> --target session  # polled until terminal
+```
+
+- Polling is bounded: `poll_interval_s` × `poll_max_attempts`.
+- Trace ingestion lags turn-end (the SDK flushes on a background thread), so transiently empty or not-found runs are retried with backoff (`eval_retry_attempts`, `eval_retry_backoff_s`).
+- Any persistent CLI failure degrades to a **pending** score — the harness never raises into, or blocks, your agent loop.
+- Optional `signal_weights` are forwarded to the platform to re-weight signal aggregation.
+
+<Note>
+  Before the first evaluation, a memoized **health check** verifies the CLI is present and authenticated (`pandaprobe version` + `auth status`). On failure the harness runs *degraded*: one warning, a journal `health` event, and evaluations are skipped — never a crash, never a silent no-op.
+</Note>
+
+## The four detectors
+
+An absolute threshold is a blunt instrument, so three local detectors run over the scores the harness already fetched — O(1), no extra network calls:
+
+<AccordionGroup>
+  <Accordion title="Absolute breach (always on)" icon="octagon-alert">
+    `score < threshold` — default `0.5`, overridable per metric via `reliability_threshold` / `consistency_threshold` or the `thresholds` map. A `None` (pending) score is never a breach. This is the only detector that produces `breach`-severity notices — and the only one that captures [eval cases](/harness/closed-loop/eval-set-and-replay).
+  </Accordion>
+  <Accordion title="Trend (on by default)" icon="trending-down">
+    A dual-EWMA crossover: the fast average (span 3) dropping below the slow one (span 10) by `trend_margin_cross`, after `trend_min_samples` samples, flags a *declining* trajectory — e.g. a session drifting `0.80 → 0.55` without ever crossing the floor. Per-session history persists in `state/score_history.json`, so trends survive restarts.
+  </Accordion>
+  <Accordion title="Relative drop (opt-in)" icon="arrow-down-right">
+    `adaptive_threshold=true`: a score falling `adaptive_margin_drop` below the session's *own* baseline (the slow EWMA) alerts even while above the absolute floor. Useful when different sessions have very different normal operating levels.
+  </Accordion>
+  <Accordion title="Percentile corroborator (opt-in)" icon="percent">
+    `percentile_window > 0`: the latest score landing in the low tail (`percentile_floor`) of its recent window. Advisory — it corroborates other detectors and never escalates on its own.
+  </Accordion>
+</AccordionGroup>
+
+Every condition a report fires becomes a **signature** — `breach:agent_reliability`, `trend:agent_consistency`, `relative:…`, `percentile:…`. Signatures drive de-duplication, rule tagging, and eval-case matching throughout the harness.
+
+## Severities
+
+The strongest condition on a report decides the notice severity:
+
+| Severity | Meaning |
+| --- | --- |
+| `trend` | Advisory: the trajectory is declining, no floor crossed. |
+| `relative` | The session dropped sharply below its own baseline. |
+| `breach` | A score sits below the absolute threshold — a real failure by your configured definition. |
+| `needs_human` | The circuit breaker tripped: self-healing is paused, a person should look. |
+
+## De-duplication, cooldown, and recovery
+
+A persistent problem should post **one** notice, not one per turn:
+
+- Per session, the harness remembers the last posted signature set. A new notice posts only when a **new condition** appears (or, with `alert_cooldown_turns > 0`, when the cooldown expires while the same conditions persist).
+- When a previously-alerting session scores clean, the state resets and a `recovery` event is journaled — a later regression of the same kind alerts again.
+
+## The circuit breaker
+
+If something goes systemically wrong — a bad deploy, a broken tool — notices can storm. More than `circuit_breaker_max_notices` within `circuit_breaker_window_s` escalates to a single **`needs_human`** notice and suppresses further posting until the window drains. The standing protocol instructs the agent to surface that notice to a human rather than act on it: it is the one deliberate exit from the autonomous loop.
+
+## Shadow mode
+
+`observe_only=true` evaluates and journals everything but never posts to the mailbox — useful for tuning thresholds against real traffic before letting the agent act. Pair it with the [calibration CLI](/harness/closed-loop/calibration) to pick thresholds from evidence.

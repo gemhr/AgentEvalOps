@@ -92,6 +92,53 @@
         ]
       },
       {
+        "tab": "Harness",
+        "icon": "shield-check",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "harness/get-started/quickstart",
+              "harness/get-started/concepts",
+              "harness/get-started/how-it-works"
+            ]
+          },
+          {
+            "group": "The Self-Heal Loop",
+            "pages": [
+              "harness/loop/evaluation",
+              "harness/loop/notices-and-mailbox",
+              "harness/loop/agent-toolset",
+              "harness/loop/rules-and-retrieval"
+            ]
+          },
+          {
+            "group": "Closing the Loop",
+            "pages": [
+              "harness/closed-loop/rule-validation",
+              "harness/closed-loop/eval-set-and-replay",
+              "harness/closed-loop/regression-runs",
+              "harness/closed-loop/calibration"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "harness/integrations/custom-loops",
+              "harness/integrations/frameworks"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "harness/reference/configuration",
+              "harness/reference/security",
+              "harness/reference/cost-and-reliability"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "Tracing",
         "icon": "route",
         "groups": [
@@ -317,6 +364,7 @@
         "icon": "history",
         "pages": [
           "changelog/python-sdk",
+          "changelog/harness",
           "changelog/core-service",
           "changelog/cli"
         ]

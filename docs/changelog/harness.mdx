@@ -1,0 +1,71 @@
+---
+title: "Harness"
+description: "Release notes for the PandaProbe Harness"
+icon: "shield-check"
+rss: true
+---
+
+Release history for the **PandaProbe Harness** (`pandaprobe-harness`) — the self-healing envelope for PandaProbe-instrumented agents.
+
+Current version: `v0.6.0`
+
+<Update label="v0.6.0" description="2026-07-03" tags={["Closed loop"]}>
+  ### The "closed loop" release
+
+  v0.5 detected failures, proposed rules, and applied them — but never confirmed a rule actually helped. v0.6 closes the loop on three principles: **evidence before trust**, **relevance over volume**, and **measure the foundation** — all automatic, no human in the healing loop.
+
+  #### Changed
+
+  - **BREAKING (behavior)**: `harness_rule_add` now records a **candidate** rule, not an active one. Candidates still render into the system context (under a clearly-labeled *"Provisional rules (under evaluation)"* section — a rule must be in force to be measurable) and are promoted to `active` only after a validator shows they help: `ReplayValidator` (replays the captured failing scenario through a developer-supplied replay function; promotes iff the targeted metric improves past `rule_promote_margin` with no case regressing past `rule_regress_margin`) or, when no replay function is wired, `ForwardTrialValidator` (compares the breach rate over the next `rule_trial_min_sessions` live sessions against the baseline captured at add time). Unfavorable candidates are retired with a journaled reason. Set `HARNESS_RULE_VALIDATION=false` to restore the v0.5 add→active behavior.
+  - **Rule retrieval is task-conditioned by default**: the system preamble renders global (untagged) rules plus the top-`rules_context_topk` rules lexically relevant to the pending notices and an optional `system_context(task_hint=...)` — not the full set. Everything else stays reachable via `harness_rules_search` / `harness_rules_list`. Set `HARNESS_RULE_RETRIEVAL=false` to restore render-everything.
+  - `harness_rule_retire` now retires candidates as well as active rules and records a reason; the rule dedup/cap count the whole live set (active + candidate).
+  - `harness_reflect` additionally returns `candidate_rules` and `recent_validations` so the reflection cycle learns which kinds of rules survive validation.
+
+  #### Added
+
+  - **Rule lifecycle** (`candidate → active | retired`) with auto-derived retrieval `tags` and full trial bookkeeping (`TrialState`: baseline vs. trial breach rates, observed/breached sessions, replay attempts, verdict).
+  - **Validation engine** driven automatically from the hook on every handled report — single-flight, time-bounded (`replay_timeout_s`), and incapable of blocking or crashing the host loop. New journal events: `rule_promote`, `rule_retire` (with reason), `validation`, `evalset_capture`, `regression`.
+  - **Replayable regression eval-set**: breach notices capture the session as a replayable `failure` case (opt-in via `capture_eval_cases`); known-good sessions can be captured as protected `win` cases (never auto-evicted). The `ReplayFn` seam — `async (case, system_context) -> new_session_id` — is how the harness re-runs your agent; wire it via `Harness.create(..., replay=...)`.
+  - **`harness.run_regression()` + the `pandaprobe-harness-eval` CLI**: replay the eval set (wins first) against the current rule set and classify each case `improved` / `unchanged` / `regressed` vs. baseline. Without a replay function it degrades to one clear warning and all-skipped results.
+  - **Metric calibration** (`pandaprobe-harness-calibrate` + a `calibrate()` library API): precision/recall/F1 of the breach predicate, a confusion matrix, and a threshold sweep with labels (JSON/CSV or eval-set proxies); score distribution, histogram, sweep, and inter-metric agreement without.
+  - Five new toolset operations (9 → 14): `harness_rule_status`, `harness_rules_search`, `harness_rules_list`, `harness_evalset_list`, `harness_evalset_attach`.
+  - New facade surface: `Harness.create(..., replay=)` on every factory, `harness.evalset`, `run_regression()`, `validate_candidates()`, `drain_validation()`, `system_context(task_hint=...)`.
+  - Ten new config knobs, all mirrored as `HARNESS_*` env vars: `rule_validation`, `rule_trial_min_sessions`, `rule_promote_margin`, `rule_regress_margin`, `replay_timeout_s`, `capture_eval_cases`, `eval_case_max`, `regression_sample`, `rule_retrieval`, `rules_context_topk`.
+
+  #### Fixed
+
+  - `Rule.from_json` no longer coerces unknown statuses to `active` — a persisted candidate round-trips instead of silently self-promoting across restarts.
+</Update>
+
+<Update label="v0.5.0" description="2026-07-01" tags={["Pull model"]}>
+  ### The "pull model" release
+
+  The harness no longer pushes alerts into agent transcripts; it posts structured `DiagnosticNotice`s to a filesystem mailbox that the agent pulls from via tools, and it maintains a durable journal and a structured self-heal rules store.
+
+  #### Added
+
+  - **Workspace substrate**: `Mailbox` with `DiagnosticNotice` records (`mailbox/pending/` → `mailbox/processed/`), an append-only `Journal` (`journal.jsonl`), and a `RulesStore` (`rules.jsonl`) with provenance, dedup, a rule cap, and per-rule effectiveness tracking.
+  - **`HarnessToolset`** exposing 9 agent-facing operations, the sandbox-allow-listed `pandaprobe-harness-agent` companion CLI, and native tool registrations for the supported frameworks.
+  - **`Harness` facade** with zero-adapter `turn()` / `run_turn()` entry points.
+  - Cost/latency controls: per-session eval sampling, per-session rate limiting, a global concurrency cap, and a hard per-process eval budget.
+  - `observe_only` shadow mode; a circuit breaker escalating notice storms to a single `needs_human`; a startup health check with graceful degraded mode; backend history hydration for horizontally-scaled agents; sandbox hardening (env scoping, argv deny rules); and a sanitization trust boundary for all eval-derived text entering agent context.
+
+  #### Security
+
+  - Mailbox rejects notice ids that are not a single safe path component, closing a workspace path-traversal vector.
+  - The restricted shell catches mid-path traversal, and argv deny rules match subcommands as ordered subsequences (leading global flags no longer bypass them).
+
+  #### Removed
+
+  - **BREAKING** — the push-model alert-injection surface is gone (`inject_alert`, `consume_*`, `startup_messages`, `drain_pending`, `append_rule`, and friends). Delivery is mailbox + toolset, always pull.
+</Update>
+
+<Update label="v0.4.0" description="2026" tags={["Evaluation loop"]}>
+  - Async, supersede-cancelling evaluation loop with EWMA trend detection, adaptive (relative) thresholds, and per-signature alert cooldowns.
+  - Single batched eval run per turn covering all active session metrics, with eventual-consistency retries and bounded run polling.
+  - Framework adapter suite: LangGraph, LangChain, DeepAgents, CrewAI, Claude Agent SDK, and OpenAI Agents.
+</Update>
+
+<Update label="v0.3.0" description="2026" tags={["Initial release"]}>
+  - Initial public harness: the `pandaprobe` CLI subprocess seam, a turn-end evaluation hook with absolute score thresholds, trace dumps under `traces/`, `harness_rules.md`, and the Dockerised diagnostic sandbox with a restricted shell.
+</Update>

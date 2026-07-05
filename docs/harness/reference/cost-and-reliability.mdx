@@ -1,0 +1,60 @@
+---
+title: "Cost, reliability & scale"
+description: "Controlling evaluation spend, degrading gracefully, and running many sessions"
+icon: "gauge"
+---
+
+## Controlling evaluation cost
+
+Every evaluated turn is one platform eval run. Four independent dials bound the spend:
+
+| Control | Effect |
+| --- | --- |
+| `eval_sample_every` | Evaluate every Nth turn per session (`1` = every turn). |
+| `session_min_eval_interval_s` | Per-session rate limit between eval launches. |
+| `max_concurrent_evals` | Global concurrency cap across all sessions. |
+| `max_evals_per_run` | Hard per-process budget; once exhausted, further evaluations are skipped (loudly: one warning + a journal `skip` event). |
+
+Two structural savers on top:
+
+- **Supersede** — a newer turn cancels the session's in-flight evaluation; you never pay for a stale turn's scores.
+- **One batched run per turn** — both metrics ride a single eval run, not one each.
+
+Replay costs are yours (a replay re-runs *your agent*), which is why validation replays at most a handful of cases per candidate, regression runs are sequential and sampleable (`regression_sample`), and every replay invocation is time-bounded (`replay_timeout_s`).
+
+## Degradation ladder
+
+The harness's core invariant: **nothing on the harness's side may break or stall your agent.** Every failure mode has a defined, observable degradation:
+
+| Failure | Behavior |
+| --- | --- |
+| CLI missing / unauthenticated | The memoized health check fails once → one warning, a journal `health` event, all evaluations skipped. The agent keeps running un-harnessed. |
+| Transient platform errors, trace-ingestion lag | Bounded retries with backoff; then the turn's scores resolve as *pending* (never a false breach — a pending score can't alert). |
+| Persistent CLI errors mid-run | The evaluation degrades to pending scores; the error is logged, the loop continues. |
+| Replay hangs or raises | Bounded by `replay_timeout_s`; the case is *inconclusive* (validation) or *skipped* (regression) with the reason recorded. |
+| Validation engine failure | Caught and logged inside its detached task; notices still post, turns still evaluate. |
+| Notice storm | The circuit breaker escalates to one `needs_human` and suppresses further posting until the window drains. |
+| Corrupt workspace files | All JSON parsing is forgiving — unreadable records are skipped, never fatal. |
+
+## Concurrency model
+
+- `on_turn_end` is synchronous and cheap: parse, gate, schedule — it returns before any I/O.
+- Evaluations run as detached tasks under a global semaphore; candidate validation is a single-flight background round; blocking file I/O runs on the thread pool.
+- All workspace stores are lock-guarded with atomic writes (unique temp file + rename) and append-only logs — one workspace safely serves many concurrent sessions, and readers never observe a half-written file.
+- Per-session bookkeeping is bounded (a few thousand sessions), with oldest-first eviction, so long-lived processes don't grow without limit.
+
+`refresh(session_id)`, `refresh_all()`, and `drain_validation()` are bounded joins (`drain_timeout_s`) for tests and explicit callers — correctness never depends on calling them.
+
+## Scaling out
+
+Horizontally-scaled replicas share trend state through the platform: with `hydrate_history_from_backend=true`, the hook seeds the local EWMA history once per session from `pandaprobe evals scores list`, so baselines survive process restarts and replica fan-out. The history source is a small Protocol — a shared remote store can replace the local JSON file without touching anything else.
+
+For the workspace itself, give each replica its own `HARNESS_ROOT` or mount a shared volume: all stores are multi-session safe within a process, and cross-process safety rests on atomic renames and append-only files.
+
+## Operating recommendations
+
+1. **Start in shadow mode** (`observe_only=true`) and [calibrate](/harness/closed-loop/calibration) your thresholds against labeled traffic.
+2. **Turn on capture** (`capture_eval_cases=true`) so the closed loop has scenarios to replay, and curate a few protected `win` cases.
+3. **Wire a replay function** — it upgrades rule validation from statistical to counterfactual and unlocks [regression runs](/harness/closed-loop/regression-runs).
+4. **Schedule `pandaprobe-harness-eval`** (nightly, or after prompt changes) and alert on a non-zero exit.
+5. **Watch the journal** — `rule_promote` / `rule_retire` events tell you what your agent is learning; `needs_human` notices tell you when to step in.

@@ -1,0 +1,121 @@
+---
+title: "Quickstart"
+description: "Turn your agent into a self-healing agent in under 5 minutes"
+icon: "rocket"
+---
+
+The **PandaProbe Harness** wraps any PandaProbe-instrumented agent in a self-healing envelope: it evaluates every completed turn, posts a diagnostic notice when quality degrades, and gives your agent the tools to analyze its own failures and write — and *prove* — its own operating rules.
+
+<Note>
+  Before you begin, make sure you have:
+
+  - A PandaProbe account. Sign up at [app.pandaprobe.com](https://app.pandaprobe.com).
+  - A PandaProbe API key + project name.
+  - The `pandaprobe` CLI installed and authenticated — the harness reaches the platform exclusively through it.
+  - An agent traced with the [PandaProbe SDK](/tracing/get-started/quickstart), so its sessions produce scoreable traces.
+</Note>
+
+<Steps>
+  <Step title="Install the package">
+    <Tabs>
+      <Tab title="pip">
+        ```bash
+        pip install pandaprobe-harness
+        ```
+      </Tab>
+      <Tab title="uv">
+        ```bash
+        uv add pandaprobe-harness
+        ```
+      </Tab>
+    </Tabs>
+
+    The core has **zero runtime dependencies**. Framework adapters are optional extras, e.g. `pip install "pandaprobe-harness[langgraph]"`.
+  </Step>
+  <Step title="Install and authenticate the CLI">
+    ```bash
+    curl -fsSL https://cli.pandaprobe.com/install.sh | sh
+    export PANDAPROBE_API_KEY="your-api-key"
+    export PANDAPROBE_PROJECT_NAME="your-project-name"
+    ```
+
+    <Note>
+      Every platform call the harness makes — running evaluations, polling scores, inspecting traces — shells out to `pandaprobe`. It never talks to the REST API directly.
+    </Note>
+  </Step>
+  <Step title="Pick a workspace root">
+    The harness maintains its diagnostic workspace (mailbox, journal, rules, eval cases) on disk. The default is `/harness`; point it anywhere writable:
+
+    ```bash
+    export HARNESS_ROOT="./harness"
+    ```
+  </Step>
+  <Step title="Wire the harness into your agent loop">
+    Any custom loop integrates in a handful of lines — no adapter required:
+
+    ```python
+    from pandaprobe_harness import Harness
+    from pandaprobe_harness.agent_tools.native import as_anthropic_tools
+
+    harness = Harness.create()          # provisions the workspace, wires everything,
+                                        # runs the startup health check
+
+    # 1. The harness preamble: learned rules + the standing self-diagnostic
+    #    protocol + a "N pending notices" banner when something is wrong.
+    system_prompt = harness.system_context() + MY_PROMPT
+
+    # 2. The self-diagnostic toolset (14 operations) alongside your own tools.
+    specs, dispatch = as_anthropic_tools(harness.toolset)
+    tools = my_tools + specs
+
+    # 3. Delimit turns — the harness evaluates each completed turn.
+    async def one_turn(session_id: str, user_input: str) -> str:
+        async with harness.turn(session_id):
+            return await my_agent_step(system_prompt, tools, user_input)
+    ```
+
+    Using LangGraph, CrewAI, or another supported framework? A `Harness.for_<framework>()` factory wires turn detection for you — see [Framework adapters](/harness/integrations/frameworks).
+  </Step>
+  <Step title="Watch a healing cycle">
+    Nothing else is required — the loop is fully automatic:
+
+    1. A turn finishes and its session scores **breach** (e.g. `agent_reliability` drops below `0.5`).
+    2. The harness posts a **diagnostic notice** to the workspace mailbox and the system context grows a `⚠ HARNESS: 1 pending diagnostic notice(s)` banner.
+    3. Guided by the standing protocol, your agent pulls the notice, inspects the flagged traces, and records a mitigation rule — which enters as an unproven **candidate**.
+    4. The harness **validates** the candidate automatically (by replaying the captured failure, or by watching the next live sessions) and promotes it to an active rule — or retires it.
+    5. The validated rule re-enters the system prompt on every future run.
+
+    Inspect what happened at any time:
+
+    ```python
+    harness.mailbox.pending()                    # open notices
+    harness.rules.active()                       # validated rules
+    harness.journal.recent()                     # the cross-run event log
+    ```
+  </Step>
+</Steps>
+
+## Try it offline first
+
+The repository ships runnable, fully-offline demos — no credentials, no network:
+
+```bash
+git clone https://github.com/chirpz-ai/pandaprobe-harness && cd pandaprobe-harness
+uv sync --group dev
+uv run python examples/offline_self_heal.py       # the pull loop, end to end
+uv run python examples/closed_loop_self_heal.py   # candidate → validate → promote → regression
+```
+
+## What's next?
+
+<CardGroup cols={3}>
+  <Card title="Concepts" icon="shapes" href="/harness/get-started/concepts">
+    What self-healing means here, and the ideas behind the closed loop
+  </Card>
+  <Card title="How it works" icon="cog" href="/harness/get-started/how-it-works">
+    The full pipeline, the workspace on disk, and one healing cycle in detail
+  </Card>
+  <Card title="Framework adapters" icon="link" href="/harness/integrations/frameworks">
+    LangGraph, LangChain, DeepAgents, CrewAI, Claude Agent SDK, OpenAI Agents
+  </Card>
+</CardGroup>

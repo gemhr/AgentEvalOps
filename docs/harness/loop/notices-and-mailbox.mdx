@@ -1,0 +1,88 @@
+---
+title: "Notices, mailbox & journal"
+description: "The diagnostic workspace: what a notice contains and where everything lives"
+icon: "inbox"
+---
+
+## Anatomy of a notice
+
+A `DiagnosticNotice` is everything the agent needs to diagnose one detected degradation:
+
+```json
+{
+  "id": "n-20260703T053511-f2019e57",
+  "created_at": "2026-07-03T05:35:11.698999+00:00",
+  "session_id": "s-demo-1",
+  "turn_index": 1,
+  "severity": "breach",
+  "metrics": [
+    {
+      "name": "agent_reliability",
+      "value": 0.30,
+      "threshold": 0.5,
+      "reason": "identical repeated tool call detected",
+      "conditions": ["breach"]
+    }
+  ],
+  "flagged_traces": ["trace-1"],
+  "signal_breakdown": {
+    "trace-1": { "loop_detection": 0.1, "tool_correctness": 0.2 }
+  },
+  "dump_path": "/harness/traces/n-20260703T053511-f2019e57.json",
+  "summary": "agent_reliability=0.30 [breach, threshold 0.50]; flagged traces: trace-1",
+  "signatures": ["breach:agent_reliability"],
+  "status": "pending",
+  "resolution": null
+}
+```
+
+| Field | Purpose |
+| --- | --- |
+| `metrics` | Every alerting metric with its value, threshold, platform `reason`, and which conditions fired. |
+| `flagged_traces` | The trace ids the platform identified as problematic — the starting point for `harness_trace_inspect`. |
+| `signal_breakdown` | Per-trace signal scores (`loop_detection`, `tool_correctness`, …) already extracted from the score metadata. |
+| `dump_path` | An immutable, verbose evaluation dump under `traces/` for the full picture. |
+| `signatures` | The compact condition labels — used for de-dup, rule tags, and eval-case matching. |
+| `resolution` | Filled on acknowledgment: when, and which rule resolved it. |
+
+Notice ids are timestamp-sortable and validated as safe path components (the agent supplies them to tools, and they become filenames).
+
+## The mailbox
+
+```text
+mailbox/
+├── pending/<notice-id>.json     # awaiting the agent
+├── processed/<notice-id>.json   # acknowledged, with resolution attached
+└── status.json                  # {pending_count, max_severity, latest_id}
+```
+
+- The hook **posts** to `pending/`; the agent **acknowledges** via `harness_mailbox_ack`, which moves the notice to `processed/` with a `Resolution` (`acked_at`, optional `rule_id`, optional note).
+- `status.json` is the cheap summary the system-context banner reads — composing the prompt never scans the directory.
+- The banner carries only a count and a severity enum. **No eval-derived free text enters the preamble**; rich content stays behind explicit tool calls, where it is sanitized and framed as untrusted data.
+
+```python
+harness.mailbox.pending()          # list[DiagnosticNotice], oldest first
+harness.mailbox.read(notice_id)    # pending or processed
+harness.mailbox.acknowledge(notice_id, rule_id="r-...", note="mitigated")
+```
+
+## Trace dumps
+
+Two artifacts under `traces/`:
+
+- `latest_eval.json` — always rewritten with the most recent evaluation, alerting or not. A cheap "what did the harness last see" probe.
+- `<notice-id>.json` — one immutable dump per notice: every score with thresholds, conditions, per-trace signals, and (with `enrich_flagged_traces=true`) the worst flagged trace's TOOL spans fetched at notice time.
+
+## The journal
+
+`journal.jsonl` is the append-only, cross-run event log — the agent's long-term memory of its own health. The agent mines it through `harness_journal` (recent events, filterable by type) and `harness_reflect` (an assembled reflection context: recent notices, the live rule set, validation outcomes, and per-rule effectiveness counts).
+
+```python
+harness.journal.recent(20, types=("notice", "rule_promote"))
+```
+
+The full event-type list is in [How it works](/harness/get-started/how-it-works#journal-event-types). Because the journal spans process restarts, a fresh harness over the same workspace inherits everything: rules re-enter the context, and past notices inform new baselines.
+
+<Note>
+  Everything in the workspace is plain JSON on disk. When in doubt, `cat` it — the file layout *is* the API surface for operators.
+</Note>

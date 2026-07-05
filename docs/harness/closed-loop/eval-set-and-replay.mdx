@@ -1,0 +1,103 @@
+---
+title: "Eval set & replay"
+description: "Captured scenarios worth re-running, and the replay function that re-runs them"
+icon: "flask-conical"
+---
+
+The **eval set** is the harness's corpus of scenarios worth re-running: failures to fix and wins to protect. It is the shared substrate of the closed loop — [rule validation](/harness/closed-loop/rule-validation) replays matching failures to vet candidates, and [regression runs](/harness/closed-loop/regression-runs) replay everything to catch a new rule breaking an old win.
+
+## Eval cases
+
+One JSON file per case under `<HARNESS_ROOT>/evalset/`:
+
+| Field | Purpose |
+| --- | --- |
+| `id`, `created_at`, `session_id` | Identity and which session the scenario came from. |
+| `kind` | `failure` (something to fix) or `win` (something to protect). |
+| `signature` | The condition labels copied from the spawning notice — how validation finds cases matching a candidate rule. |
+| `baseline_scores` | `{metric: value}` at capture time — the comparison point for every replay. |
+| `replay_input` | The payload your replay function needs to re-run the scenario. `null` = not replayable (still useful as a calibration label). |
+| `notes` | The notice summary, sanitized. |
+
+## Capturing failures
+
+Turn on capture and every **breach** notice (advisory `trend`/`relative` notices don't qualify — their scores can sit above the threshold) records the session as a `failure` case:
+
+```python
+from pandaprobe_harness import Harness, HarnessConfig
+
+harness = Harness.create(HarnessConfig.from_env(capture_eval_cases=True))
+```
+
+<Note>
+  Capture is **opt-in** (`capture_eval_cases`, default `false`) because cases store session-derived data — the signature, scores, and whatever your turn payloads carry — under the workspace.
+</Note>
+
+Where does `replay_input` come from? From the turn payload's `end_state` when your loop or adapter provides one. The facade's bare `harness.turn(...)` scope sends an empty payload, so in that setup attach inputs explicitly:
+
+```python
+# From code:
+harness.evalset.attach_input(case_id, {"task": "charge $42 for order 1017"})
+
+# Or let the agent do it (it sees non-replayable cases via harness_evalset_list):
+await harness.toolset.call("harness_evalset_attach", {
+    "case_id": case_id,
+    "replay_input": {"task": "charge $42 for order 1017"},
+})
+```
+
+## Protecting wins
+
+Capture known-good scenarios as `win` cases — these are what regression runs guard:
+
+```python
+harness.evalset.capture(
+    session_id="s-good-1",
+    kind="win",
+    signature=("healthy",),
+    baseline_scores={"agent_reliability": 0.92, "agent_consistency": 0.88},
+    replay_input={"task": "verified payment flow"},
+)
+```
+
+Corpus management is deliberately conservative: cases dedup per (session, signature, kind); at `eval_case_max` (default 200) the **oldest failures evict first**; `win` cases are never auto-evicted — if the corpus is all wins, capture refuses loudly rather than dropping one.
+
+## The replay function
+
+The platform is passive — it scores traces that already exist. To learn what *would* happen under a new rule set, the harness must re-run your agent, and only you know how to do that:
+
+```python
+from uuid import uuid4
+import pandaprobe
+from pandaprobe_harness import EvalCase, Harness
+
+async def replay(case: EvalCase, system_context: str) -> str:
+    """Re-run my agent on the captured input under `system_context`;
+    return the NEW session id the run produced."""
+    session_id = f"replay-{case.id}-{uuid4().hex[:6]}"
+    with pandaprobe.session(session_id):                 # traces land under the new session
+        await my_agent_step(system_context + MY_PROMPT, case.replay_input)
+    return session_id
+
+harness = Harness.create(replay=replay)
+```
+
+The contract, precisely:
+
+- **Input:** the `EvalCase` and the system-context string to run under (the current rendered rules — during candidate validation, the provisional rule is in it).
+- **Output:** a **new** session id whose traces the harness can score. Never reuse the original session.
+- **Behavior:** each invocation is awaited sequentially and bounded by `replay_timeout_s`; exceptions and timeouts degrade to "inconclusive" — they never crash validation or a regression run.
+
+<Warning>
+  **Be honest with yourself about this dependency.** Without a replay function, `ReplayValidator` and regression runs cannot execute: candidate validation falls back to forward trials (slower, statistical — announced once in the log and journal), and `run_regression` reports every case as `skipped` with one clear warning. The harness never silently pretends it replayed something.
+</Warning>
+
+## Inspecting the corpus
+
+```python
+harness.evalset.cases()                              # all, oldest first
+harness.evalset.cases(kind="win")
+harness.evalset.matching(("breach:agent_reliability",))   # newest matching failures
+```
+
+Or from the agent/operator side: `harness_evalset_list`, or `pandaprobe-harness-eval --list`.

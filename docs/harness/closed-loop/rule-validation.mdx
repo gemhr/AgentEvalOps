@@ -4,7 +4,7 @@ description: "Evidence before trust: how candidate rules are proven, promoted, o
 icon: "scale"
 ---
 
-A self-authored rule is a hypothesis, not a fact. Since v0.6, `harness_rule_add` records a **candidate**, and the harness gathers evidence — automatically, with no human involved — before trusting it:
+A self-authored rule is a hypothesis, not a fact. `harness_rule_add` records a **candidate**, and the harness gathers evidence — automatically, with no human involved — before trusting it:
 
 ```mermaid
 %%{init: {'flowchart': {'nodeSpacing': 34, 'rankSpacing': 42, 'padding': 8}, 'themeVariables': {'fontSize': '13px'}}}%%
@@ -32,7 +32,25 @@ flowchart TD
     classDef retired fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
 ```
 
-Candidates are injected into the system context (under the *"Provisional rules (under evaluation)"* heading) — a rule must be in force to be measurable — but the agent and every reader can see they are unproven.
+Candidates render in the agent's rule file under the *"Provisional rules (under evaluation)"* heading — a rule must be in force to be measurable — but the agent and every reader can see they are unproven. Retrieval may narrow the *active* rules in a file; it never filters candidates, because filtering a trial would starve it.
+
+## What a replay is scored on
+
+A replayed session is re-scored on the **trace** metrics — Tier 1 plus Tier 2 (`replay_metrics()`), against the replay's *last* trace. Between them, Tier 1 carries the outcome trajectory and Tier 2 the step-level verdict, so they cover whatever the notice can have triggered on. Tier 3 is excluded: it never triggers a breach, so re-scoring it would only add cost.
+
+<Note>
+  The metric you promote on has to be one that *discriminates*. Judging a candidate by a broad rollup barely separates a good session from a bad one, which makes the promote/retire decision close to random — so validation re-scores on the specific trace metrics the notice was about.
+</Note>
+
+## Which metric decides
+
+A replay produces a delta per metric, and the verdict hangs on one of them. The harness picks the most authoritative metric **that this case actually measured**, in trust order:
+
+1. **`outcome_correct`** — your [outcome verifier](/harness/closed-loop/outcome-verifier)'s verdict, if one is wired and it had an answer.
+2. The rule's own declared `metric`.
+3. The metric named in the triggering signature.
+
+Falling back down the list is deliberate: a verifier that cannot grade a particular task contributes no delta, and treating its absence as a failed target would veto promotion for every such case.
 
 ## Replay validation — the strong path
 
@@ -45,8 +63,8 @@ harness = Harness.create(replay=my_replay_fn)
 When a candidate lands and a matching, replayable [eval case](/harness/closed-loop/eval-set-and-replay) exists, the `ReplayValidator`:
 
 1. Selects the newest failing cases whose signatures match the candidate (up to 3), plus up to 2 protected `win` cases to catch collateral damage.
-2. Renders the **current** rules — candidate included — and calls your replay function per case, sequentially and time-bounded (`replay_timeout_s`).
-3. Scores each returned session directly through the evaluator (never through the live turn pipeline).
+2. Renders the **full current rule corpus** — the skill root plus every scope file, candidate included — and calls your replay function per case, sequentially and time-bounded (`replay_timeout_s`).
+3. Scores each returned session's last trace on the trace metrics, directly through the evaluator (never through the live turn pipeline).
 4. **Promotes** iff the targeted metric improved past `rule_promote_margin` on a failing case **and** no case — failure or win — regressed past `rule_regress_margin` on any metric. Otherwise **retires**, with the exact reason journaled.
 
 Inconclusive rounds (a replay that raised, timed out, or produced no comparable scores) are evidence of nothing: the candidate stays pending, and after three inconclusive replay rounds validation relies on the forward trial instead.
@@ -55,7 +73,7 @@ Inconclusive rounds (a replay that raised, timed out, or produced no comparable 
 
 Without a replay function, nothing breaks and nothing is silently faked: the fallback is announced once (log + a `validation` journal event) and validation turns statistical.
 
-- **Baseline, captured at add time:** the fraction of recently-journaled sessions whose notices matched the rule's metric family (`breach:` / `relative:` / `trend:` / `percentile:` on the rule's metric). With no history the baseline is `1.0` — the rule was authored against a live failure, so assume it was firing.
+- **Baseline, captured at add time:** the fraction of recently-journaled sessions whose notices matched the rule's metric family (any condition — `stall:`, `regression:`, `breach:` — on the rule's metric). With no history the baseline is `1.0` — the rule was authored against a live failure, so assume it was firing.
 - **Trial:** every handled report — healthy or alerting — enrolls its session (up to `rule_trial_min_sessions`, default 5, distinct sessions) and records whether that session showed the target condition while the candidate was in force.
 - **Verdict:** promote when the trial breach rate is `0`, or improved on the baseline by at least `rule_promote_margin`; otherwise retire.
 
@@ -88,18 +106,18 @@ status = await harness.toolset.call("harness_rule_status", {"rule_id": "r-23b046
 #     "baseline_rate": 1.0, "trial_rate": 0.0,
 #     "sessions_observed": 5, "sessions_needed": 5,
 #     "replay_attempts": 0,
-#     "verdict": "promoted:replay: agent_reliability improved past margin..."
+#     "verdict": "promoted:replay: tool_correctness improved past margin..."
 #   }
 # }
 ```
 
-`harness_reflect` additionally returns recent `rule_promote` / `rule_retire` events, so the agent's reflection cycle learns which *kinds* of rules survive validation.
+Every promote and retire is also a journal event with its reason, so `harness.journal.recent(types=("rule_promote", "rule_retire"))` is the operator's record of what the agent is learning and what did not hold up.
 
 ## Configuration
 
 | Knob | Default | Meaning |
 | --- | --- | --- |
-| `rule_validation` | `true` | The candidate lifecycle. `false` restores add→active (pre-v0.6 behavior). |
+| `rule_validation` | `true` | The candidate lifecycle. `false` makes an added rule active immediately, with no evidence gate. |
 | `rule_trial_min_sessions` | `5` | Distinct live sessions a forward trial observes before a verdict. |
 | `rule_promote_margin` | `0.05` | Minimum improvement of the targeted metric to promote. |
 | `rule_regress_margin` | `0.05` | Maximum tolerated drop on any other case/metric. |

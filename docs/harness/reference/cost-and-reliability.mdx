@@ -6,21 +6,49 @@ icon: "gauge"
 
 ## Controlling evaluation cost
 
-Every evaluated turn is one platform eval run. Four independent dials bound the spend:
+The [three-tier ladder](/harness/loop/evaluation#the-three-tiers) is itself the primary cost control: the expensive metrics only run when the cheap ones say something is wrong.
+
+| Tier | When it runs | Typical share of turns |
+| --- | --- | --- |
+| **1** — `task_completion`, `coherence` | Every turn, one batched run over all new traces | 100% |
+| **2** — `tool_correctness`, `argument_correctness` | Only when the trajectory gate opens, last trace only | Small |
+| **3** — planning metrics | Only when Tier 2 confirms, and only with `enable_tier3=true` | Off by default |
+
+Tier 1 is deliberately cheap — `coherence` is embedding-based rather than an LLM judge — so the always-on rung is the least expensive one. Tier 3 is opt-in because every LLM-judge metric reads the whole trace, so cost scales with metric count.
+
+Four independent dials bound the spend on top of that:
 
 | Control | Effect |
 | --- | --- |
-| `eval_sample_every` | Evaluate every Nth turn per session (`1` = every turn). |
+| `enable_tier3` | Leave it `false` unless you need the planning diagnosis. |
 | `session_min_eval_interval_s` | Per-session rate limit between eval launches. |
 | `max_concurrent_evals` | Global concurrency cap across all sessions. |
 | `max_evals_per_run` | Hard per-process budget; once exhausted, further evaluations are skipped (loudly: one warning + a journal `skip` event). |
 
-Two structural savers on top:
+Two structural savers:
 
 - **Supersede** — a newer turn cancels the session's in-flight evaluation; you never pay for a stale turn's scores.
-- **One batched run per turn** — both metrics ride a single eval run, not one each.
+- **One batched run per turn** — Tier 1 covers every new trace in a single create + poll, not one run per trace.
+
+<Warning>
+  `eval_sample_every > 1` bounds cost by skipping turns, which **thins the series the trajectory gate needs**. It is a legitimate dial, but it trades away detection sensitivity in a way the others don't. Reach for `enable_tier3=false` and `max_evals_per_run` first.
+</Warning>
 
 Replay costs are yours (a replay re-runs *your agent*), which is why validation replays at most a handful of cases per candidate, regression runs are sequential and sampleable (`regression_sample`), and every replay invocation is time-bounded (`replay_timeout_s`).
+
+## Latency and the barrier
+
+The barrier is the one place the harness deliberately makes your loop wait. It buys in-session healing; the cost is per-turn latency bounded by `barrier_timeout_s` (default `180s`).
+
+| Setting | Behavior |
+| --- | --- |
+| `harness.turn(session_id)` | Fire-and-forget. Zero added latency; the agent may run several turns ahead of its own diagnosis. |
+| `harness.turn(session_id, settle=True)` | Waits for the turn's evaluation, notice, and validation observation. A rule learned now is in force next turn. |
+| Barrier expiry | `timed_out=True`, the work continues detached. A slow platform costs latency, never correctness. |
+
+<Tip>
+  If per-turn latency is unacceptable in your product but you still want in-session healing, settle on a subset of turns — every Nth turn, or only after a tool-heavy turn. The gate still gets its series from Tier 1 on every turn; the barrier only controls *when the agent finds out*.
+</Tip>
 
 ## Degradation ladder
 
@@ -30,7 +58,10 @@ The harness's core invariant: **nothing on the harness's side may break or stall
 | --- | --- |
 | CLI missing / unauthenticated | The memoized health check fails once → one warning, a journal `health` event, all evaluations skipped. The agent keeps running un-harnessed. |
 | Transient platform errors, trace-ingestion lag | Bounded retries with backoff; then the turn's scores resolve as *pending* (never a false breach — a pending score can't alert). |
+| No new traces this turn | Tier 1 is skipped with a log line. An empty trace listing is only retried while the session has never yet produced a trace, so a healthy quiet turn doesn't burn the backoff budget. |
 | Persistent CLI errors mid-run | The evaluation degrades to pending scores; the error is logged, the loop continues. |
+| Barrier budget expires | `SettleResult.timed_out`; work continues detached. |
+| Verifier raises | Caught and logged; the turn proceeds with no `outcome_correct` score. A broken oracle cannot break a turn. |
 | Replay hangs or raises | Bounded by `replay_timeout_s`; the case is *inconclusive* (validation) or *skipped* (regression) with the reason recorded. |
 | Validation engine failure | Caught and logged inside its detached task; notices still post, turns still evaluate. |
 | Notice storm | The circuit breaker escalates to one `needs_human` and suppresses further posting until the window drains. |
@@ -40,21 +71,29 @@ The harness's core invariant: **nothing on the harness's side may break or stall
 
 - `on_turn_end` is synchronous and cheap: parse, gate, schedule — it returns before any I/O.
 - Evaluations run as detached tasks under a global semaphore; candidate validation is a single-flight background round; blocking file I/O runs on the thread pool.
+- The trajectory gate's fold is history-dependent, so a whole turn's traces are folded in order — in **one** thread hop and one history write per trace, not one per metric.
 - All workspace stores are lock-guarded with atomic writes (unique temp file + rename) and append-only logs — one workspace safely serves many concurrent sessions, and readers never observe a half-written file.
-- Per-session bookkeeping is bounded (a few thousand sessions), with oldest-first eviction, so long-lived processes don't grow without limit.
+- Per-session bookkeeping is bounded (a few thousand sessions) with oldest-first eviction, so long-lived processes don't grow without limit. Evicting a session also drops its trace seen-set.
 
-`refresh(session_id)`, `refresh_all()`, and `drain_validation()` are bounded joins (`drain_timeout_s`) for tests and explicit callers — correctness never depends on calling them.
+`refresh(session_id)`, `refresh_all()`, and `drain_validation()` are best-effort bounded joins (`drain_timeout_s`) for tests and explicit callers — correctness never depends on calling them. `settle()` is the one wait that is part of the design; `hook.pending_sessions` is the read-only view for host-side phase barriers.
 
 ## Scaling out
 
-Horizontally-scaled replicas share trend state through the platform: with `hydrate_history_from_backend=true`, the hook seeds the local EWMA history once per session from `pandaprobe evals scores list`, so baselines survive process restarts and replica fan-out. The history source is a small Protocol — a shared remote store can replace the local JSON file without touching anything else.
+Score history is local by default, which means a session handled by two replicas has two partial series. The history source is a small **Protocol**, so a shared remote store can replace the local JSON file without touching anything else — that is the clean fix for replica fan-out. `hydrate_history_from_backend=true` is a lighter alternative: the hook seeds a session's history from the backend once, on first sight.
+
+<Note>
+  The gate's state (running peak, stall counter) lives in the same `state/score_history.json` entry as the score series itself — no second file, no second lock — so it inherits whatever durability that store has.
+</Note>
 
 For the workspace itself, give each replica its own `HARNESS_ROOT` or mount a shared volume: all stores are multi-session safe within a process, and cross-process safety rests on atomic renames and append-only files.
 
 ## Operating recommendations
 
-1. **Start in shadow mode** (`observe_only=true`) and [calibrate](/harness/closed-loop/calibration) your thresholds against labeled traffic.
-2. **Turn on capture** (`capture_eval_cases=true`) so the closed loop has scenarios to replay, and curate a few protected `win` cases.
-3. **Wire a replay function** — it upgrades rule validation from statistical to counterfactual and unlocks [regression runs](/harness/closed-loop/regression-runs).
-4. **Schedule `pandaprobe-harness-eval`** (nightly, or after prompt changes) and alert on a non-zero exit.
-5. **Watch the journal** — `rule_promote` / `rule_retire` events tell you what your agent is learning; `needs_human` notices tell you when to step in.
+1. **Settle per turn, not per task.** This is the one integration mistake that silently disables detection — the gate needs a series. See [the barrier](/harness/loop/evaluation#the-per-turn-barrier).
+2. **Start in shadow mode** (`observe_only=true`) and [calibrate](/harness/closed-loop/calibration) your Tier-2 thresholds and `gate_target` against real traffic.
+3. **Tune `gate_window` to your task horizon** — long-horizon agents need a wider window than short interactive turns.
+4. **Wire an [outcome verifier](/harness/closed-loop/outcome-verifier)** if you have any ground truth at all. It is the strongest promotion signal available, and it costs nothing per turn.
+5. **Turn on capture** (`capture_eval_cases=true`) so the closed loop has scenarios to replay, and curate a few protected `win` cases.
+6. **Wire a replay function** — it upgrades rule validation from statistical to counterfactual and unlocks [regression runs](/harness/closed-loop/regression-runs).
+7. **Schedule `pandaprobe-harness-eval`** (nightly, or after prompt changes) and alert on a non-zero exit.
+8. **Watch the journal** — `rule_promote` / `rule_retire` events tell you what your agent is learning; `needs_human` notices tell you when to step in.

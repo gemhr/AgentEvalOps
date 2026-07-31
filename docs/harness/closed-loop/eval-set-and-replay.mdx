@@ -21,7 +21,7 @@ One JSON file per case under `<HARNESS_ROOT>/evalset/`:
 
 ## Capturing failures
 
-Turn on capture and every **breach** notice (advisory `trend`/`relative` notices don't qualify — their scores can sit above the threshold) records the session as a `failure` case:
+Turn on capture and every **`breach`**-severity notice records the session as a `failure` case:
 
 ```python
 from pandaprobe_harness import Harness, HarnessConfig
@@ -30,21 +30,22 @@ harness = Harness.create(HarnessConfig.from_env(capture_eval_cases=True))
 ```
 
 <Note>
+  **What qualifies.** `breach` severity means *Tier 2 confirmed a below-threshold step* — a surgical, diagnosed failure. A Tier-1-only trajectory fire is an advisory `trend` notice and is deliberately **not** captured: a stall the step-level metrics can't corroborate is worth telling the agent about, but not worth training a rule on. `needs_human` doesn't qualify either — it is a rate alarm, not a failure.
+</Note>
+
+<Note>
   Capture is **opt-in** (`capture_eval_cases`, default `false`) because cases store session-derived data — the signature, scores, and whatever your turn payloads carry — under the workspace.
 </Note>
 
 Where does `replay_input` come from? From the turn payload's `end_state` when your loop or adapter provides one. The facade's bare `harness.turn(...)` scope sends an empty payload, so in that setup attach inputs explicitly:
 
 ```python
-# From code:
 harness.evalset.attach_input(case_id, {"task": "charge $42 for order 1017"})
-
-# Or let the agent do it (it sees non-replayable cases via harness_evalset_list):
-await harness.toolset.call("harness_evalset_attach", {
-    "case_id": case_id,
-    "replay_input": {"task": "charge $42 for order 1017"},
-})
 ```
+
+<Note>
+  There is deliberately no agent-facing eval-set tool: curating the corpus is an **operator** concern, and the agent's turns are better spent on the task. Attach from code, or supply an `end_state` in the turn payload and it becomes the replay input automatically.
+</Note>
 
 ## Protecting wins
 
@@ -55,7 +56,7 @@ harness.evalset.capture(
     session_id="s-good-1",
     kind="win",
     signature=("healthy",),
-    baseline_scores={"agent_reliability": 0.92, "agent_consistency": 0.88},
+    baseline_scores={"task_completion": 0.92, "tool_correctness": 0.95},
     replay_input={"task": "verified payment flow"},
 )
 ```
@@ -84,8 +85,8 @@ harness = Harness.create(replay=replay)
 
 The contract, precisely:
 
-- **Input:** the `EvalCase` and the system-context string to run under (the current rendered rules — during candidate validation, the provisional rule is in it).
-- **Output:** a **new** session id whose traces the harness can score. Never reuse the original session.
+- **Input:** the `EvalCase` and the rule corpus to run under: the skill root plus every scope file, candidates included. During candidate validation the provisional rule is in that string, which is the whole point — the replay runs *with* the rule in force.
+- **Output:** a **new** session id whose traces the harness can score — it re-scores the run's *last* trace on the Tier 1 + Tier 2 metrics. Never reuse the original session.
 - **Behavior:** each invocation is awaited sequentially and bounded by `replay_timeout_s`; exceptions and timeouts degrade to "inconclusive" — they never crash validation or a regression run.
 
 <Warning>
@@ -97,7 +98,7 @@ The contract, precisely:
 ```python
 harness.evalset.cases()                              # all, oldest first
 harness.evalset.cases(kind="win")
-harness.evalset.matching(("breach:agent_reliability",))   # newest matching failures
+harness.evalset.matching(("breach:tool_correctness",))    # newest matching failures
 ```
 
-Or from the agent/operator side: `harness_evalset_list`, or `pandaprobe-harness-eval --list`.
+Or from the operator side: `pandaprobe-harness-eval --list`.

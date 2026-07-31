@@ -30,7 +30,28 @@ Adapters are optional, import-guarded extras:
   </Tab>
 </Tabs>
 
-Every factory accepts the same keywords: `session_id=` (a fixed session for single-conversation processes), `config=`, `cli=`, and `replay=` for [closed-loop validation](/harness/closed-loop/rule-validation).
+Every factory accepts the same keywords: `session_id=` (a fixed session for single-conversation processes), `config=`, `cli=`, `replay=` for [closed-loop validation](/harness/closed-loop/rule-validation), and `verifier=` for a [ground-truth outcome oracle](/harness/closed-loop/outcome-verifier).
+
+## Turn granularity matters
+
+<Warning>
+  Each adapter's turn detector defines what a "turn" is, and that is what the [trajectory gate](/harness/loop/evaluation#the-trajectory-gate) sees. A detector that fires **once per task** — one `Runner.run` that internally takes 20 steps, one `Crew.kickoff` for a whole workflow — gives the gate a single sample per session, so `gate_window` is never reached and nothing can fire.
+
+  If your framework's natural boundary is coarse, either drive the loop in smaller units (one `Runner.run` per user turn) or call `harness.on_turn_end(...)` yourself at the granularity you want. The adapters wire the *natural* boundary; they cannot know whether it is the right one for your agent.
+</Warning>
+
+## The barrier with an adapter
+
+Adapters call `on_turn_end` for you, which is fire-and-forget. To get in-session healing, await the barrier after the framework's turn returns:
+
+```python
+with pandaprobe.session(session_id):
+    await graph.ainvoke(state, config={"callbacks": [handler], ...})
+
+await harness.settle(session_id)   # the notice + any promoted rule are now in place
+```
+
+`harness.turn(session_id, settle=True)` is the equivalent when you own the boundary; with an adapter, the explicit `settle()` after the framework call is the same thing. See [the barrier](/harness/loop/evaluation#the-per-turn-barrier).
 
 ## LangGraph (LangChain & DeepAgents work the same way)
 
@@ -43,6 +64,7 @@ harness = Harness.for_langgraph()
 handler = harness.adapter.make_callback()          # the turn detector
 
 graph = build_graph(
+    # skill root + References index + banner — no rule bodies
     system=harness.system_context() + PROMPT,
     tools=my_tools + as_langchain_tools(harness.toolset),
 )
@@ -115,6 +137,6 @@ with pandaprobe.session(session_id):
 
 ## Rebuilding the preamble per turn
 
-Frameworks that rebuild the system prompt each turn get the live banner and freshly-retrieved rules for free. For frameworks that fix the prompt at construction time, either rebuild the agent per conversation, or rely on the standing protocol (the agent checks its mailbox every turn regardless) — the notices are in the workspace either way.
+Frameworks that rebuild the system prompt each turn get the live banner and an up-to-date References index for free. For frameworks that fix the prompt at construction time, this matters less than it might seem: the preamble carries no rule bodies, so a stale one differs from a fresh one only in its banner and file counts. The agent reads current rules with `harness_rules_read` regardless, and the standing protocol tells it to work through pending notices — the notices are in the workspace either way.
 
 Runnable end-to-end sketches for every framework live in the repository's `examples/` directory.

@@ -1,10 +1,14 @@
 ---
 title: "The agent toolset"
-description: "The 14 self-diagnostic operations and how to deliver them to your agent"
+description: "The 10 self-diagnostic operations and how to deliver them to your agent"
 icon: "wrench"
 ---
 
 The toolset is the consuming side of the pull model: the operations your agent uses to read its mailbox, investigate its traces, and manage its rules. Every operation returns a JSON envelope with an `"ok"` key — **failures never raise into the agent loop**; they come back as `{"ok": false, "error": "..."}`.
+
+<Note>
+  The surface is deliberately small. Every tool the agent *can* call is a turn it might spend operating the harness instead of doing the task — a real, measured failure mode. See [what the agent deliberately cannot do](#what-the-agent-deliberately-cannot-do).
+</Note>
 
 ## Operations
 
@@ -21,26 +25,17 @@ The toolset is the consuming side of the pull model: the operations your agent u
 | Operation | Purpose |
 | --- | --- |
 | `harness_trace_inspect` | One flagged trace via the platform: the trace, its TOOL spans, and its trace-level scores. |
-| `harness_history` | Score trajectory for a metric: the local per-session series plus backend session scores. |
-| `harness_journal` | Recent journal events — the cross-run memory for spotting recurring patterns. |
 
 ### Rules
 
 | Operation | Purpose |
 | --- | --- |
-| `harness_rule_add` | Record a mitigation rule with rationale and provenance. Starts as a **candidate** (see [Rule validation](/harness/closed-loop/rule-validation)); dedup-safe; fails at the rule cap. |
-| `harness_rule_retire` | Retire a rule (candidate or active) that proved ineffective or obsolete. |
-| `harness_rule_status` | A rule's lifecycle state plus its validation bookkeeping — baseline vs. trial breach rate, sessions observed, and the verdict — so the agent can see *why* a rule was promoted or retired. |
-| `harness_rules_search` | Search the whole rule set by lexical relevance — everything beyond the context top-k stays reachable. |
+| `harness_rules_read` | Read one rule file by scope — `global`, `scoped`, or a topic file the agent created. This is how rule bodies reach the agent now; nothing is injected. |
 | `harness_rules_list` | List rules by lifecycle status (`candidate` / `active` / `retired`). |
-| `harness_reflect` | Assembled cross-run context for a rules refactor: recent notices, active + candidate rules, recent validation outcomes, and per-rule effectiveness counts. |
-
-### Eval set
-
-| Operation | Purpose |
-| --- | --- |
-| `harness_evalset_list` | Captured eval cases: failure scenarios and protected wins. |
-| `harness_evalset_attach` | Attach a replay input to an eval case so it becomes replayable. |
+| `harness_rules_search` | Search every scope by lexical relevance. |
+| `harness_rule_add` | Record a mitigation rule with rationale and provenance. Takes a **`scope`** (defaulting to the source notice's `scope_hint`). Starts as a **candidate**; dedup-safe; fails at the rule cap. |
+| `harness_rule_retire` | Retire a rule (candidate or active) that proved ineffective or obsolete. |
+| `harness_rule_status` | A rule's lifecycle state plus its validation bookkeeping — baseline vs. trial breach rate, sessions observed, verdict — so the agent can see *why* a rule was promoted or retired. |
 
 ## Example: one healing pass
 
@@ -51,16 +46,20 @@ listing = await harness.toolset.call("harness_mailbox_list", {})
 notice_id = listing["pending"][0]["id"]
 
 read = await harness.toolset.call("harness_mailbox_read", {"notice_id": notice_id})
-trace_id = read["notice"]["flagged_traces"][0]
+notice = read["notice"]
+trace_id = notice["metrics"][0]["trace_id"]     # the triggering metric's own trace
 
 await harness.toolset.call("harness_trace_inspect", {"trace_id": trace_id})
-await harness.toolset.call("harness_journal", {"limit": 10})
+
+# Pull the rules that might already cover this before writing a new one.
+await harness.toolset.call("harness_rules_read", {"scope": notice["scope_hint"]})
 
 added = await harness.toolset.call("harness_rule_add", {
     "rule": "Never call the payment tool twice without verifying the transaction status.",
-    "rationale": "Repeated identical payment call flagged by the reliability eval.",
+    "rationale": "tool_correctness=0.20 on the flagged step; the judge cited a repeated call.",
     "notice_id": notice_id,               # provenance + auto-derived retrieval tags
-    "metric": "agent_reliability",
+    "metric": "tool_correctness",
+    "scope": notice["scope_hint"],        # or a topic file of the agent's own
 })
 # added["rule"]["status"] == "candidate" — validation happens automatically
 
@@ -72,6 +71,19 @@ await harness.toolset.call("harness_mailbox_ack", {
 ```
 
 In practice your *agent* makes these calls itself, guided by the protocol in its system context — the snippet above is what a healthy healing turn looks like in a trace.
+
+## What the agent deliberately cannot do
+
+Some capabilities are withheld on purpose. Each was either redundant with what a notice already carries, or invited the agent to spend its turns on harness bookkeeping — in a measured benchmark run of a larger surface, most of the rules the agent wrote were about gaming its own diagnostic protocol rather than about the task.
+
+| Not exposed to the agent | Why, and where it lives instead |
+| --- | --- |
+| Score history | The notice and the trajectory gate already carry the series. Asking for it again is a round trip for data the agent has. Operators read `state/score_history.json`. |
+| The journal | Cross-run context the agent mostly used to re-read its own protocol activity. It is an operator surface: `harness.journal.recent(...)`. |
+| A "reflect" / refactor digest | Rule grouping is expressed directly instead — the agent moves related rules into a `<topic>` scope. |
+| Eval-set listing and curation | An operator concern. Attach replay inputs from code (`harness.evalset.attach_input`) or supply them via the turn payload's `end_state`. |
+
+`HarnessToolset` takes only what its ten operations read — the mailbox, the rules store, and the platform seam.
 
 ## Delivery channels
 
@@ -111,10 +123,12 @@ For sandboxed or framework-less agents, the same operations ship as an allow-lis
 
 ```bash
 pandaprobe-harness-agent harness_mailbox_list
+pandaprobe-harness-agent harness_rules_read --scope global
 pandaprobe-harness-agent harness_rule_add \
     --rule "Never retry a failed charge blindly" \
     --rationale "duplicate charges observed" \
-    --notice-id n-20260703T053511-f2019e57
+    --scope payments \
+    --notice-id n-20260730T053511-f2019e57
 ```
 
 - The workspace is resolved from `HARNESS_*` environment variables; the platform is reached through the `pandaprobe` binary.

@@ -22,7 +22,12 @@
       "display": "interactive"
     },
     "examples": {
-      "languages": ["curl", "python", "javascript", "go"],
+      "languages": [
+        "curl",
+        "python",
+        "javascript",
+        "go"
+      ],
       "defaults": "required",
       "prefill": true
     }
@@ -133,7 +138,8 @@
             "pages": [
               "harness/reference/configuration",
               "harness/reference/security",
-              "harness/reference/cost-and-reliability"
+              "harness/reference/cost-and-reliability",
+              "harness/reference/migration-v07"
             ]
           }
         ]

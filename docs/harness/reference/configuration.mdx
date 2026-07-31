@@ -4,26 +4,51 @@ description: "Every knob: environment variables, defaults, and what they control
 icon: "sliders-horizontal"
 ---
 
-All configuration lives on one frozen `HarnessConfig` object. Build it from the environment (every knob has a `HARNESS_*` variable) with explicit overrides winning:
+All configuration lives on one frozen `HarnessConfig` object. Build it from the environment (most knobs have a `HARNESS_*` variable) with explicit overrides winning:
 
 ```python
 from pandaprobe_harness import HarnessConfig
 
-config = HarnessConfig.from_env(capture_eval_cases=True)   # env + overrides
+config = HarnessConfig.from_env(capture_eval_cases=True, gate_window=3)
 harness = Harness.create(config)
 ```
 
 <Note>
-  Three fields have no environment variable and are set programmatically only: `thresholds` (a per-metric threshold map), `signal_weights` (forwarded to the platform's signal aggregation), and `session_metrics` (the metric set to evaluate). Derived workspace paths (`mailbox/`, `journal.jsonl`, …) are computed from `HARNESS_ROOT` and cannot be overridden individually.
+  Not every field has an environment variable. Set the rest programmatically: `thresholds` (a per-metric threshold map), the per-tier metric tuples, and the fine-grained gate knobs. Derived workspace paths (`mailbox/`, `rules/`, `journal.jsonl`, …) are computed from `HARNESS_ROOT` and cannot be overridden individually.
 </Note>
 
 ## Workspace & CLI
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `HARNESS_ROOT` | `/harness` | Workspace root (mailbox, journal, rules, traces, eval set, state). |
+| `HARNESS_ROOT` | `/harness` | Workspace root (mailbox, journal, rules subtree, traces, eval set, state). |
 | `HARNESS_CLI_BINARY` | `pandaprobe` | The CLI binary — every platform call goes through it. |
 | `HARNESS_CLI_TIMEOUT_S` | `30` | Per-invocation subprocess timeout. |
+
+## The trigger
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_ENABLE_TIER3` | `false` | Run the Tier-3 planning metrics to enrich a confirmed Tier-2 breach. Opt-in: every LLM-judge metric reads the whole trace. |
+| *(no env var)* `trace_metrics_tier1` | `("task_completion", "coherence")` | Always-on trajectory metrics. |
+| *(no env var)* `trace_metrics_tier2` | `("tool_correctness", "argument_correctness")` | Surgical step-level metrics, run on the last trace once Tier 1 breaches. |
+| *(no env var)* `trace_metrics_tier3` | `("plan_adherence", "plan_quality", "step_efficiency")` | Explanatory only; never a breach source. |
+| *(no env var)* `trace_list_limit` | `50` | Page size for `traces list` per turn. |
+
+## The trajectory gate
+
+A Tier-1 metric breaches on the *shape* of its series, never on its absolute value.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_GATE_WINDOW` | `5` | Traces without a new high before a **stall** fires. **The primary knob.** |
+| *(no env var)* `gate_target` | `0.5` | The score a session is considered to be climbing toward. A stall requires the session's *peak* to still be below this, so a session that reached the target can plateau freely. |
+| *(no env var)* `gate_gain` | `0.02` | Improvement **over the running peak** that counts as progress and resets the window. |
+| *(no env var)* `gate_drop` | `0.15` | Fall from the running peak that counts as a **regression** (independent of `gate_target`). |
+
+<Tip>
+  Long-horizon tasks want a larger `gate_window`; short interactive turns want a smaller one. Read your Tier-1 score **distribution** from [calibration](/harness/closed-loop/calibration) before moving `gate_target` or `gate_drop`.
+</Tip>
 
 ## Evaluation & polling
 
@@ -33,25 +58,20 @@ harness = Harness.create(config)
 | `HARNESS_POLL_MAX_ATTEMPTS` | `20` | Poll budget per run. |
 | `HARNESS_EVAL_RETRY_ATTEMPTS` | `3` | Retries for transiently unscoreable sessions (trace-ingestion lag). |
 | `HARNESS_EVAL_RETRY_BACKOFF_S` | `1.0` | Linear backoff base between retries. |
-| `HARNESS_DRAIN_TIMEOUT_S` | `15` | Budget for `refresh` / `refresh_all` / `drain_validation` joins. |
-| `HARNESS_EVAL_RELIABILITY` | `true` | Evaluate `agent_reliability`. |
-| `HARNESS_EVAL_CONSISTENCY` | `true` | Evaluate `agent_consistency`. |
+| `HARNESS_BARRIER_TIMEOUT_S` | `180` | The [per-turn barrier](/harness/loop/evaluation#the-per-turn-barrier)'s budget. Deliberately generous and separate from the drain budget. |
+| `HARNESS_DRAIN_TIMEOUT_S` | `15` | Best-effort budget for `refresh` / `refresh_all` / `drain_validation`. |
+| `HARNESS_CONCURRENT_EVAL` | `true` | Run a turn's evaluation as a detached task (vs. inline). |
 
-## Thresholds & detection
+## Thresholds
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `HARNESS_RELIABILITY_THRESHOLD` | `0.5` | Absolute breach floor for `agent_reliability`. |
-| `HARNESS_CONSISTENCY_THRESHOLD` | `0.5` | Absolute breach floor for `agent_consistency`. |
-| `HARNESS_ENABLE_TREND` | `true` | Dual-EWMA trend detection. |
-| `HARNESS_EWMA_FAST_SPAN` | `3` | Fast EWMA span. |
-| `HARNESS_EWMA_SLOW_SPAN` | `10` | Slow EWMA span. |
-| `HARNESS_TREND_MARGIN_CROSS` | `0.05` | Fast-below-slow margin that flags a decline. |
-| `HARNESS_TREND_MIN_SAMPLES` | `4` | Samples required before trend verdicts. |
-| `HARNESS_ADAPTIVE_THRESHOLD` | `false` | Relative-drop detector (vs. the session's own baseline). |
-| `HARNESS_ADAPTIVE_MARGIN_DROP` | `0.15` | Drop below baseline that counts as a relative breach. |
-| `HARNESS_PERCENTILE_WINDOW` | `0` | Percentile-corroborator window (`0` = off). |
-| `HARNESS_PERCENTILE_FLOOR` | `0.25` | Low-tail quantile for the corroborator. |
+| *(no env var)* `outcome_threshold` | `0.9` | Floor for the [verifier](/harness/closed-loop/outcome-verifier)'s `outcome_correct` metric. High on purpose — a verifier's verdict is trusted. |
+| *(no env var)* `thresholds` | `{}` | Per-metric absolute floor overrides, by metric name. The way to calibrate a Tier-2 metric. |
+
+Metrics deliberately have **no built-in per-metric threshold table**: they all sit at `0.5`, and the platform reports its own `threshold` in each score's metadata, which the evaluator prefers when no local override exists. A table of identical values would only be a second place to spell a metric name.
+
+Remember that a Tier-1 metric's floor is not a breach source at all — its verdict comes from the [trajectory gate](/harness/loop/evaluation#the-trajectory-gate), so `gate_target` is the knob that matters there.
 
 ## Noticing
 
@@ -67,10 +87,14 @@ harness = Harness.create(config)
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `HARNESS_EVAL_SAMPLE_EVERY` | `1` | Evaluate every Nth turn per session. |
+| `HARNESS_EVAL_SAMPLE_EVERY` | `1` | Evaluate every Nth turn per session (`1` = every turn). |
 | `HARNESS_SESSION_MIN_EVAL_INTERVAL_S` | `0` | Per-session rate limit between eval launches. |
 | `HARNESS_MAX_CONCURRENT_EVALS` | `4` | Global concurrency cap across sessions. |
 | `HARNESS_MAX_EVALS_PER_RUN` | `0` | Hard per-process eval budget (`0` = unlimited). |
+
+<Warning>
+  `eval_sample_every > 1` and the trajectory gate work against each other: skipping turns thins the series the gate needs to detect a stall. Prefer bounding cost with `enable_tier3=false` (the default) and `max_evals_per_run`, which don't distort the trajectory.
+</Warning>
 
 ## Rules & retrieval
 
@@ -78,19 +102,19 @@ harness = Harness.create(config)
 | --- | --- | --- |
 | `HARNESS_MAX_ACTIVE_RULES` | `50` | Live-rule cap, active + candidate (the agent must retire to add). |
 | `HARNESS_SANITIZE_MAX_LEN` | `2000` | Length cap in the sanitization trust boundary. |
-| `HARNESS_RULE_RETRIEVAL` | `true` | Task-conditioned rule injection (`false` = render every active rule). |
-| `HARNESS_RULES_CONTEXT_TOPK` | `8` | Tagged rules kept in the context per query. |
+| `HARNESS_RULE_RETRIEVAL` | `true` | Narrow the **active** rules inside a rendered scope file when a query is supplied. Does not affect the system prompt, which carries no rule bodies. |
+| `HARNESS_RULES_CONTEXT_TOPK` | `8` | Active rules kept per query when retrieval applies. |
 
 ## Validation & the closed loop
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `HARNESS_RULE_VALIDATION` | `true` | Candidate lifecycle: promote only on evidence (`false` = add → active, pre-v0.6). |
+| `HARNESS_RULE_VALIDATION` | `true` | Candidate lifecycle: promote only on evidence (`false` = add → active, no evidence gate). |
 | `HARNESS_RULE_TRIAL_MIN_SESSIONS` | `5` | Forward trial: distinct sessions observed before a verdict. |
 | `HARNESS_RULE_PROMOTE_MARGIN` | `0.05` | Minimum targeted-metric improvement to promote. |
 | `HARNESS_RULE_REGRESS_MARGIN` | `0.05` | Maximum tolerated drop before a case counts as regressed. |
 | `HARNESS_REPLAY_TIMEOUT_S` | `300` | Hard bound per replay invocation (hung replays degrade, never wedge). |
-| `HARNESS_CAPTURE_EVAL_CASES` | `false` | Capture breaching sessions as replayable eval cases. |
+| `HARNESS_CAPTURE_EVAL_CASES` | `false` | Capture `breach`-severity sessions as replayable eval cases. |
 | `HARNESS_EVAL_CASE_MAX` | `200` | Eval-set cap; oldest failures evict first, wins never. |
 | `HARNESS_REGRESSION_SAMPLE` | `0` | Cases replayed per regression run (`0` = all). |
 
@@ -99,7 +123,17 @@ harness = Harness.create(config)
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `HARNESS_HEALTH_CHECK` | `true` | Startup CLI/auth verification (degrades gracefully on failure). |
-| `HARNESS_HYDRATE_HISTORY_FROM_BACKEND` | `false` | Seed trend history from the backend once per session (for horizontally-scaled agents). |
+| `HARNESS_HYDRATE_HISTORY_FROM_BACKEND` | `false` | Seed local score history from the backend once per session, for horizontally-scaled agents. It hydrates from session-target scores, so it seeds only metrics the backend reports at that target. |
+
+## Useful derived helpers
+
+```python
+config.tier_metrics(1)          # ("task_completion", "coherence")
+config.tier_metrics(3)          # () while enable_tier3 is False
+config.replay_metrics()         # Tier 1 + Tier 2 — what a replay is re-scored on
+config.threshold_for("tool_correctness")
+config.rules_scope_file("global")   # <root>/rules/global.md
+```
 
 ## Platform credentials
 

@@ -4,7 +4,7 @@ description: "Turn your agent into a self-healing agent in under 5 minutes"
 icon: "rocket"
 ---
 
-The **PandaProbe Harness** wraps any PandaProbe-instrumented agent in a self-healing envelope: it evaluates every completed turn, posts a diagnostic notice when quality degrades, and gives your agent the tools to analyze its own failures and write — and *prove* — its own operating rules.
+The **PandaProbe Harness** wraps any PandaProbe-instrumented agent in a self-healing envelope: it scores the agent's trajectory as it works, posts a diagnostic notice when progress stalls or a step goes wrong, and gives your agent the tools to analyze its own failures and write — and *prove* — its own operating rules.
 
 <Note>
   Before you begin, make sure you have:
@@ -12,7 +12,7 @@ The **PandaProbe Harness** wraps any PandaProbe-instrumented agent in a self-hea
   - A PandaProbe account. Sign up at [app.pandaprobe.com](https://app.pandaprobe.com).
   - A PandaProbe API key + project name.
   - The `pandaprobe` CLI installed and authenticated — the harness reaches the platform exclusively through it.
-  - An agent traced with the [PandaProbe SDK](/tracing/get-started/quickstart), so its sessions produce scoreable traces.
+  - An agent traced with the [PandaProbe SDK](/tracing/get-started/quickstart), so its turns produce scoreable traces.
 </Note>
 
 <Steps>
@@ -40,7 +40,7 @@ The **PandaProbe Harness** wraps any PandaProbe-instrumented agent in a self-hea
     ```
 
     <Note>
-      Every platform call the harness makes — running evaluations, polling scores, inspecting traces — shells out to `pandaprobe`. It never talks to the REST API directly.
+      Every platform call the harness makes — listing traces, running evaluations, polling scores — shells out to `pandaprobe`. It never talks to the REST API directly.
     </Note>
   </Step>
   <Step title="Pick a workspace root">
@@ -60,40 +60,63 @@ The **PandaProbe Harness** wraps any PandaProbe-instrumented agent in a self-hea
     harness = Harness.create()          # provisions the workspace, wires everything,
                                         # runs the startup health check
 
-    # 1. The harness preamble: learned rules + the standing self-diagnostic
-    #    protocol + a "N pending notices" banner when something is wrong.
+    # 1. The harness preamble: the skill root (protocol + an index of the agent's
+    #    rule files) plus a "N pending notices" banner when something is wrong.
+    #    Note: no rule bodies — the agent pulls those with harness_rules_read.
     system_prompt = harness.system_context() + MY_PROMPT
 
-    # 2. The self-diagnostic toolset (14 operations) alongside your own tools.
+    # 2. The self-diagnostic toolset (10 operations) alongside your own tools.
     specs, dispatch = as_anthropic_tools(harness.toolset)
     tools = my_tools + specs
 
-    # 3. Delimit turns — the harness evaluates each completed turn.
+    # 3. Delimit turns. `settle=True` waits for this turn's diagnosis to land,
+    #    so a rule learned now is in force for the next turn.
     async def one_turn(session_id: str, user_input: str) -> str:
-        async with harness.turn(session_id):
+        async with harness.turn(session_id, settle=True):
             return await my_agent_step(system_prompt, tools, user_input)
     ```
+
+    <Warning>
+      Delimit **turns**, not whole tasks. The trajectory gate needs a series of scores per session to detect a stall; hooking the harness once per task gives it one sample and nothing can ever fire.
+    </Warning>
 
     Using LangGraph, CrewAI, or another supported framework? A `Harness.for_<framework>()` factory wires turn detection for you — see [Framework adapters](/harness/integrations/frameworks).
   </Step>
   <Step title="Watch a healing cycle">
     Nothing else is required — the loop is fully automatic:
 
-    1. A turn finishes and its session scores **breach** (e.g. `agent_reliability` drops below `0.5`).
-    2. The harness posts a **diagnostic notice** to the workspace mailbox and the system context grows a `⚠ HARNESS: 1 pending diagnostic notice(s)` banner.
-    3. Guided by the standing protocol, your agent pulls the notice, inspects the flagged traces, and records a mitigation rule — which enters as an unproven **candidate**.
-    4. The harness **validates** the candidate automatically (by replaying the captured failure, or by watching the next live sessions) and promotes it to an active rule — or retires it.
-    5. The validated rule re-enters the system prompt on every future run.
+    1. Each turn, the harness scores the new traces on `task_completion` and `coherence`. Low scores early are fine; what it watches is the **trajectory**.
+    2. The trajectory **stalls** (no progress across `gate_window` turns) or **regresses** (a drop from the session's best). That opens the gate.
+    3. Tier 2 runs on the latest trace only — `tool_correctness`, `argument_correctness` — to find *which step* was wrong.
+    4. Tier 2 confirms it, so a **`breach`** notice lands in the mailbox and the system context grows a `⚠ HARNESS: 1 pending diagnostic notice(s)` banner. (Had Tier 2 come back clean, the agent would get an advisory `trend` notice instead.)
+    5. Guided by the standing protocol, the agent pulls the notice, inspects the flagged trace, reads the relevant rule file, and records a mitigation rule — which enters as an unproven **candidate**.
+    6. The harness **validates** the candidate automatically (by replaying the captured failure, or by watching the next live sessions) and promotes it to an active rule — or retires it.
+    7. The validated rule is in the agent's rule file for every future run.
 
     Inspect what happened at any time:
 
     ```python
     harness.mailbox.pending()                    # open notices
     harness.rules.active()                       # validated rules
+    harness.rules.read_scope("scoped")           # a rule file, as the agent sees it
     harness.journal.recent()                     # the cross-run event log
     ```
   </Step>
 </Steps>
+
+## Optional, and worth it
+
+Two developer-supplied seams turn a good loop into a rigorous one:
+
+```python
+harness = Harness.create(
+    replay=my_replay_fn,      # re-run a captured failure → counterfactual validation
+    verifier=my_grader,       # ground truth → promotion decided by the real outcome
+)
+```
+
+- A [**replay function**](/harness/closed-loop/eval-set-and-replay#the-replay-function) upgrades rule validation from statistical to counterfactual and unlocks [regression runs](/harness/closed-loop/regression-runs).
+- An [**outcome verifier**](/harness/closed-loop/outcome-verifier) — anything that can score a finished task — becomes the metric that decides promotion, instead of a judged proxy.
 
 ## Try it offline first
 
@@ -112,8 +135,8 @@ uv run python examples/closed_loop_self_heal.py   # candidate → validate → p
   <Card title="Concepts" icon="shapes" href="/harness/get-started/concepts">
     What self-healing means here, and the ideas behind the closed loop
   </Card>
-  <Card title="How it works" icon="cog" href="/harness/get-started/how-it-works">
-    The full pipeline, the workspace on disk, and one healing cycle in detail
+  <Card title="Evaluation & detection" icon="activity" href="/harness/loop/evaluation">
+    The three tiers, the trajectory gate, and the per-turn barrier
   </Card>
   <Card title="Framework adapters" icon="link" href="/harness/integrations/frameworks">
     LangGraph, LangChain, DeepAgents, CrewAI, Claude Agent SDK, OpenAI Agents

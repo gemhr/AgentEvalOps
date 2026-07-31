@@ -4,10 +4,14 @@ description: "Does a breach mean a real failure? Measure and tune your threshold
 icon: "ruler"
 ---
 
-Everything downstream of the harness — notices, candidate validation, regression classification — keys off one predicate: *score below threshold*. The default threshold (`0.5`) is a starting point, not a measurement. `pandaprobe-harness-calibrate` is the out-of-band diagnostic that tells you whether a `breach` actually corresponds to a real failure on **your** traffic, and what threshold would serve you better.
+Tier-2 breaches, `outcome_correct` breaches, and regression classification all key off one predicate: *score below threshold*. The default (`0.5`) is a starting point, not a measurement. `pandaprobe-harness-calibrate` is the out-of-band diagnostic that tells you whether a breach actually corresponds to a real failure on **your** traffic, and what threshold would serve you better.
 
 <Note>
-  Calibration is an **operator tool**, not a runtime gate — it never enters the healing loop. It reads scores, computes statistics, and prints a report; acting on it (changing `HARNESS_RELIABILITY_THRESHOLD`, say) is your call.
+  **What to calibrate.** Calibration reports on whatever metrics your workspace has scores for — `task_completion`, `coherence`, `tool_correctness`, and friends. Aim it at the metrics whose *threshold* actually decides something — the **Tier 2** metrics and `outcome_correct`. Tier-1 metrics never breach on their absolute value (their verdict is the [trajectory gate](/harness/loop/evaluation#the-trajectory-gate)), so their threshold is only an input to `gate_target`; their score **distribution** is still worth reading, because that is how you pick a sensible `gate_target` and `gate_drop`.
+</Note>
+
+<Note>
+  Calibration is an **operator tool**, not a runtime gate — it never enters the healing loop. It reads scores, computes statistics, and prints a report; acting on it (setting a metric's floor in the `thresholds` map, say) is your call.
 </Note>
 
 ## With ground-truth labels
@@ -56,7 +60,7 @@ Per metric, the report gives you:
 - **Two recommendations:** the F1-maximizing threshold, and the lowest threshold reaching a target precision (`--target-precision`, default `0.9`) with non-zero recall.
 
 ```text
-agent_reliability  (configured threshold 0.50, 12 scores)
+tool_correctness  (configured threshold 0.50, 12 scores)
   distribution: min 0.20  median 0.62  mean 0.59  max 0.90  stdev 0.23
   histogram [0.0..1.0): 0 0 1 2 1 1 2 2 2 1
   at threshold 0.50: precision 0.80  recall 1.00  F1 0.89  (tp 4 fp 1 fn 0 tn 7 over 12 labeled)
@@ -66,14 +70,14 @@ agent_reliability  (configured threshold 0.50, 12 scores)
 
 ## Without labels
 
-No labels yet? The unsupervised report is still enough to pick a threshold sanely: the score **distribution** (min/median/mean/max/stdev + a 10-bucket histogram), the **breach count at every candidate threshold**, and **inter-metric agreement** — the fraction of fully-scored sessions where `agent_reliability` and `agent_consistency` agree on breach vs. no-breach (low agreement usually means one threshold is mis-set relative to the other).
+No labels yet? The unsupervised report is still enough to pick a threshold sanely: the score **distribution** (min/median/mean/max/stdev + a 10-bucket histogram), the **breach count at every candidate threshold**, and **inter-metric agreement** — the fraction of fully-scored sessions where two metrics agree on breach vs. no-breach (low agreement usually means one threshold is mis-set with respect to the other).
 
 ## Where the scores come from
 
 Three sources, merged with precedence and each degrading independently:
 
-1. **The platform** — `pandaprobe evals scores list --target session` through the CLI seam (highest precedence).
-2. **The local history store** — `state/score_history.json`, the per-session series the trend detector maintains.
+1. **The platform** — `pandaprobe evals scores list` through the CLI seam (highest precedence).
+2. **The local history store** — `state/score_history.json`, the per-(session, metric) series the trajectory gate maintains. **This is where the trace metrics live**, so it is usually the source that matters.
 3. **The eval set** — captured cases' `baseline_scores`.
 
 So calibration works fully offline against a workspace that has seen traffic, even when the platform is unreachable. If no source yields anything, the CLI exits `1` with a message naming all three.
@@ -97,5 +101,5 @@ print(report.render_text())      # or report.to_json()
 `pandaprobe-harness-calibrate --json` emits the identical structure from the command line. A self-contained walkthrough lives at `examples/calibration_demo.py` in the repository.
 
 <Tip>
-  Pair calibration with **shadow mode**: run with `observe_only=true` for a week, label a sample of sessions, calibrate, set your thresholds — then let the agent act.
+  Pair calibration with **shadow mode**: run with `observe_only=true` for a week, label a sample of sessions, calibrate, set your Tier-2 thresholds and `gate_target` — then let the agent act.
 </Tip>

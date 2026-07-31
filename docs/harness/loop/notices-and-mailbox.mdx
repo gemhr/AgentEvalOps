@@ -6,31 +6,43 @@ icon: "inbox"
 
 ## Anatomy of a notice
 
-A `DiagnosticNotice` is everything the agent needs to diagnose one detected degradation:
+A `DiagnosticNotice` is everything the agent needs to diagnose one detected degradation. It deliberately carries enough that the agent needs no follow-up round trip to find *where* the problem was:
 
 ```json
 {
-  "id": "n-20260703T053511-f2019e57",
-  "created_at": "2026-07-03T05:35:11.698999+00:00",
+  "id": "n-20260730T053511-f2019e57",
+  "created_at": "2026-07-30T05:35:11.698999+00:00",
   "session_id": "s-demo-1",
-  "turn_index": 1,
+  "turn_index": 6,
   "severity": "breach",
   "metrics": [
     {
-      "name": "agent_reliability",
-      "value": 0.30,
+      "name": "task_completion",
+      "value": 0.31,
       "threshold": 0.5,
-      "reason": "identical repeated tool call detected",
-      "conditions": ["breach"]
+      "reason": "no progress toward the stated goal since the third step",
+      "conditions": ["stall"],
+      "trace_id": "trace-6",
+      "tier": 1
+    },
+    {
+      "name": "tool_correctness",
+      "value": 0.20,
+      "threshold": 0.5,
+      "reason": "identical payment call repeated without checking the prior result",
+      "conditions": ["breach"],
+      "trace_id": "trace-6",
+      "tier": 2
     }
   ],
-  "flagged_traces": ["trace-1"],
+  "flagged_traces": ["trace-6"],
   "signal_breakdown": {
-    "trace-1": { "loop_detection": 0.1, "tool_correctness": 0.2 }
+    "trace-6": { "task_completion": 0.31, "tool_correctness": 0.20 }
   },
-  "dump_path": "/harness/traces/n-20260703T053511-f2019e57.json",
-  "summary": "agent_reliability=0.30 [breach, threshold 0.50]; flagged traces: trace-1",
-  "signatures": ["breach:agent_reliability"],
+  "dump_path": "/harness/traces/n-20260730T053511-f2019e57.json",
+  "summary": "task_completion=0.31 [stall]; tool_correctness=0.20 [breach, threshold 0.50]",
+  "signatures": ["stall:task_completion", "breach:tool_correctness"],
+  "scope_hint": "scoped",
   "status": "pending",
   "resolution": null
 }
@@ -38,12 +50,17 @@ A `DiagnosticNotice` is everything the agent needs to diagnose one detected degr
 
 | Field | Purpose |
 | --- | --- |
-| `metrics` | Every alerting metric with its value, threshold, platform `reason`, and which conditions fired. |
-| `flagged_traces` | The trace ids the platform identified as problematic — the starting point for `harness_trace_inspect`. |
-| `signal_breakdown` | Per-trace signal scores (`loop_detection`, `tool_correctness`, …) already extracted from the score metadata. |
+| `metrics` | Every alerting metric with its value, threshold, the judge's own `reason`, which conditions fired, and the **`trace_id`** and **`tier`** it came from. |
+| `flagged_traces` | The trace ids identified as problematic — the starting point for `harness_trace_inspect`. |
+| `signal_breakdown` | What each trace scored, keyed by trace id — assembled from scores the harness already had, at no extra cost. |
 | `dump_path` | An immutable, verbose evaluation dump under `traces/` for the full picture. |
 | `signatures` | The compact condition labels — used for de-dup, rule tags, and eval-case matching. |
+| `scope_hint` | Where a mitigation rule probably belongs: `global` for a Tier-1 trajectory fire, `scoped` for a surgical Tier-2/3 breach. It is only the default for `harness_rule_add` — the agent may file the rule under any scope. |
 | `resolution` | Filled on acknowledgment: when, and which rule resolved it. |
+
+<Tip>
+  The `reason` field is the highest-value thing in a notice: it is the judge's own explanation of *why* the score is what it is, and therefore the raw material for a rule worth writing. The skill root points the agent at it explicitly.
+</Tip>
 
 Notice ids are timestamp-sortable and validated as safe path components (the agent supplies them to tools, and they become filenames).
 
@@ -71,18 +88,23 @@ harness.mailbox.acknowledge(notice_id, rule_id="r-...", note="mitigated")
 Two artifacts under `traces/`:
 
 - `latest_eval.json` — always rewritten with the most recent evaluation, alerting or not. A cheap "what did the harness last see" probe.
-- `<notice-id>.json` — one immutable dump per notice: every score with thresholds, conditions, per-trace signals, and (with `enrich_flagged_traces=true`) the worst flagged trace's TOOL spans fetched at notice time.
+- `<notice-id>.json` — one immutable dump per notice: every score with its threshold, tier, trace id and conditions, the per-trace breakdown, and (with `enrich_flagged_traces=true`) the worst flagged trace's TOOL spans fetched at notice time.
 
 ## The journal
 
-`journal.jsonl` is the append-only, cross-run event log — the agent's long-term memory of its own health. The agent mines it through `harness_journal` (recent events, filterable by type) and `harness_reflect` (an assembled reflection context: recent notices, the live rule set, validation outcomes, and per-rule effectiveness counts).
+`journal.jsonl` is the append-only, cross-run event log — the harness's long-term memory of the agent's health. It spans process restarts, so a fresh harness over the same workspace inherits everything: rules re-enter the References, and past notices inform new forward-trial baselines.
 
 ```python
 harness.journal.recent(20, types=("notice", "rule_promote"))
+harness.journal.notices_for("tool_correctness")   # every notice that involved a metric
 ```
 
-The full event-type list is in [How it works](/harness/get-started/how-it-works#journal-event-types). Because the journal spans process restarts, a fresh harness over the same workspace inherits everything: rules re-enter the context, and past notices inform new baselines.
+<Note>
+  **The journal is an operator surface, not an agent tool.** There is deliberately no agent-facing journal operation: it is where *you* see what your agent is learning, and it drives forward-trial baselines and rule-effectiveness counts internally. The cross-run signal the agent actually needs — the trajectory — is inside the notice itself.
+</Note>
+
+The full event-type list is in [How it works](/harness/get-started/how-it-works#journal-event-types).
 
 <Note>
-  Everything in the workspace is plain JSON on disk. When in doubt, `cat` it — the file layout *is* the API surface for operators.
+  Everything in the workspace is plain JSON (or markdown) on disk. When in doubt, `cat` it — the file layout *is* the API surface for operators.
 </Note>

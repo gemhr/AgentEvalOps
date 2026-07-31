@@ -121,6 +121,7 @@
             "group": "Closing the Loop",
             "pages": [
               "harness/closed-loop/rule-validation",
+              "harness/closed-loop/outcome-verifier",
               "harness/closed-loop/eval-set-and-replay",
               "harness/closed-loop/regression-runs",
               "harness/closed-loop/calibration"

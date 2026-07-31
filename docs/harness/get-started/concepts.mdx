@@ -18,54 +18,71 @@ The **PandaProbe Harness** closes that gap. It is the operational envelope aroun
 
 The harness never injects anything into your agent's conversation. Instead:
 
-- After each turn, the harness evaluates the session on the PandaProbe platform in a detached background task.
-- When quality degrades, it posts a structured **diagnostic notice** to a filesystem **mailbox** — nothing enters the message queue.
-- The always-loaded system context carries a compact banner — `⚠ HARNESS: N pending diagnostic notice(s)` — and a **standing protocol** that tells the agent to check its mailbox at the start of each turn.
-- The agent *pulls*: it lists the mailbox, reads the notice and its trace dump, inspects the flagged traces, records a mitigation rule, and acknowledges the notice.
+- After each turn, the harness scores the turn's new traces on the PandaProbe platform in a detached background task.
+- When the trajectory degrades, it posts a structured **diagnostic notice** to a filesystem **mailbox** — nothing enters the message queue.
+- The always-loaded system context carries a compact banner — `⚠ HARNESS: N pending diagnostic notice(s)` — plus the **skill root**: a standing protocol and an index of the agent's rule files.
+- The agent *pulls*: it lists the mailbox, reads the notice, inspects the flagged trace, reads the rule files it thinks are relevant, records a mitigation rule, and acknowledges the notice.
 
 The agent drives the loop; the harness maintains the substrate and the trigger. This keeps the harness framework-agnostic (every framework already loads a system prompt and tools) and keeps eval-derived text out of the conversation except through one sanitized, auditable channel.
 
-## The closed loop
+## Three commitments that make it work
 
-Detecting failures and writing rules is only half the job — an *open* loop trusts every self-authored rule immediately, injects every rule into every prompt, and never notices when a new rule breaks something old. Since v0.6 the loop is **closed**, on three principles:
+Self-healing is easy to build and hard to make *useful*. Three properties separate a harness that improves an agent from one that just generates noise — each learned from a measured benchmark run where the naive version regressed:
 
 <CardGroup cols={3}>
-  <Card title="Evidence before trust" icon="scale">
-    A new rule enters as a **candidate**. The harness validates it — by replaying the captured failure with the rule in force, or by watching the next live sessions — and promotes it to **active** only when it demonstrably helps. Unhelpful candidates are retired with a journaled reason.
+  <Card title="Measure the trajectory, not a point" icon="chart-line">
+  A single score against a fixed floor is a weak trigger for an agent mid-task: early on, the work genuinely *is* incomplete, so a low score is correct rather than a fault. The harness scores **trace-level** metrics in [three tiers](/harness/loop/evaluation) and breaches on the *shape* of the series — a stall, or a regression from the running peak. A session that keeps improving is never flagged, however low it starts.
   </Card>
-  <Card title="Relevance over volume" icon="filter">
-    Only global rules plus the top-k rules lexically relevant to the current situation are injected into the prompt. The rest stay reachable on demand, so a rule learned from one failure mode doesn't dilute attention on unrelated tasks.
+  <Card title="Heal within the session" icon="timer">
+  A lesson that arrives after the task is over is worthless, and a trajectory needs more than one sample to have a shape. The per-turn [await barrier](/harness/loop/evaluation#the-per-turn-barrier) makes a rule learned this turn take effect on the next one — and it is what gives the gate a series at all.
   </Card>
-  <Card title="Measure the foundation" icon="ruler">
-    Everything keys off "score below threshold" — and the threshold is a guess until measured. An offline calibration tool reports how well the breach predicate matches real failures and recommends better thresholds.
+  <Card title="Give the workspace back to the agent" icon="folder-open">
+  Every tool and every injected paragraph competes with the task for the agent's attention. Handed a large surface and its whole rule corpus in every prompt, an agent will spend its turns operating the harness. So the harness injects **no rule bodies**: a [skill root](/harness/loop/rules-and-retrieval) indexes rule files the agent reads on demand, behind ten tools.
   </Card>
 </CardGroup>
 
-All of this is automatic. The only human-supplied ingredient is optional: a **replay function** that re-runs your agent on a captured scenario, which upgrades validation from statistical (forward trials over live sessions) to counterfactual (replay the exact failure with and without the rule).
+## The closed loop
+
+Detecting failures and writing rules is only half the job — an *open* loop trusts every self-authored rule immediately and never notices when a new rule breaks something old. The harness closes it:
+
+- **Evidence before trust.** A new rule enters as a **candidate**. The harness validates it — by replaying the captured failure with the rule in force, or by watching the next live sessions — and promotes it to **active** only when it demonstrably helps. Unhelpful candidates are retired with a journaled reason.
+- **Ground truth when you have it.** If you already know what success means — a golden dataset, a benchmark grader, a business rule — wire an [outcome verifier](/harness/closed-loop/outcome-verifier) and promotion is decided by that oracle instead of a judged proxy.
+- **Guard the wins.** A replayable eval set of captured failures *and* protected wins backs [regression runs](/harness/closed-loop/regression-runs), so a newly learned rule can't quietly break a flow that used to work.
+- **Measure the foundation.** Thresholds are guesses until measured; an offline [calibration tool](/harness/closed-loop/calibration) reports how well the breach predicate matches real failures.
+
+All of this is automatic. Two ingredients are optional and developer-supplied: a **replay function** that re-runs your agent on a captured scenario, and an **outcome verifier** that grades a finished task.
 
 ## Vocabulary
 
 | Term | Meaning |
 | --- | --- |
-| **Workspace** | The on-disk root (`HARNESS_ROOT`, default `/harness`) holding the mailbox, journal, rules, traces, and eval set. |
-| **Turn** | One completed agent step. The unit the harness evaluates. |
-| **Session** | The conversation grouping (shared with SDK tracing). Metrics are session-level. |
-| **Notice** | A structured `DiagnosticNotice` describing a detected degradation: metrics, flagged traces, per-trace signal breakdown, a severity, and a dump path. |
-| **Mailbox** | `mailbox/pending/` → `mailbox/processed/`. Where notices wait for the agent and where acknowledged notices live. |
-| **Journal** | `journal.jsonl` — the append-only cross-run event log (notices, acks, rule lifecycle, validations, regressions). The agent's long-term memory of its own health. |
-| **Rule** | A learned operating constraint with provenance. Lifecycle: `candidate → active \| retired`. Rendered into the system context. |
-| **Signature** | A compact condition label like `breach:agent_reliability` — used for de-duplication, tagging, and matching rules to eval cases. |
-| **Severity** | `trend` &lt; `relative` &lt; `breach` &lt; `needs_human`. Only `needs_human` (the circuit breaker) asks for a person. |
+| **Workspace** | The on-disk root (`HARNESS_ROOT`, default `/harness`) holding the mailbox, journal, rules subtree, traces, and eval set. |
+| **Turn** | One completed agent step. The unit the harness hooks. |
+| **Trace** | One instrumented unit of work inside a session — what the platform actually scores. A turn typically produces one. |
+| **Session** | The conversation grouping (shared with SDK tracing). |
+| **Tier** | Which rung of the escalation ladder a metric sits on: 1 = always-on trajectory, 2 = surgical step-level, 3 = explanatory. Tier 0 is the verifier outcome. |
+| **Trajectory gate** | The Tier-1 verdict: a **stall** (no gain toward `gate_target` across `gate_window` traces) or a **regression** (a `gate_drop` fall from the running peak). Any real gain resets it. |
+| **Barrier** | `harness.settle(session_id)` — the per-turn wait that makes healing take effect inside the session. |
+| **Notice** | A structured `DiagnosticNotice`: the alerting metrics with their values, thresholds, judge `reason`, `trace_id` and `tier`, a severity, a `scope_hint`, and a dump path. |
+| **Mailbox** | `mailbox/pending/` → `mailbox/processed/`. Where notices wait for the agent. |
+| **Journal** | `journal.jsonl` — the append-only cross-run event log (notices, acks, rule lifecycle, validations, regressions). |
+| **Rule** | A learned operating constraint with provenance. Lifecycle: `candidate → active \| retired`. |
+| **Scope** | The rule file a rule lives in: `global`, `scoped`, or any `<topic>` the agent creates. Notices suggest one via `scope_hint`. |
+| **Skill root** | `harness_rules.md` — protocol, tool table, and a generated References index. **No rule text.** |
+| **Signature** | A compact condition label like `stall:task_completion` or `breach:tool_correctness` — used for de-duplication, tagging, and matching rules to eval cases. |
+| **Severity** | `trend` &lt; `breach` &lt; `needs_human`. A Tier-1-only fire is advisory (`trend`); a Tier-2-confirmed failure is a `breach`. Only `needs_human` asks for a person. |
 | **Eval case** | A captured scenario in `evalset/` — a `failure` to fix or a `win` to protect — with its signature, baseline scores, and (when available) a replay input. |
-| **Replay function** | Developer-supplied `async (case, system_context) -> new_session_id`: re-run the agent on a captured input under a given rule set. The strong path for validation and regression runs. |
-| **Trial** | Forward-trial bookkeeping on a candidate: baseline breach rate at add time vs. the breach rate observed over the next live sessions. |
+| **Replay function** | Developer-supplied `async (case, system_context) -> new_session_id`: re-run the agent on a captured input under a given rule set. |
+| **Outcome verifier** | Developer-supplied `(session_id, end_state) -> float \| bool \| None`: a ground-truth oracle surfaced as the `outcome_correct` metric. |
+| **Trial** | Forward-trial bookkeeping on a candidate: baseline breach rate at add time vs. the rate observed over the next live sessions. |
 
 ## Design principles
 
 - **Zero runtime dependencies.** The core is pure standard library; framework adapters are optional extras.
 - **One platform seam.** All platform access shells out to the `pandaprobe` CLI through a single injectable interface — never the REST API directly. Tests run fully offline against a fake.
-- **Never block, never break the host loop.** Evaluation runs in detached tasks; every failure path degrades gracefully (a pending score, a log line, a journal event) instead of raising into your agent.
-- **Untrusted by default.** Everything eval-derived that crosses into agent context passes a sanitization trust boundary, and the protocol tells the agent that notice/dump/trace contents are data, never instructions.
+- **Never block, never break the host loop.** Evaluation runs in detached tasks; the one deliberate wait, the per-turn barrier, is opt-in, separately budgeted, and degrades to a latency signal on expiry. Every failure path degrades gracefully instead of raising into your agent.
+- **Untrusted by default.** Everything eval-derived that crosses into agent context passes a sanitization trust boundary, and the protocol tells the agent that notice, dump, and trace contents are data, never instructions.
+- **The agent owns its workspace.** Nothing in `rules/` is force-injected. The harness posts findings; the agent decides what to read and what to write.
 - **No human in the healing loop.** Detection, diagnosis, rule authoring, validation, and regression guarding are all agent/harness-driven. Humans get involved only when the circuit breaker escalates to `needs_human`.
 
 ## Where to go next
@@ -74,7 +91,7 @@ All of this is automatic. The only human-supplied ingredient is optional: a **re
   <Card title="How it works" icon="cog" href="/harness/get-started/how-it-works">
     The full producing/consuming pipeline and the workspace on disk
   </Card>
-  <Card title="Rule validation" icon="scale" href="/harness/closed-loop/rule-validation">
-    The candidate lifecycle: replay validation and forward trials
+  <Card title="Evaluation & detection" icon="activity" href="/harness/loop/evaluation">
+    The three tiers, the trajectory gate, and the per-turn barrier
   </Card>
 </CardGroup>

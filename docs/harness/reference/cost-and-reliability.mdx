@@ -79,7 +79,7 @@ The harness's core invariant: **nothing on the harness's side may break or stall
 
 ## Scaling out
 
-Score history is local by default, which means a session handled by two replicas has two partial series. The history source is a small **Protocol**, so a shared remote store can replace the local JSON file without touching anything else — that is the clean fix for replica fan-out. `hydrate_history_from_backend=true` is a lighter alternative: the hook seeds a session's history from the backend once, on first sight.
+Score history is local by default, which means a session handled by two replicas has two partial series. The history source is a small **Protocol**, so a shared remote store can replace the local JSON file without touching anything else — that is the supported fix for replica fan-out.
 
 <Note>
   The gate's state (running peak, stall counter) lives in the same `state/score_history.json` entry as the score series itself — no second file, no second lock — so it inherits whatever durability that store has.

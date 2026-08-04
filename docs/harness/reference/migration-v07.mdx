@@ -22,20 +22,16 @@ And one bug underneath all of it: the trend machinery was **inert**. Score histo
 
 ## 1. The trigger is trace-level
 
-**What changed.** `trigger_mode` defaults to `"trace"`. Instead of two session composites per turn, the harness scores trace-level metrics in [three tiers](/harness/loop/evaluation) and Tier 1 breaches on the *trajectory* — a stall or a regression — never on an absolute floor.
+**What changed.** The harness scores trace-level metrics in [three tiers](/harness/loop/evaluation), and Tier 1 breaches on the *trajectory* — a stall or a regression — never on an absolute floor.
 
 **What you do.** Nothing, to get the new behavior. But two things are worth knowing:
 
-- Your **thresholds carry different meaning now.** `HARNESS_RELIABILITY_THRESHOLD` and `HARNESS_CONSISTENCY_THRESHOLD` only apply in session mode. What matters in trace mode is `gate_window` (the primary knob), `gate_target`, `gate_drop`, and the Tier-2 thresholds. Re-[calibrate](/harness/closed-loop/calibration).
+- Your **thresholds carry different meaning now.** What matters is `gate_window` (the primary knob), `gate_target`, `gate_drop`, and the Tier-2 thresholds. Re-[calibrate](/harness/closed-loop/calibration).
 - **Notices look different.** Each metric now carries `trace_id` and `tier`, the notice carries a `scope_hint`, and the condition vocabulary gained `stall` and `regression`. If you parse notices or signatures downstream, update those consumers.
 
-**To keep the old behavior** — for an A/B baseline, or to defer the migration:
-
-```bash
-export HARNESS_TRIGGER_MODE=session
-```
-
-Session mode is fully supported and unchanged. Note that the [outcome verifier](/harness/closed-loop/outcome-verifier) is trace-mode only.
+<Warning>
+  The session trigger was removed in v0.8.0. Pin `pandaprobe-harness==0.7.0` if you must reproduce its session-mode ablation; there is no defer-migration switch in current releases.
+</Warning>
 
 ## 2. Turn boundaries need a barrier
 

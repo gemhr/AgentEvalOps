@@ -14,3 +14,7 @@ os.environ["POSTGRES_DB"] = "pandaprobe_test_db"
 os.environ["REDIS_HOST"] = "localhost"
 os.environ["REDIS_PORT"] = "6380"
 os.environ["AUTH_PROVIDER"] = "supabase"
+# Constructing BillingService configures the Stripe SDK, which now refuses to
+# run without a key. Tests patch the Stripe calls themselves, so a dummy value
+# is enough — CI mounts no real secret.
+os.environ.setdefault("STRIPE_SECRET_KEY", "sk_test_dummy")

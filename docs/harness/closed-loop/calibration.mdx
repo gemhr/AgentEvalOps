@@ -74,13 +74,12 @@ No labels yet? The unsupervised report is still enough to pick a threshold sanel
 
 ## Where the scores come from
 
-Three sources, merged with precedence and each degrading independently:
+Two local sources, merged with precedence and each degrading independently:
 
-1. **The platform** — `pandaprobe evals scores list` through the CLI seam (highest precedence).
-2. **The local history store** — `state/score_history.json`, the per-(session, metric) series the trajectory gate maintains. **This is where the trace metrics live**, so it is usually the source that matters.
-3. **The eval set** — captured cases' `baseline_scores`.
+1. **The local history store** — `state/score_history.json`, the per-(session, metric) series the trajectory gate maintains (highest precedence).
+2. **The eval set** — captured cases' `baseline_scores`.
 
-So calibration works fully offline against a workspace that has seen traffic, even when the platform is unreachable. If no source yields anything, the CLI exits `1` with a message naming all three.
+Calibration therefore works fully offline against a workspace that has seen traffic. Trace score-list records from the platform are not used because they expose a `trace_id`, not the `session_id` needed to join session labels. If neither local source yields anything, the CLI exits `1` and names both paths.
 
 ## Library use
 
@@ -98,7 +97,7 @@ report = calibrate(
 print(report.render_text())      # or report.to_json()
 ```
 
-`pandaprobe-harness-calibrate --json` emits the identical structure from the command line. A self-contained walkthrough lives at `examples/calibration_demo.py` in the repository.
+`pandaprobe-harness-calibrate --json` emits the identical structure from the command line. A self-contained walkthrough lives at `examples/misc/calibration_demo.py` in the repository.
 
 <Tip>
   Pair calibration with **shadow mode**: run with `observe_only=true` for a week, label a sample of sessions, calibrate, set your Tier-2 thresholds and `gate_target` — then let the agent act.

@@ -1,102 +1,94 @@
 ---
-title: "The agent toolset"
-description: "The 10 self-diagnostic operations and how to deliver them to your agent"
+title: "Task toolset"
+description: "The four read-only operations your agent gets, and the repair surface it deliberately does not"
 icon: "wrench"
 ---
 
-The toolset is the consuming side of the pull model: the operations your agent uses to read its mailbox, investigate its traces, and manage its rules. Every operation returns a JSON envelope with an `"ok"` key — **failures never raise into the agent loop**; they come back as `{"ok": false, "error": "..."}`.
+Your task agent gets four tools. All four are reads. Every operation returns a JSON envelope with an `"ok"` key — **failures never raise into the agent loop**; they come back as `{"ok": false, "error": "..."}`.
 
 <Note>
-  The surface is deliberately small. Every tool the agent *can* call is a turn it might spend operating the harness instead of doing the task — a real, measured failure mode. See [what the agent deliberately cannot do](#what-the-agent-deliberately-cannot-do).
+  Through v0.8 this page described ten operations, including mailbox reads, trace inspection, and rule writes. Those moved to the package-owned [repair agent](/harness/loop/repair-agent) in v0.9. The reason is measured, not aesthetic: handed the larger surface, an agent spent its turns operating the harness, and [most of the rules it wrote were about its own diagnostic protocol](#why-the-surface-shrank).
 </Note>
 
 ## Operations
 
-### Mailbox
-
 | Operation | Purpose |
 | --- | --- |
-| `harness_mailbox_list` | Pending notice summaries plus mailbox status (count, max severity). |
-| `harness_mailbox_read` | One notice in full, including its trace dump. |
-| `harness_mailbox_ack` | Acknowledge a pending notice, optionally linking the resolving rule. |
+| `harness_rules_read` | Read the learned rules in one scope. **Defaults to `global`.** The `scope` argument takes an identifier listed under References in `rules.md` — never a path. |
+| `harness_rules_search` | Search live learned rules (active + provisional) by lexical relevance and return bounded references and snippets. Takes `query`, optional `limit` (clamped to 1–50). |
+| `harness_rules_list` | Load the canonical `rules.md` guide plus its compact live-scope index: one entry per scope with a bounded description and active/provisional counts. **No rule bodies.** |
+| `harness_rule_status` | One rule's lifecycle and validation state — status, baseline vs. trial breach rate, sessions observed, replay attempts, verdict. How the agent tells a validated rule from a provisional one. |
 
-### Investigation
+That is the entire surface. There is no fifth tool, no admin mode, and no escape hatch.
 
-| Operation | Purpose |
-| --- | --- |
-| `harness_trace_inspect` | One flagged trace via the platform: the trace, its TOOL spans, and its trace-level scores. |
-
-### Rules
-
-| Operation | Purpose |
-| --- | --- |
-| `harness_rules_read` | Read one rule file by scope — `global`, `scoped`, or a topic file the agent created. This is how rule bodies reach the agent now; nothing is injected. |
-| `harness_rules_list` | List rules by lifecycle status (`candidate` / `active` / `retired`). |
-| `harness_rules_search` | Search every scope by lexical relevance. |
-| `harness_rule_add` | Record a mitigation rule with rationale and provenance. Takes a **`scope`** (defaulting to the source notice's `scope_hint`). Starts as a **candidate**; dedup-safe; fails at the rule cap. |
-| `harness_rule_retire` | Retire a rule (candidate or active) that proved ineffective or obsolete. |
-| `harness_rule_status` | A rule's lifecycle state plus its validation bookkeeping — baseline vs. trial breach rate, sessions observed, verdict — so the agent can see *why* a rule was promoted or retired. |
-
-## Example: one healing pass
-
-The standing protocol drives this sequence for each pending notice:
+## Example: a task agent consulting its rules
 
 ```python
-listing = await harness.toolset.call("harness_mailbox_list", {})
-notice_id = listing["pending"][0]["id"]
+# Start from the guide: which scopes exist, and how much is in each.
+index = await harness.task_tools.call("harness_rules_list", {})
+# index["path"] == "rules.md"
+# index["scopes"] == [{"scope": "global", "path": "rules/global.md",
+#                      "description": "...", "active": 2, "provisional": 1}, ...]
 
-read = await harness.toolset.call("harness_mailbox_read", {"notice_id": notice_id})
-notice = read["notice"]
-trace_id = notice["metrics"][0]["trace_id"]     # the triggering metric's own trace
+# Read a scope the index actually listed.
+rules = await harness.task_tools.call("harness_rules_read", {"scope": "payments"})
 
-await harness.toolset.call("harness_trace_inspect", {"trace_id": trace_id})
+# Or search when the right scope isn't obvious.
+hits = await harness.task_tools.call(
+    "harness_rules_search", {"query": "duplicate charge", "limit": 5}
+)
 
-# Pull the rules that might already cover this before writing a new one.
-await harness.toolset.call("harness_rules_read", {"scope": notice["scope_hint"]})
-
-added = await harness.toolset.call("harness_rule_add", {
-    "rule": "Never call the payment tool twice without verifying the transaction status.",
-    "rationale": "tool_correctness=0.20 on the flagged step; the judge cited a repeated call.",
-    "notice_id": notice_id,               # provenance + auto-derived retrieval tags
-    "metric": "tool_correctness",
-    "scope": notice["scope_hint"],        # or a topic file of the agent's own
-})
-# added["rule"]["status"] == "candidate" — validation happens automatically
-
-await harness.toolset.call("harness_mailbox_ack", {
-    "notice_id": notice_id,
-    "rule_id": added["rule"]["id"],
-    "note": "mitigated",
-})
+# Distinguish a validated rule from one still under evaluation.
+status = await harness.task_tools.call(
+    "harness_rule_status", {"rule_id": hits["rules"][0]["id"]}
+)
+# status["rule"]["status"] == "active" | "candidate"
 ```
 
-In practice your *agent* makes these calls itself, guided by the protocol in its system context — the snippet above is what a healthy healing turn looks like in a trace.
+In practice your *agent* makes these calls when it judges prior rules relevant. Nothing obliges it to: the harness performs no rule lookup on its behalf and makes no tool call before a turn.
 
-## What the agent deliberately cannot do
+<Warning>
+  Reads include **provisional candidates** — rules under evaluation, clearly labeled as such. That is deliberate: a rule must be in force to be measurable. Prefer an active rule when a candidate conflicts with it, and use `harness_rule_status` when you need to be sure which is which.
+</Warning>
 
-Some capabilities are withheld on purpose. Each was either redundant with what a notice already carries, or invited the agent to spend its turns on harness bookkeeping — in a measured benchmark run of a larger surface, most of the rules the agent wrote were about gaming its own diagnostic protocol rather than about the task.
+## What the task agent deliberately cannot do
 
-| Not exposed to the agent | Why, and where it lives instead |
+Everything in this table is rejected at dispatch with `unsupported capability`, including hallucinated calls. None of it has a side effect.
+
+| Not exposed to the task agent | Where it lives instead |
 | --- | --- |
-| Score history | The notice and the trajectory gate already carry the series. Asking for it again is a round trip for data the agent has. Operators read `state/score_history.json`. |
-| The journal | Cross-run context the agent mostly used to re-read its own protocol activity. It is an operator surface: `harness.journal.recent(...)`. |
-| A "reflect" / refactor digest | Rule grouping is expressed directly instead — the agent moves related rules into a `<topic>` scope. |
-| Eval-set listing and curation | An operator concern. Attach replay inputs from code (`harness.evalset.attach_input`) or supply them via the turn payload's `end_state`. |
+| Read a diagnostic notice or its dump | The [repair agent](/harness/loop/repair-agent)'s `harness_notice_read`, scoped to its assigned episode. |
+| Inspect a flagged trace | The repair agent's `harness_trace_inspect`, restricted to traces the assigned notice names. |
+| Write a rule | The repair agent's `harness_rule_add` — at most one candidate per episode. |
+| Acknowledge or resolve a notice | The repair agent's `harness_notice_ack` / `harness_notice_resolve`. |
+| Promote or retire a rule | **Neither agent.** Only [validation](/harness/closed-loop/rule-validation) transitions a candidate. |
+| Trigger validation or a regression run | Operator surfaces: `harness.validate_candidates()`, `harness.run_regression()`, `pandaprobe-harness-eval`. |
+| Score history | The notice and the trajectory gate already carry the series. Operators read `state/score_history.json`. |
+| The journal | An operator surface: `harness.journal.recent(...)`. |
+| Eval-set listing and curation | An operator concern: `harness.evalset`, or the turn payload's `end_state`. |
 
-`HarnessToolset` takes only what its ten operations read — the mailbox, the rules store, and the platform seam.
+### Why the surface shrank
 
-## Delivery channels
+In a measured AppWorld run of the larger design — the whole rule corpus in context, ten tools, and a check-your-mailbox-every-turn mandate — the agent spent its turns operating the harness instead of doing the task. **Nine of the thirteen rules it wrote were about gaming its own diagnostic protocol** rather than about the work.
 
-### Native tool registration
+Two lessons are baked into the current shape. Every tool an agent *can* call is a turn it might spend not doing the task, so the task surface is four reads. And diagnosis is a different job from execution, so it belongs to a different agent with a different prompt — one whose only output is a candidate rule.
 
-Convert the toolset into your framework's tool format in one call:
+## Delivery
+
+`harness.task_tools` implements the `ToolDispatcher` protocol, so the simplest wiring is direct:
+
+```python
+tools = my_tools + list(harness.task_tools.specs())
+```
+
+Or convert to your framework's native format in one call:
 
 <Tabs>
   <Tab title="Anthropic">
     ```python
     from pandaprobe_harness.agent_tools.native import as_anthropic_tools
 
-    specs, dispatch = as_anthropic_tools(harness.toolset)
+    specs, dispatch = as_anthropic_tools(harness.task_tools)
     # specs -> tool definitions for the Messages API
     # dispatch(name, args) -> awaitable result envelope
     ```
@@ -105,34 +97,20 @@ Convert the toolset into your framework's tool format in one call:
     ```python
     from pandaprobe_harness.agent_tools.native import as_langchain_tools
 
-    tools = as_langchain_tools(harness.toolset)   # list of StructuredTool
+    tools = as_langchain_tools(harness.task_tools)   # list of StructuredTool
     ```
   </Tab>
   <Tab title="OpenAI Agents">
     ```python
     from pandaprobe_harness.agent_tools.native import as_openai_function_tools
 
-    tools = as_openai_function_tools(harness.toolset)  # list of FunctionTool
+    tools = as_openai_function_tools(harness.task_tools)  # list of FunctionTool
     ```
   </Tab>
 </Tabs>
 
-### The companion CLI
+<Note>
+  Attaching the toolset is **optional**. A task agent with no harness tools still benefits from the loop: evaluation, notices, repair, and validation all run regardless. The tools only decide whether the agent can consult what was learned. The schema is exported as `TASK_OP_SCHEMAS` if you need to inspect it; repair schemas and dispatch stay package-internal.
+</Note>
 
-For sandboxed or framework-less agents, the same operations ship as an allow-listed binary the agent can call through a restricted shell:
-
-```bash
-pandaprobe-harness-agent harness_mailbox_list
-pandaprobe-harness-agent harness_rules_read --scope global
-pandaprobe-harness-agent harness_rule_add \
-    --rule "Never retry a failed charge blindly" \
-    --rationale "duplicate charges observed" \
-    --scope payments \
-    --notice-id n-20260730T053511-f2019e57
-```
-
-- The workspace is resolved from `HARNESS_*` environment variables; the platform is reached through the `pandaprobe` binary.
-- `--key value` pairs; values are parsed as JSON when possible, else taken as strings; `--dashed-keys` map to `snake_case`.
-- Output is the JSON envelope on stdout; exit code `0` iff `ok`.
-
-The harness's `RestrictedShellTool` (`harness.shell`) allow-lists exactly this binary and `pandaprobe`, scrubs credential-shaped environment variables from everything else, and blocks path escapes — see the [security model](/harness/reference/security).
+Route every `harness_*` name to this dispatcher rather than filtering names yourself. Enforcement lives in `TaskToolset.call`, so a hallucinated administrative call is rejected safely instead of reaching your domain executor — see the [security model](/harness/reference/security#capability-separation).

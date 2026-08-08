@@ -4,14 +4,14 @@ description: "Evidence before trust: how candidate rules are proven, promoted, o
 icon: "scale"
 ---
 
-A self-authored rule is a hypothesis, not a fact. `harness_rule_add` records a **candidate**, and the harness gathers evidence — automatically, with no human involved — before trusting it:
+A newly written rule is a hypothesis, not a fact. [The repair agent](/harness/loop/repair-agent) records a **candidate**, and the harness gathers evidence — automatically, with no human involved — before trusting it. **Neither agent can promote a rule**; an agent that approved its own work would be a self-approving loop, which is precisely what this page exists to prevent:
 
 ```mermaid
 %%{init: {'flowchart': {'nodeSpacing': 34, 'rankSpacing': 42, 'padding': 8}, 'themeVariables': {'fontSize': '13px'}}}%%
 flowchart TD
-    add["harness_rule_add"]:::step
+    add["harness_rule_add<br/><i>repair agent</i>"]:::step
     candidate["CANDIDATE<br/><i>in force, rendered as provisional</i>"]:::candidate
-    replay["<b>ReplayValidator</b><br/><i>replay the captured failures + sampled wins<br/>with the candidate in context,<br/>then score the new sessions</i>"]:::validator
+    replay["<b>ReplayValidator</b><br/><i>replay the captured failures + protected wins<br/>with only this candidate discoverable,<br/>then score the new sessions</i>"]:::validator
     trial["<b>ForwardTrialValidator</b><br/><i>watch the next N live sessions,<br/>compare their breach rate against the<br/>baseline captured at add time</i>"]:::validator
     active["ACTIVE<br/><i>journal: rule_promote</i>"]:::active
     retired["RETIRED<br/><i>journal: rule_retire + reason</i>"]:::retired
@@ -23,7 +23,7 @@ flowchart TD
     trial -- "breach rate dropped<br/>(or zero)" --> active
     replay -- "no improvement<br/>or a regression" --> retired
     trial -- "no improvement<br/>after the window" --> retired
-    active -. "agent retire /<br/>regression run" .-> retired
+    active -. "regression run" .-> retired
 
     classDef step fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
     classDef candidate fill:#fef3c7,stroke:#b45309,color:#78350f
@@ -32,7 +32,7 @@ flowchart TD
     classDef retired fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
 ```
 
-Candidates render in the agent's rule file under the *"Provisional rules (under evaluation)"* heading — a rule must be in force to be measurable — but the agent and every reader can see they are unproven. Retrieval may narrow the *active* rules in a file; it never filters candidates, because filtering a trial would starve it.
+Candidates render in their scope file under the *"Provisional rules (under evaluation)"* heading — a rule must be in force to be measurable — so any reader can see they are unproven. Retrieval may narrow the *active* rules in a file; it never filters candidates, because filtering a trial would starve it.
 
 ## What a replay is scored on
 
@@ -63,11 +63,30 @@ harness = Harness.create(replay=my_replay_fn)
 When a candidate lands and a matching, replayable [eval case](/harness/closed-loop/eval-set-and-replay) exists, the `ReplayValidator`:
 
 1. Selects the newest failing cases whose signatures match the candidate (up to 3), plus up to 2 protected `win` cases to catch collateral damage.
-2. Renders the **full current rule corpus** — the skill root plus every scope file, candidate included — and calls your replay function per case, sequentially and time-bounded (`replay_timeout_s`).
+2. Builds a **capability-only** context — no rule bodies, no index — in which **only this candidate is discoverable**. Active rules stay visible as the baseline being measured against; other provisional candidates are hidden. Then calls your replay function per case, sequentially and time-bounded.
 3. Scores each returned session's last trace on the trace metrics, directly through the evaluator (never through the live turn pipeline).
-4. **Promotes** iff the targeted metric improved past `rule_promote_margin` on a failing case **and** no case — failure or win — regressed past `rule_regress_margin` on any metric. Otherwise **retires**, with the exact reason journaled.
+4. **Promotes** iff the targeted metric improved past `rule_promote_margin` on a failing case and nothing regressed attributably. Otherwise **retires**, with the exact reason and per-case deltas journaled.
 
-Inconclusive rounds (a replay that raised, timed out, or produced no comparable scores) are evidence of nothing: the candidate stays pending, and after three inconclusive replay rounds validation relies on the forward trial instead.
+Inconclusive rounds are evidence of nothing: the candidate stays pending, its `replay_attempts` advances, and after `3` attempts validation relies on the forward trial instead.
+
+### Attribution
+
+Two rules keep a verdict answerable for the candidate rather than for its surroundings:
+
+- **The candidate must actually be read.** A replay that never called a rule tool cannot produce a conclusive verdict — whatever moved, this rule did not move it. The case counts as inconclusive instead.
+- **Only attributable regressions retire.** On a *failure* case, a drop retires the candidate when it lands on the candidate's own target metric family or on the authoritative `outcome_correct`. A dip in some unrelated judged metric is recorded in telemetry but is not treated as causation. A protected `win` case is exempt from that narrowing: a win is the collateral-damage guard, so *any* metric regressing there is the signal it exists to catch.
+
+<Warning>
+  This narrowing matters more than it sounds. In one measured run, **44% of retirements had fired on a metric the rule never claimed** — most of them `coherence` drops of under 0.1, which is noise-scale against a natural spread of ~0.15. Those rules were discarded for someone else's variance.
+</Warning>
+
+### Every candidate gets a verdict
+
+Replays are sequential and slow, and candidates accrue faster than replays decide them. Left alone, the newest candidates are never reached — in one run, six candidates sat with `replay_attempts=0` and no verdict at all, two of which had already earned promotion.
+
+So a round is bounded by `validation_round_budget_s` and rotates which candidate replays first. Past the budget, remaining candidates still get a decision — the cheap forward-trial one — rather than none.
+
+Where a replay must first acquire a shared environment (one server, one container, one device), queueing would otherwise consume the execution budget and time out having run nothing. Signal arrival with `ReplayContext.mark_execution_started()` and `replay_env_wait_timeout_s` covers the wait while `replay_timeout_s` starts fresh for the actual run.
 
 ## Forward trials — the automatic fallback
 
@@ -85,11 +104,22 @@ Without a replay function, nothing breaks and nothing is silently faked: the fal
 
 You never call the validators yourself in normal operation. The hook feeds every handled report into the validation engine and kicks a **single-flight** background round — validation never blocks a turn, never touches the live evaluation bookkeeping, and any failure inside it degrades to a log line.
 
+`settle()` deliberately does **not** wait for a round: a replay can need the very resource the current turn holds — an environment lock, a world, a container — so awaiting it inside a per-turn barrier could deadlock until the replay times out.
+
+At a **phase boundary**, where nothing is held, run it to a standstill:
+
+```python
+settled = await harness.settle_validation(timeout=600)   # -> bool
+```
+
+Call this before you snapshot, archive, or report a ruleset. Waiting on evaluations alone lets you capture a state in which a candidate that had already earned promotion is recorded as permanently provisional.
+
 For tests, scripts, and deterministic pipelines:
 
 ```python
-verdicts = await harness.validate_candidates()   # run one round now
-await harness.drain_validation()                 # join any in-flight round (bounded)
+verdicts = await harness.validate_candidates()          # run one round now
+drained = await harness.drain_validation(timeout=60)    # -> bool: did it finish?
+harness.validation_pending                              # rounds still in flight
 ```
 
 ## Observing the lifecycle
@@ -97,7 +127,7 @@ await harness.drain_validation()                 # join any in-flight round (bou
 Every transition is journaled with its evidence, and the agent can ask directly:
 
 ```python
-status = await harness.toolset.call("harness_rule_status", {"rule_id": "r-23b0460306"})
+status = await harness.task_tools.call("harness_rule_status", {"rule_id": "r-23b0460306"})
 # {
 #   "ok": true,
 #   "rule": {..., "status": "active"},
@@ -111,14 +141,32 @@ status = await harness.toolset.call("harness_rule_status", {"rule_id": "r-23b046
 # }
 ```
 
-Every promote and retire is also a journal event with its reason, so `harness.journal.recent(types=("rule_promote", "rule_retire"))` is the operator's record of what the agent is learning and what did not hold up.
+Every promote and retire is also a journal event with its reason, and `rule_retire` carries the structured evidence — the per-case deltas that decided it — rather than only prose.
+
+A round emits five event types, so an artifact can explain a pending state as well as a terminal one:
+
+```python
+harness.journal.recent(types=("validation_verdict", "validation_round_finished"))
+```
+
+| Event | Carries |
+| --- | --- |
+| `validation_round_started` | Queued candidate ids, the round budget. |
+| `validation_candidate_started` | Which validator, `replay_attempts`, sessions observed vs. needed. |
+| `validation_replay_case` | Case id and kind, replay session, **whether the candidate was read**, wait vs. execution time, deltas, outcome. |
+| `validation_verdict` | Outcome, validator, reason, and a closed-set `pending_reason`. |
+| `validation_round_finished` | Decided vs. pending counts, promotions, retirements, whether the budget was exhausted. |
+
+`pending_reason` is one of `trial_in_progress`, `no_matching_replayable_case`, `replay_inconclusive`, `candidate_not_exercised`, `env_wait_timeout`, or `round_budget_exhausted` — so "no verdict yet" is always distinguishable from "never attempted".
 
 ## Configuration
 
 | Knob | Default | Meaning |
 | --- | --- | --- |
-| `rule_validation` | `true` | The candidate lifecycle. `false` makes an added rule active immediately, with no evidence gate. |
+| `rule_validation` | `true` | The candidate lifecycle. **Required** for mutating `Harness` construction, so a repair-authored rule can never skip the evidence gate. |
 | `rule_trial_min_sessions` | `5` | Distinct live sessions a forward trial observes before a verdict. |
 | `rule_promote_margin` | `0.05` | Minimum improvement of the targeted metric to promote. |
 | `rule_regress_margin` | `0.05` | Maximum tolerated drop on any other case/metric. |
-| `replay_timeout_s` | `300` | Hard bound per replay invocation — a hung replay degrades to inconclusive, never wedges validation. |
+| `replay_timeout_s` | `300` | Hard bound on one replay's **execution** — a hung replay degrades to inconclusive, never wedges validation. |
+| `replay_env_wait_timeout_s` | `0` | Grace for a replay to acquire a shared environment before the execution budget starts. `0` keeps a single combined budget. |
+| `validation_round_budget_s` | `0` | Replay work allowed per round; past it, candidates get the forward-trial verdict. `0` is unlimited. |

@@ -13,8 +13,12 @@ config = HarnessConfig.from_env(capture_eval_cases=True, gate_window=3)
 harness = Harness.create(config)
 ```
 
+<Warning>
+  **`repair_model` is required.** `Harness.create()` raises `ValueError` unless you set it (or `HARNESS_REPAIR_MODEL`), because [the repair agent](/harness/loop/repair-agent) makes its own model calls and no billable default is ever selected for you. The one exception is `observe_only=True`, which evaluates and journals without mutating anything.
+</Warning>
+
 <Note>
-  Not every field has an environment variable. Set the rest programmatically: `thresholds` (a per-metric threshold map), the per-tier metric tuples, and the fine-grained gate knobs. Derived workspace paths (`mailbox/`, `rules/`, `journal.jsonl`, …) are computed from `HARNESS_ROOT` and cannot be overridden individually.
+  Not every field has an environment variable. Set the rest programmatically: `thresholds` (a per-metric threshold map), the per-tier metric tuples, and the fine-grained gate knobs. Derived workspace paths (`rules.md`, `rules/`, `rules.jsonl`, `scope_metadata.json`, `mailbox/`, `journal.jsonl`, …) are computed from `HARNESS_ROOT` and cannot be overridden individually.
 </Note>
 
 ## Workspace & CLI
@@ -24,6 +28,25 @@ harness = Harness.create(config)
 | `HARNESS_ROOT` | `/harness` | Workspace root (mailbox, journal, rules subtree, traces, eval set, state). |
 | `HARNESS_CLI_BINARY` | `pandaprobe` | The CLI binary — every platform call goes through it. |
 | `HARNESS_CLI_TIMEOUT_S` | `30` | Per-invocation subprocess timeout. |
+
+## The repair agent
+
+The repair agent is package-owned: PandaProbe supplies the prompt, the capability set, and the episode lifecycle. You supply the model and its bounds.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HARNESS_REPAIR_MODEL` | *(none)* | **Required** unless `observe_only`. A LiteLLM identifier — `openai/…`, `anthropic/…`, `bedrock/anthropic.…`, `vertex_ai/…`. |
+| `HARNESS_REPAIR_TIMEOUT_S` | `60` | Wall-clock bound on one repair episode. On expiry the notice stays pending and recoverable. |
+| `HARNESS_REPAIR_MAX_TURNS` | `6` | Model rounds per episode. Six lets a provider that emits one tool call per round complete read → inspect → search → add → acknowledge. |
+| `HARNESS_REPAIR_MAX_TOKENS` | `4096` | Output-token budget across the episode. |
+| `HARNESS_REPAIR_TEMPERATURE` | *(provider default)* | Forwarded only when set. |
+| `HARNESS_REPAIR_REASONING_EFFORT` | `"none"` | Current OpenAI reasoning models require this to use function tools on the wrapped chat-completions path. Forwarded only when LiteLLM reports model support. |
+| `HARNESS_TRACE_REPAIR_AGENT` | `false` | Export a `pandaprobe` trace per repair run. Task tracing is unchanged either way. |
+| `HARNESS_DOMAIN_POLICY` | *(none)* | A bounded statement of authorized domain behavior, passed to diagnosis as untrusted data. It never expands the repair agent's tools. |
+
+<Note>
+  Repair model calls go through PandaProbe's official LiteLLM wrapper, so the **provider** credentials for `repair_model` must be present in the environment — separate from the `PANDAPROBE_*` platform credentials below.
+</Note>
 
 ## The trigger
 
@@ -59,8 +82,7 @@ A Tier-1 metric breaches on the *shape* of its series, never on its absolute val
 | `HARNESS_EVAL_RETRY_ATTEMPTS` | `3` | Retries for transiently unscoreable sessions (trace-ingestion lag). |
 | `HARNESS_EVAL_RETRY_BACKOFF_S` | `1.0` | Linear backoff base between retries. |
 | `HARNESS_BARRIER_TIMEOUT_S` | `180` | The [per-turn barrier](/harness/loop/evaluation#the-per-turn-barrier)'s budget. Deliberately generous and separate from the drain budget. |
-| `HARNESS_DRAIN_TIMEOUT_S` | `15` | Best-effort budget for `refresh` / `refresh_all` / `drain_validation`. |
-| `HARNESS_CONCURRENT_EVAL` | `true` | Run a turn's evaluation as a detached task (vs. inline). |
+| `HARNESS_DRAIN_TIMEOUT_S` | `15` | Best-effort default for `refresh` / `refresh_all` / `drain_validation`. Pass an explicit `timeout=` at a phase boundary — 15 s is far short of a replay-bound validation round. |
 
 ## Thresholds
 
@@ -100,30 +122,35 @@ Remember that a Tier-1 metric's floor is not a breach source at all — its verd
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `HARNESS_MAX_ACTIVE_RULES` | `50` | Live-rule cap, active + candidate (the agent must retire to add). |
+| `HARNESS_MAX_ACTIVE_RULES` | `0` | Optional operator cap on live rules (active + candidate). **`0` means unlimited** — deterministic novelty suppression, not an arbitrary count, is what controls proliferation. |
 | `HARNESS_SANITIZE_MAX_LEN` | `2000` | Length cap in the sanitization trust boundary. |
-| `HARNESS_RULE_RETRIEVAL` | `true` | Narrow the **active** rules inside a rendered scope file when a query is supplied. Does not affect the system prompt, which carries no rule bodies. |
+| `HARNESS_RULE_RETRIEVAL` | `true` | Narrow the **active** rules inside a rendered scope file when a caller passes a query. Neither this nor `topk` affects the task-facing read/search/list tools, which never preselect on the agent's behalf. |
 | `HARNESS_RULES_CONTEXT_TOPK` | `8` | Active rules kept per query when retrieval applies. |
 
 ## Validation & the closed loop
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `HARNESS_RULE_VALIDATION` | `true` | Candidate lifecycle: promote only on evidence (`false` = add → active, no evidence gate). |
+| `HARNESS_RULE_VALIDATION` | `true` | The candidate lifecycle. **Mutating `Harness` construction requires `true`**, so a repair-authored rule can never skip the evidence gate; `false` exists only for low-level `RulesStore` use in operator tooling. |
 | `HARNESS_RULE_TRIAL_MIN_SESSIONS` | `5` | Forward trial: distinct sessions observed before a verdict. |
 | `HARNESS_RULE_PROMOTE_MARGIN` | `0.05` | Minimum targeted-metric improvement to promote. |
 | `HARNESS_RULE_REGRESS_MARGIN` | `0.05` | Maximum tolerated drop before a case counts as regressed. |
-| `HARNESS_REPLAY_TIMEOUT_S` | `300` | Hard bound per replay invocation (hung replays degrade, never wedge). |
+| `HARNESS_REPLAY_TIMEOUT_S` | `300` | Hard bound on one replay's **execution** (hung replays degrade, never wedge). |
+| `HARNESS_REPLAY_ENV_WAIT_TIMEOUT_S` | `0` | Extra grace for a replay that must first acquire a shared environment. A host signals arrival with `ReplayContext.mark_execution_started()`, and the execution budget above then starts fresh. `0` keeps the single-budget behavior. |
+| `HARNESS_VALIDATION_ROUND_BUDGET_S` | `0` | Wall-clock bound on replay work in one validation round. Past it, remaining candidates still get a verdict — the cheap forward-trial one. `0` is unlimited. |
 | `HARNESS_CAPTURE_EVAL_CASES` | `false` | Capture `breach`-severity sessions as replayable eval cases. |
 | `HARNESS_EVAL_CASE_MAX` | `200` | Eval-set cap; oldest failures evict first, wins never. |
 | `HARNESS_REGRESSION_SAMPLE` | `0` | Cases replayed per regression run (`0` = all). |
+
+<Warning>
+  Where a replay must queue for a shared resource — one environment server, one container, one device — leave `replay_env_wait_timeout_s` at `0` only if your replay never waits. Otherwise queueing is charged to the execution budget, and the resulting timeout is indistinguishable from a hung agent: the case is recorded as inconclusive evidence about a rule that never actually ran.
+</Warning>
 
 ## Robustness & scale
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `HARNESS_HEALTH_CHECK` | `true` | Startup CLI/auth verification (degrades gracefully on failure). |
-| `HARNESS_HYDRATE_HISTORY_FROM_BACKEND` | `false` | Seed local score history from the backend once per session, for horizontally-scaled agents. It hydrates from session-target scores, so it seeds only metrics the backend reports at that target. |
 
 ## Useful derived helpers
 
@@ -133,8 +160,16 @@ config.tier_metrics(3)          # () while enable_tier3 is False
 config.replay_metrics()         # Tier 1 + Tier 2 — what a replay is re-scored on
 config.threshold_for("tool_correctness")
 config.rules_scope_file("global")   # <root>/rules/global.md
+config.rules_file                   # <root>/rules.md — the generated task-facing guide
+config.rules_store_file             # <root>/rules.jsonl — the source of truth
 ```
+
+<Note>
+  `rules_scope_file()` takes a scope already normalized by `pandaprobe_harness.workspace.scopes.normalize_scope`, because the value becomes a filename. That module also exports `GLOBAL_SCOPE`, `SCOPED_SCOPE`, and `RESERVED_SCOPES` — one definition shared by the store, the mailbox, and the turn hook.
+</Note>
 
 ## Platform credentials
 
 The `pandaprobe` subprocess inherits your environment, so the standard SDK/CLI variables apply unchanged: `PANDAPROBE_API_KEY`, `PANDAPROBE_PROJECT_NAME`, and `PANDAPROBE_ENDPOINT` for self-hosting. The harness itself never reads them — authentication is entirely the CLI's concern.
+
+The repair agent is separate: its model calls go through PandaProbe's LiteLLM wrapper, so whatever provider credentials `repair_model` needs (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, AWS or Vertex settings) must also be present.

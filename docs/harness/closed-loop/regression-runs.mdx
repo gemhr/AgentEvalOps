@@ -17,7 +17,7 @@ for result in report.results:
     print(result.case_id, result.kind, result.status, result.deltas)
 ```
 
-Each case replays through your [replay function](/harness/closed-loop/eval-set-and-replay#the-replay-function) with the full current rule corpus in context, the new session's last trace is scored on the **trace** metrics (Tier 1 + Tier 2), and per-metric deltas against `baseline_scores` decide the classification:
+Each case replays through your [replay function](/harness/closed-loop/eval-set-and-replay#the-replay-function) with the current active rule set discoverable through the replay context's read-only tools, the new session's last trace is scored on the **trace** metrics (Tier 1 + Tier 2), and per-metric deltas against `baseline_scores` decide the classification:
 
 | Status | Condition |
 | --- | --- |

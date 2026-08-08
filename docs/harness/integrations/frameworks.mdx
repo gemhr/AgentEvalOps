@@ -4,7 +4,7 @@ description: "One-call factories for LangGraph, LangChain, DeepAgents, CrewAI, C
 icon: "link"
 ---
 
-Turn detection is the **only** thing that differs per framework. All six adapters share identical self-healing: the same mailbox, the same toolset, the same system context, the same validation. Each `Harness.for_<framework>()` factory wires the framework's natural turn boundary to `on_turn_end` and preserves its session resolution (session identity comes from the PandaProbe SDK's session context, so harness evaluations and SDK traces line up automatically).
+Turn detection is the **only** thing that differs per framework. All six adapters share identical self-healing: the same evaluation, the same repair agent, the same validation. Each `Harness.for_<framework>()` factory wires the framework's natural turn boundary to `on_turn_end` and preserves its session resolution (session identity comes from the PandaProbe SDK's session context, so harness evaluations and SDK traces line up automatically).
 
 | Factory | Framework | Turn detector | Extra |
 | --- | --- | --- | --- |
@@ -30,7 +30,7 @@ Adapters are optional, import-guarded extras:
   </Tab>
 </Tabs>
 
-Every factory accepts the same keywords: `session_id=` (a fixed session for single-conversation processes), `config=`, `cli=`, `replay=` for [closed-loop validation](/harness/closed-loop/rule-validation), and `verifier=` for a [ground-truth outcome oracle](/harness/closed-loop/outcome-verifier).
+Every factory accepts the same keywords: `session_id=` (a fixed session for single-conversation processes), `config=`, `cli=`, and `replay=` for [closed-loop validation](/harness/closed-loop/rule-validation). To wire a [ground-truth outcome oracle](/harness/closed-loop/outcome-verifier), use `Harness.create(verifier=...)` — the `for_*` factories do not take `verifier=`.
 
 ## Turn granularity matters
 
@@ -48,7 +48,7 @@ Adapters call `on_turn_end` for you, which is fire-and-forget. To get in-session
 with pandaprobe.session(session_id):
     await graph.ainvoke(state, config={"callbacks": [handler], ...})
 
-await harness.settle(session_id)   # the notice + any promoted rule are now in place
+await harness.settle(session_id)   # evaluation + one bounded repair attempt have landed
 ```
 
 `harness.turn(session_id, settle=True)` is the equivalent when you own the boundary; with an adapter, the explicit `settle()` after the framework call is the same thing. See [the barrier](/harness/loop/evaluation#the-per-turn-barrier).
@@ -64,9 +64,9 @@ harness = Harness.for_langgraph()
 handler = harness.adapter.make_callback()          # the turn detector
 
 graph = build_graph(
-    # skill root + References index + banner — no rule bodies
-    system=harness.system_context() + PROMPT,
-    tools=my_tools + as_langchain_tools(harness.toolset),
+    # one stable capability sentence — no rule bodies, no index
+    system=harness.system_context(session_id) + PROMPT,
+    tools=my_tools + as_langchain_tools(harness.task_tools),
 )
 
 with pandaprobe.session(session_id):               # harness + SDK traces share the session
@@ -90,9 +90,8 @@ from pandaprobe_harness import Harness
 harness = Harness.for_crewai()      # instruments Crew.kickoff automatically
 
 crew = build_crew(
-    system=harness.system_context() + PROMPT,
-    # deliver the toolset via the companion CLI + harness.shell,
-    # or wrap harness.toolset ops as CrewAI tools
+    system=harness.system_context(session_id) + PROMPT,
+    # wrap harness.task_tools ops as CrewAI tools if the agent should read rules
 )
 
 with pandaprobe.session(session_id):
@@ -108,7 +107,7 @@ from pandaprobe_harness.agent_tools.native import as_anthropic_tools
 
 harness = Harness.for_claude_agent_sdk()   # instruments receive_response
 
-specs, dispatch = as_anthropic_tools(harness.toolset)
+specs, dispatch = as_anthropic_tools(harness.task_tools)
 
 with pandaprobe.session(session_id):
     async with ClaudeSDKClient(options) as client:
@@ -127,8 +126,8 @@ from pandaprobe_harness.agent_tools.native import as_openai_function_tools
 harness = Harness.for_openai_agents()      # registers the tracing processor
 
 agent = Agent(
-    instructions=harness.system_context() + PROMPT,
-    tools=my_tools + as_openai_function_tools(harness.toolset),
+    instructions=harness.system_context(session_id) + PROMPT,
+    tools=my_tools + as_openai_function_tools(harness.task_tools),
 )
 
 with pandaprobe.session(session_id):
@@ -137,6 +136,8 @@ with pandaprobe.session(session_id):
 
 ## Rebuilding the preamble per turn
 
-Frameworks that rebuild the system prompt each turn get the live banner and an up-to-date References index for free. For frameworks that fix the prompt at construction time, this matters less than it might seem: the preamble carries no rule bodies, so a stale one differs from a fresh one only in its banner and file counts. The agent reads current rules with `harness_rules_read` regardless, and the standing protocol tells it to work through pending notices — the notices are in the workspace either way.
+You no longer need to. The task preamble is a **constant** — one sentence naming four read-only tools — so a prompt fixed at construction time is identical to one rebuilt every turn. Frameworks that pin the system prompt lose nothing.
 
-Runnable end-to-end sketches for every framework live in the repository's `examples/` directory.
+What the agent reads is always current regardless, because `harness_rules_read` and `harness_rules_list` render from the live store at call time.
+
+Runnable end-to-end sketches for every framework live in the repository's `examples/misc/` directory.

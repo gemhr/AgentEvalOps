@@ -27,17 +27,60 @@ from app.registry.constants import (
     SubscriptionPlan,
     SubscriptionStatus,
 )
+from app.registry.exceptions import PandaProbeError
 from app.registry.settings import settings
 
 _stripe_configured = False
 
+#: Transport config, applied once at first use (no network I/O). The SDK's own
+#: default read timeout is 80s, which retries can multiply — long enough to wedge a Celery prefork child.
+_STRIPE_TIMEOUT_S = 20
+_STRIPE_MAX_RETRIES = 2
+
+
+class StripeNotConfiguredError(PandaProbeError):
+    """Raised when a Stripe operation is attempted without an API key.
+
+    Surfacing this as its own error keeps a *configuration* fault from looking
+    like a transient API fault: a missing key used to reach Stripe, come back
+    401, and be retried, so a deploy that forgot the secret presented as an
+    endless retry storm rather than an obvious misconfiguration.
+
+    Subclasses ``PandaProbeError`` so the handler in ``main.py`` renders it as a
+    503 instead of letting it escape as an unhandled 500 — which on the Stripe
+    webhook route would make Stripe retry the delivery.
+    """
+
+    status_code = 503
+    detail = "Billing is not configured on this deployment."
+
 
 def _ensure_stripe_configured() -> None:
-    """Set the stripe API key once at first use."""
+    """Assign the Stripe API key, timeout, and retry policy. Idempotent.
+
+    Pure local assignment — this contacts nothing. ``RequestsClient`` is the
+    SDK's HTTP *transport*, not an API client; constructing it only stores a
+    timeout and the ``requests`` module. The first real network call happens
+    later, at the ``stripe.*.create()`` that the caller makes.
+
+    Runs once per process (guarded by ``_stripe_configured``), so the underlying
+    ``requests.Session`` is reused and connection pooling to Stripe is preserved.
+    """
     global _stripe_configured
-    if not _stripe_configured:
-        stripe.api_key = settings.STRIPE_SECRET_KEY
-        _stripe_configured = True
+    if _stripe_configured:
+        return
+    if not settings.STRIPE_SECRET_KEY:
+        raise StripeNotConfiguredError(
+            "STRIPE_SECRET_KEY is not set; this service cannot call Stripe. "
+            "Cloud Run services that run billing tasks need the stripe-secret-key "
+            "secret mounted (see worker_secret_env in the deploy Terraform)."
+        )
+    from stripe._http_client import RequestsClient
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    stripe.max_network_retries = _STRIPE_MAX_RETRIES
+    stripe.default_http_client = RequestsClient(timeout=_STRIPE_TIMEOUT_S)
+    _stripe_configured = True
 
 
 def _resolve_plan_from_price_id(price_id: str) -> SubscriptionPlan | None:

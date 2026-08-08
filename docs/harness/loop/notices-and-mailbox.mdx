@@ -6,7 +6,7 @@ icon: "inbox"
 
 ## Anatomy of a notice
 
-A `DiagnosticNotice` is everything the agent needs to diagnose one detected degradation. It deliberately carries enough that the agent needs no follow-up round trip to find *where* the problem was:
+A `DiagnosticNotice` is everything the [repair agent](/harness/loop/repair-agent) needs to diagnose one detected degradation. It deliberately carries enough that no follow-up round trip is needed to find *where* the problem was. Your task agent never sees it:
 
 ```json
 {
@@ -42,7 +42,8 @@ A `DiagnosticNotice` is everything the agent needs to diagnose one detected degr
   "dump_path": "/harness/traces/n-20260730T053511-f2019e57.json",
   "summary": "task_completion=0.31 [stall]; tool_correctness=0.20 [breach, threshold 0.50]",
   "signatures": ["stall:task_completion", "breach:tool_correctness"],
-  "scope_hint": "scoped",
+  "scope_hint": "global",
+  "recommended_scope": null,
   "status": "pending",
   "resolution": null
 }
@@ -51,18 +52,19 @@ A `DiagnosticNotice` is everything the agent needs to diagnose one detected degr
 | Field | Purpose |
 | --- | --- |
 | `metrics` | Every alerting metric with its value, threshold, the judge's own `reason`, which conditions fired, and the **`trace_id`** and **`tier`** it came from. |
-| `flagged_traces` | The trace ids identified as problematic — the starting point for `harness_trace_inspect`. |
+| `flagged_traces` | The trace ids identified as problematic — and the *only* traces the repair agent is permitted to inspect for this episode. |
 | `signal_breakdown` | What each trace scored, keyed by trace id — assembled from scores the harness already had, at no extra cost. |
 | `dump_path` | An immutable, verbose evaluation dump under `traces/` for the full picture. |
 | `signatures` | The compact condition labels — used for de-dup, rule tags, and eval-case matching. |
-| `scope_hint` | Where a mitigation rule probably belongs: `global` for a Tier-1 trajectory fire, `scoped` for a surgical Tier-2/3 breach. It is only the default for `harness_rule_add` — the agent may file the rule under any scope. |
+| `scope_hint` | The baseline scope carried on every notice: always `global`. Detection tier says where a failure was *found*, not how widely its lesson applies, so the harness makes no scope claim here — [the repair agent decides](/harness/loop/repair-agent#scope-selection) from the evidence. |
+| `recommended_scope` | A precise host-supplied scope, or `None` when no `RuleScopeHint` applied. `None` means "no recommendation", which is deliberately distinct from recommending the default. |
 | `resolution` | Filled on acknowledgment: when, and which rule resolved it. |
 
 <Tip>
-  The `reason` field is the highest-value thing in a notice: it is the judge's own explanation of *why* the score is what it is, and therefore the raw material for a rule worth writing. The skill root points the agent at it explicitly.
+  The `reason` field is the highest-value thing in a notice: it is the judge's own explanation of *why* the score is what it is, and therefore the raw material for a rule worth writing. The repair prompt points the agent at it explicitly — as evidence to diagnose, never as an instruction to follow.
 </Tip>
 
-Notice ids are timestamp-sortable and validated as safe path components (the agent supplies them to tools, and they become filenames).
+Notice ids are timestamp-sortable and validated as safe path components (they are supplied to tools and become filenames).
 
 ## The mailbox
 
@@ -73,9 +75,9 @@ mailbox/
 └── status.json                  # {pending_count, max_severity, latest_id}
 ```
 
-- The hook **posts** to `pending/`; the agent **acknowledges** via `harness_mailbox_ack`, which moves the notice to `processed/` with a `Resolution` (`acked_at`, optional `rule_id`, optional note).
-- `status.json` is the cheap summary the system-context banner reads — composing the prompt never scans the directory.
-- The banner carries only a count and a severity enum. **No eval-derived free text enters the preamble**; rich content stays behind explicit tool calls, where it is sanitized and framed as untrusted data.
+- The hook **posts** to `pending/`; the repair agent **resolves** via `harness_notice_ack` (a candidate was created) or `harness_notice_resolve` (duplicate, already-covered, no proposal, or unactionable). Either moves the notice to `processed/` with a `Resolution` naming what happened.
+- Related notices from one turn are claimed together as a single [repair episode](/harness/loop/repair-agent), and resolved atomically — a partial acknowledgement is not possible. Timeout or failure acknowledges nothing, leaving every notice recoverable.
+- `status.json` is a cheap summary for operators. **No eval-derived free text ever reaches a task prompt**: the task preamble is a constant sentence, and rich content stays behind repair-only tool calls where it is sanitized and framed as untrusted data.
 
 ```python
 harness.mailbox.pending()          # list[DiagnosticNotice], oldest first
@@ -92,7 +94,7 @@ Two artifacts under `traces/`:
 
 ## The journal
 
-`journal.jsonl` is the append-only, cross-run event log — the harness's long-term memory of the agent's health. It spans process restarts, so a fresh harness over the same workspace inherits everything: rules re-enter the References, and past notices inform new forward-trial baselines.
+`journal.jsonl` is the append-only, cross-run event log — the harness's long-term memory of the agent's health. It spans process restarts, so a fresh harness over the same workspace inherits everything: rules re-enter the `rules.md` References index, and past notices inform new forward-trial baselines.
 
 ```python
 harness.journal.recent(20, types=("notice", "rule_promote"))
@@ -100,7 +102,7 @@ harness.journal.notices_for("tool_correctness")   # every notice that involved a
 ```
 
 <Note>
-  **The journal is an operator surface, not an agent tool.** There is deliberately no agent-facing journal operation: it is where *you* see what your agent is learning, and it drives forward-trial baselines and rule-effectiveness counts internally. The cross-run signal the agent actually needs — the trajectory — is inside the notice itself.
+  **The journal is an operator surface, not an agent tool.** Neither agent can read it: it is where *you* see what is being learned, and it drives forward-trial baselines and rule-effectiveness counts internally. The cross-run signal repair actually needs — the trajectory — is inside the notice itself.
 </Note>
 
 The full event-type list is in [How it works](/harness/get-started/how-it-works#journal-event-types).

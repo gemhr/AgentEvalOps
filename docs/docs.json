@@ -113,6 +113,7 @@
             "pages": [
               "harness/loop/evaluation",
               "harness/loop/notices-and-mailbox",
+              "harness/loop/repair-agent",
               "harness/loop/agent-toolset",
               "harness/loop/rules-and-retrieval"
             ]
@@ -140,7 +141,7 @@
               "harness/reference/configuration",
               "harness/reference/security",
               "harness/reference/cost-and-reliability",
-              "harness/reference/migration-v07"
+              "harness/reference/migration-v09"
             ]
           }
         ]

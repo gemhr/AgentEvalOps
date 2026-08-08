@@ -4,7 +4,7 @@ description: "The full pipeline: producing side, consuming side, and the workspa
 icon: "cog"
 ---
 
-The harness has two sides. The **producing side** runs after every turn and writes to the workspace; the **consuming side** is your agent, reading the workspace through its system context and toolset. The workspace on disk is the only thing connecting them — nothing is ever pushed into the agent's conversation.
+The harness has three sides. The **producing side** runs after every turn and detects failures. The **repair side** — a package-owned agent — diagnoses one failure and writes one candidate rule. The **consuming side** is your task agent, which may read what was learned. The workspace on disk is the only thing connecting them; nothing is ever pushed into a conversation.
 
 ```mermaid
 %%{init: {'flowchart': {'nodeSpacing': 30, 'rankSpacing': 46, 'padding': 8}, 'themeVariables': {'fontSize': '13px'}}}%%
@@ -16,33 +16,43 @@ flowchart LR
         traces["Trace discovery<br/><i>this turn's new completed traces</i>"]:::harness
         tiers["Tiered evaluation<br/><i>Tier 1 every trace → gate → Tier 2 → Tier 3</i>"]:::harness
         verify["Outcome verifier<br/><i>optional ground truth, in parallel</i>"]:::harness
-        validate["Validation cadence<br/><i>forward trials · candidate verdicts</i>"]:::harness
+        validate["Validation<br/><i>replay · forward trials · verdicts</i>"]:::harness
         gate["Notice gate<br/><i>dedup · recovery · circuit breaker</i>"]:::harness
         turnEnd --> gates --> traces --> tiers --> validate --> gate
         gates --> verify --> validate
     end
 
-    workspace[("<b>The workspace</b><br/>mailbox · journal · rules/<br/>traces · eval set")]:::store
+    workspace[("<b>The workspace</b><br/>rules.md · rules/ · rules.jsonl<br/>mailbox · journal · traces · eval set")]:::store
 
-    subgraph consuming["Consuming side — the agent"]
+    subgraph repair["Repair side — PandaProbe's agent"]
+        direction TB
+        episode["Repair episode<br/><i>related notices, coalesced</i>"]:::repair
+        diagnose["Diagnose<br/><i>notice_read · trace_inspect · rules_search</i>"]:::repair
+        addRule["harness_rule_add<br/><i>→ one CANDIDATE, in a chosen scope</i>"]:::repair
+        resolve["notice_ack / notice_resolve<br/><i>episode closed atomically</i>"]:::repair
+        episode --> diagnose --> addRule --> resolve
+    end
+
+    subgraph consuming["Consuming side — your task agent"]
         direction TB
         turnStart["Turn starts"]:::agent
-        context["System context<br/><i>skill root + References + ⚠ banner</i>"]:::agent
-        pull["Pull &amp; diagnose<br/><i>mailbox_read · trace_inspect · rules_read</i>"]:::agent
-        addRule["harness_rule_add<br/><i>→ a CANDIDATE rule, in a scope</i>"]:::agent
-        ack["harness_mailbox_ack<br/><i>banner clears</i>"]:::agent
-        turnStart --> context --> pull --> addRule --> ack
+        context["System context<br/><i>one capability sentence · no rule text</i>"]:::agent
+        pull["Read on demand, if useful<br/><i>rules_list · rules_read · rules_search</i>"]:::agent
+        turnStart --> context --> pull
     end
 
     producing -- "notice + dump<br/>+ eval case" --> workspace
-    workspace -- "banner + References<br/>+ toolset" --> consuming
+    workspace -- "assigned episode" --> repair
+    repair -- "candidate rule" --> workspace
+    workspace -- "four read-only tools" --> consuming
 
     classDef harness fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
     classDef agent fill:#dcfce7,stroke:#15803d,color:#14532d
+    classDef repair fill:#f3e8ff,stroke:#7e22ce,color:#581c87
     classDef store fill:#fef3c7,stroke:#b45309,color:#78350f
 ```
 
-The loop closes back through the workspace: the candidate rule the agent records lands in the rule store, the producing side's validation cadence proves (or retires) it, and the **per-turn barrier** makes sure all of that has landed before the agent's next turn begins.
+The loop closes back through the workspace: the candidate the repair agent writes lands in the rule store, validation proves (or retires) it, and the **per-turn barrier** makes sure the detection and repair have landed before your agent's next turn begins.
 
 ## The producing side, step by step
 
@@ -55,15 +65,19 @@ The loop closes back through the workspace: the candidate rule the agent records
 7. **Notice gate.** Identical conditions are de-duplicated per session, recoveries are journaled, and a circuit breaker escalates notice storms to a single `needs_human`.
 8. **Persistence.** A surviving condition becomes a `DiagnosticNotice` in `mailbox/pending/`, a verbose dump under `traces/`, and a journal event — and, when the severity is `breach` and capture is enabled, a replayable **eval case**.
 
+## The repair side
+
+Inside the same `settle()` call, the [repair agent](/harness/loop/repair-agent) picks up what the producing side posted:
+
+1. **Episode assembly.** Related notices from the same session and turn — those whose trace or signature evidence overlaps — are coalesced into one episode. One underlying failure gets one diagnosis, not three.
+2. **Bounded diagnosis.** A package-owned tool loop reads the notice, inspects a trace that notice named, and searches existing rules for prior coverage. It runs on its own model, its own session, and its own trace, so repair activity is never scored as task activity.
+3. **One resolution.** The episode ends with at most one candidate rule (`harness_rule_add`, including which scope it belongs in) and exactly one acknowledgement. Timeout or failure acknowledges nothing and leaves the notice recoverable.
+
 ## The consuming side
 
-`harness.system_context()` returns one block to prepend to your system prompt:
+`harness.system_context(session_id)` returns one stable sentence to prepend to your system prompt: learned rules exist, and four read-only tools can reach them. That is all — no rule bodies, no scope index, no notice count. Building it reads nothing from the workspace, so no eval-derived text can reach a task prompt automatically.
 
-1. **The skill root** — the self-healing contract (what the tiers measure and what the gate flags), the tool table, guidance on where to file a rule, and the rule lifecycle.
-2. **The References index** — which rule files exist and how many rules each holds. **No rule bodies.** The agent reads the files it wants with `harness_rules_read`.
-3. **The banner** — a count and max severity when notices are pending; nothing otherwise.
-
-The agent acts through the [toolset](/harness/loop/agent-toolset): 10 operations delivered natively (Anthropic / LangChain / OpenAI tool formats) or through the sandbox-friendly `pandaprobe-harness-agent` companion CLI.
+Your agent acts, if it chooses to, through the [task toolset](/harness/loop/agent-toolset): four read-only operations, delivered natively in Anthropic, LangChain, or OpenAI tool format.
 
 ## The workspace on disk
 
@@ -71,17 +85,18 @@ Everything the harness knows lives under one directory — inspectable, greppabl
 
 ```text
 /harness/                            (HARNESS_ROOT)
+├── rules.jsonl                      # THE SOURCE OF TRUTH (latest record per id wins)
+├── rules.md                         # generated task-facing guide + References index
+├── rules/                           # generated scope files — read on demand, never pushed
+│   ├── global.md                    #   the default: broadly reusable rules
+│   ├── <topic>.md                   #   a context the repair agent judged apt
+│   └── scoped.md                    #   specific rules with no better name
+├── scope_metadata.json              # bounded per-scope descriptions for the index
 ├── mailbox/
-│   ├── pending/<notice-id>.json     # posted by the hook, pulled by the agent
-│   ├── processed/<notice-id>.json   # acknowledged notices, with resolution
-│   └── status.json                  # cheap summary read by the banner
+│   ├── pending/<notice-id>.json     # posted by the hook, claimed by the repair agent
+│   ├── processed/<notice-id>.json   # resolved notices, with their resolution
+│   └── status.json                  # cheap summary for operators
 ├── journal.jsonl                    # append-only cross-run event log
-├── rules.jsonl                      # structured rules (latest record per id wins)
-├── harness_rules.md                 # the SKILL ROOT: protocol + References index
-├── rules/                           # the agent's own rule files — pulled, never pushed
-│   ├── global.md                    #   always-in-force rules
-│   ├── scoped.md                    #   step-level rules (the default)
-│   └── <topic>.md                   #   any topic file the agent creates
 ├── evalset/<case-id>.json           # replayable eval cases (failures + protected wins)
 ├── traces/
 │   ├── latest_eval.json             # most recent eval dump (always written)
@@ -89,7 +104,9 @@ Everything the harness knows lives under one directory — inspectable, greppabl
 └── state/score_history.json         # per-(session, metric) series + trajectory-gate state
 ```
 
-All writes are atomic (unique temp file + rename) and the stores are lock-guarded, so one workspace can safely serve many concurrent sessions. Provisioning is idempotent: an existing skill root is never overwritten, and the `rules/` subtree is regenerated from `rules.jsonl` on every change.
+All writes are atomic (unique temp file + rename) and the stores are lock-guarded, so one workspace can safely serve many concurrent sessions.
+
+`rules.md` and everything under `rules/` are **derived views** with no authority: they are regenerated from `rules.jsonl` on every rule mutation and at startup. Delete `rules.md` and it comes back; hand-edit it and the next rule write overwrites your edit. Read them freely; change rules through the store.
 
 ## Journal event types
 
@@ -98,11 +115,16 @@ The journal is the harness's cross-run memory. Every notable event is one JSON l
 | Type | Written when |
 | --- | --- |
 | `notice` | A diagnostic notice is posted (or would be, in `observe_only` mode). |
-| `ack` | The agent acknowledges a notice, optionally linking the resolving rule. |
-| `rule_add` | A rule is recorded (as a candidate by default). |
-| `rule_promote` | A validator promoted a candidate to active — with the reason and which validator. |
-| `rule_retire` | A rule was retired (by a validator, the agent, or a regression run) — with the reason. |
-| `validation` | Announced once when no replay function is wired and validation falls back to forward trials. |
+| `repair_started` | A repair episode was assigned, with its model and grouped notice ids. |
+| `repair_model_turn`, `repair_tool_call` | Per-round bookkeeping inside an episode — counts and tool names, never prompts. |
+| `repair_candidate_added` | The repair agent created a candidate rule. |
+| `repair_notice_resolved` | An episode resolved, with recommended/selected scope and considered rule ids. |
+| `repair_completed`, `repair_duplicate`, `repair_already_covered`, `repair_no_proposal`, `repair_unactionable`, `repair_timed_out`, `repair_failed` | One terminal event per episode. |
+| `rule_add` | A rule is recorded (as a candidate whenever validation is on). |
+| `rule_promote` | Validation promoted a candidate to active — with the reason and which validator. |
+| `rule_retire` | Validation retired a rule — with the reason and structured evidence. |
+| `validation_round_started`, `validation_candidate_started`, `validation_replay_case`, `validation_verdict`, `validation_round_finished` | The validation round: what was queued, which cases replayed, whether the candidate was read, and each verdict or `pending_reason`. |
+| `scope_index_regenerated` | `rules.md` and the scope files were rewritten, with per-scope counts. |
 | `evalset_capture` | A `breach`-severity session was captured as an eval case. |
 | `regression` | A regression run completed, with per-case results. |
 | `recovery` | A previously-alerting session scored clean again. |
@@ -116,14 +138,15 @@ harness.journal.recent(20, types=("notice", "rule_promote"))
 ## One healing cycle, end to end
 
 ```text
-health → notice(trend) → notice(breach) → evalset_capture → rule_add → ack
-       → recovery → rule_promote → regression
+health → notice(trend) → notice(breach) → evalset_capture → repair_started
+       → repair_candidate_added → rule_add → repair_completed
+       → validation_round_started → validation_verdict → rule_promote → recovery
 ```
 
-1. Turns 1–5 make no progress on the task: `task_completion` sits flat and the trajectory gate closes its window → **`stall:task_completion`**. Tier 2 comes back clean, so this is an advisory **`trend`** notice — the agent is told, but nothing is captured to train on.
-2. Turn 6 repeats an identical payment call. The gate fires again, Tier 2 escalates, and `tool_correctness` scores `0.20` → a **`breach`** notice with `trace_id`, `tier: 2`, and `scope_hint: "scoped"`. The session is captured as a replayable **failure case**.
-3. The barrier holds the loop until that has landed, so turn 7 opens with the notice already in the mailbox. The agent reads it, inspects the flagged trace, reads `rules/scoped.md`, and records *"Never call the payment tool twice without verifying the transaction status"* → a **candidate** rule in the `scoped` file.
-4. The harness replays the captured failure with the candidate in force; the replayed session's trace metrics improve → the candidate is **promoted** (`rule_promote`, validator `replay`).
-5. Subsequent turns climb instead of stalling (**recovery**), and a regression run replays the corpus against the current rules: the old failure is `improved`, the protected win `unchanged` — **CLEAN**.
+1. Turns 1–5 make no progress on the task: `task_completion` sits flat and the trajectory gate closes its window → **`stall:task_completion`**. Tier 2 comes back clean, so this is an advisory **`trend`** notice — recorded, but nothing is captured to train on.
+2. Turn 6 repeats an identical payment call. The gate fires again, Tier 2 escalates, and `tool_correctness` scores `0.20` → a **`breach`** notice with `trace_id` and `tier: 2`. The session is captured as a replayable **failure case**.
+3. Still inside that turn's barrier, the **repair agent** takes the episode. It reads the notice, inspects the flagged trace, searches for prior coverage, finds none, and writes *"Never call the payment tool twice without verifying the transaction status"* — filing it under `payments`, because the evidence is specific to that workflow. The rule enters as a **candidate**.
+4. Validation replays the captured failure with the candidate discoverable and the rest of the provisional set hidden, so the delta is attributable. `task_completion` improves past the margin → **promoted** (`rule_promote`, validator `replay`).
+5. Subsequent turns climb instead of stalling (**recovery**). Your task agent can now read that rule via `harness_rules_read` whenever it judges payment work relevant — and a regression run confirms the old failure is `improved` and the protected win `unchanged`.
 
-The repository's `examples/closed_loop_self_heal.py` prints a version of this you can run offline, with no credentials.
+The repository's `examples/misc/closed_loop_self_heal.py` prints a version of this you can run offline, with no credentials and no repair-model spend.

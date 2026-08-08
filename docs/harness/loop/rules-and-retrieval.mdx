@@ -1,101 +1,104 @@
 ---
-title: "Rules & the skill root"
-description: "The agent-owned rules workspace: scopes, the References index, and pull-on-demand retrieval"
+title: "Rules workspace"
+description: "The rules workspace: scopes, the References index, and pull-on-demand retrieval"
 icon: "book-marked"
 ---
 
-Rules are the harness's output: operating constraints the agent writes for itself, learned from its own failures. They live in a workspace the **agent owns** — a skill root that indexes rule files, and rule files the agent reads on demand.
+Rules are the harness's output: operating constraints learned from real failures, written by the [repair agent](/harness/loop/repair-agent) and read by your task agent on demand. They live in a workspace PandaProbe owns — a generated guide that indexes scope files, and scope files holding the rules themselves.
 
 <Note>
-  **Nothing here is injected into your prompt.** `harness_rules.md` is a **skill root**: the protocol, the tool list, and a generated **References** index — no rule text. The agent pulls the bodies it wants with `harness_rules_read`.
+  **Nothing here is injected into your prompt.** `rules.md` is the task-facing directory: the read-only workflow plus a generated **References** index — no rule text. Your agent pulls the bodies it wants with `harness_rules_read`, or none at all.
 </Note>
 
-## Why the agent owns the workspace
+## Why nothing is injected
 
-The obvious design is to inline every rule into every prompt. It does not hold up. In a measured benchmark run of a build that did exactly that — the whole corpus in context, a large tool surface, and a check-your-mailbox-every-turn mandate — the agent spent its turns operating the harness instead of doing the task: most of the rules it wrote were about gaming its own diagnostic protocol rather than about the work.
+The obvious design is to inline every rule into every prompt. It does not hold up. In a measured AppWorld run of a build that did exactly that — the whole corpus in context, ten administrative tools, and a check-your-mailbox-every-turn mandate — the agent spent its turns operating the harness instead of doing the task, and nine of the thirteen rules it wrote were about gaming its own diagnostic protocol rather than about the work.
 
-So the harness uses the shape that already works for agent skills — a small, stable root that says *what exists and how to reach it*, and content behind a read. Nothing in `rules/` is force-injected, so the corpus can grow without crowding out the task, and the agent decides what is relevant instead of a lexical scorer guessing.
+So the harness uses the shape that already works for agent skills: a small, stable index that says *what exists and how to reach it*, with content behind a read. The corpus can grow without crowding out the task, and the agent decides what is relevant instead of a lexical scorer guessing on its behalf.
 
 ## The layout
 
 ```text
 <HARNESS_ROOT>/
-├── harness_rules.md          # the SKILL ROOT: protocol + tool table + References
-│                             #   index. Contains NO rule text.
+├── rules.jsonl               # THE SOURCE OF TRUTH (latest record per id wins)
+├── rules.md                  # generated task-facing guide + References index.
+│                             #   Contains NO rule text.
 ├── rules/
-│   ├── global.md             # always-in-force, whole-trajectory rules
-│   ├── scoped.md             # step-level rules — the default catch-all
-│   └── payments.md           # any <topic>.md the agent creates
-└── rules.jsonl               # the structured store (latest record per id wins)
+│   ├── global.md             # the default: broadly reusable rules
+│   ├── payments.md           # any <topic>.md the repair agent judged apt
+│   └── scoped.md             # specific rules with no better name
+└── scope_metadata.json       # bounded per-scope descriptions for the index
 ```
 
-`rules.jsonl` stays the source of truth; every `.md` file is a **projection**, regenerated from the store on every change. Edit the store through the tools, never the markdown.
+`rules.jsonl` is the source of truth; every `.md` file is a **projection**, regenerated from the store on every change. Read the markdown freely; change rules through the store.
 
 ## Scopes
 
-`scope` is a free-form string on each rule, and it *is* the file the rule lands in:
+`scope` is a free-form string on each rule, and it *is* the file the rule lands in. The [repair agent chooses it](/harness/loop/repair-agent#scope-selection) from the failure evidence, as part of the call that writes the rule.
 
 | Scope | Meaning |
 | --- | --- |
-| `global` | A lesson about how the agent approaches work as a whole. Always in force. |
-| `scoped` | A lesson about a specific step or tool. The default catch-all. |
-| `<topic>` | A file the agent created. When several `scoped` rules turn out to share a topic, the agent re-adds them under `scope="payments"` (say) and retires the originals. The new file appears in the References automatically. |
-
-Every notice carries a `scope_hint` — `global` for a trajectory fire, `scoped` for a surgical step-level breach — which becomes the *default* for `harness_rule_add`. It is only a default; the agent may file the rule anywhere.
+| `global` | **The default.** Broadly reusable — not tied to one task, workflow, application, tool, or domain. |
+| `<topic>` | A concise contextual name drawn from the evidence: an application, a workflow, a domain. Preferred whenever the rule genuinely belongs to that context. The catalog is open; a new name simply creates its file. |
+| `scoped` | **The fallback.** The rule is specific, but no meaningful stable name could be determined. |
 
 <Note>
-  **Scope is explicit, and that is the point.** Inferring it — treating an untagged rule as global, say — silently mis-files rules: a rule added without a source notice carries no tags, and would become a permanent global by accident. `tags` still exist, but only for ranking.
+  **Silence means `global`, not `scoped`.** `scoped` is a considered verdict — "specific, but unnameable" — so a rule with no expressed scope takes the broadly-applicable default rather than landing in a catch-all. That inverts the v0.8 behavior, where an unspecified scope became `scoped` and, in practice, everything ended up in one file.
 </Note>
 
-## The skill root
+Hosts may pass bounded `RuleScopeHint` metadata and a short `task_summary` on the turn payload to inform the choice; neither dictates it. PandaProbe enforces only filename safety and refuses a generic host or integration label, since that names where the agent ran rather than what failed.
 
-`harness.system_context()` returns the skill root plus a pending-notice banner — and nothing else:
+## The generated guide
+
+`rules.md` sits beside the `rules.jsonl` store and the `rules/` scope files it indexes. It has SKILL-style frontmatter declaring the four allowed read-only tools, a stable body explaining the pull workflow, and a generated References section — `global` first, then every other live scope alphabetically:
 
 ```markdown
-# Harness Rules
+---
+name: pandaprobe-learned-rules
+description: Learned rules maintained by PandaProbe. Use when prior validated or
+  provisional rules may help the current task; inspect only the relevant scopes
+  through the allowed read-only tools.
+allowed-tools:
+  - harness_rules_list
+  - harness_rules_read
+  - harness_rules_search
+  - harness_rule_status
+---
 
-This is the root of your self-healing workspace. It holds the protocol and an
-index of your rule files — never the rules themselves. …
+# PandaProbe Learned Rules
 
-## The self-healing contract
-    Tier 1 … Tier 2 … Tier 3 …
-
-| Tool | Purpose |
-|---|---|
-| harness_mailbox_list | Pending notices + mailbox status |
-| …                    | …                              |
-
-## Where to write a rule
-    global · scoped · <topic>
-
-## Rule lifecycle
-    candidates are in force but unproven; prefer a validated rule on conflict
+PandaProbe keeps learned rules in scoped reference files. This guide is the
+task-facing directory: it explains the read-only tools and points to live scopes,
+but never contains rule bodies. …
 
 ## References
 <!-- REFERENCES — generated by the harness; do not edit below -->
 
-Read a file with `harness_rules_read` before acting. `rules/global.md` is
-always in force — start there.
+- [`global`](rules/global.md)
+  Broadly reusable execution and verification rules.
+  2 active, 0 provisional
 
-- `rules/global.md` — 2 active
-- `rules/scoped.md` — 5 active, 1 provisional
-- `rules/payments.md` — 3 active
+- [`payments`](rules/payments.md)
+  Payments workflows.
+  3 active, 1 provisional
 ```
 
-With no rules yet, the References section says so and points at `harness_rule_add` — the root is never empty or misleading.
+Each entry carries the scope key, its path, one bounded description, and active/provisional counts — never rule text. With no rules yet, References says so rather than being empty or misleading.
 
 <Note>
-  `system_context()` takes no arguments — in particular no task hint. Pre-selecting rules for the agent only makes sense if you are inlining them, and the harness isn't; the agent conditions its own retrieval on the task with `harness_rules_search` and `harness_rules_read`.
+  **The guide is a derived view, not a document you maintain.** Everything above the References marker comes from the packaged template and is versioned with the package; everything below is regenerated from `rules.jsonl` on every rule mutation and at startup. Hand-edit either half and the next rule write overwrites it. Delete the file and it comes back.
 </Note>
+
+<Warning>
+  `harness.system_context(session_id)` does **not** return this guide. The task preamble is one stable sentence saying learned rules exist and naming the four tools. An agent reads the guide only by calling `harness_rules_list` — nothing is read on its behalf, and nothing is read before a turn.
+</Warning>
 
 ## A rule file
 
 ```markdown
-# Rules — scoped
+# Rules — payments
 
-_Step-level rules learned from specific failures. If several here turn out to
-share a topic, move them into a `rules/<topic>.md` of your own and it will
-appear in the References._
+_Rules learned in the context of `payments`._
 
 - **r-9772c134b8**: Never call the payment tool twice without first verifying
   the transaction status identifier.
@@ -104,8 +107,8 @@ appear in the References._
 
 ### Provisional rules (under evaluation)
 
-_The following candidate rules are in force but not yet validated. Treat
-them as tentative: apply them, but prefer validated rules when they conflict._
+_The following candidate rules are available but not yet validated. Treat
+them as tentative and prefer validated rules when they conflict._
 
 - **r-23b0460306** (candidate): Verify the transaction status before retrying.
   - rationale: … (added …; trial: 2/5 sessions observed)
@@ -120,6 +123,7 @@ Candidates always render **in full** — a rule must be in force to be measurabl
 | `id`, `created_at` | Identity (`r-` + 10 hex chars) and provenance timestamp. |
 | `rule`, `rationale` | The constraint and why it exists — both sanitized on write. |
 | `scope` | The rule file it lives in. |
+| `applicability` | How widely it applies — `global`, `topical`, or `task` — as a separate axis from *where* it is filed. |
 | `source_notice_id`, `metric` | Provenance: which notice motivated it, which metric it targets. |
 | `status` | `candidate` → `active` \| `retired`. See [Rule validation](/harness/closed-loop/rule-validation). |
 | `tags` | Retrieval hooks, auto-derived from the source notice (signatures, metric and signal names, severity) plus any explicit tags. Used for *ranking* only, never for placement. |
@@ -128,16 +132,20 @@ Candidates always render **in full** — a rule must be in force to be measurabl
 Guard rails on `add`:
 
 - **Dedup** — a rule whose normalized text matches a live rule returns the existing rule instead of creating a duplicate.
-- **Cap** — at `max_active_rules` (default `50`, counted over active + candidate) the add fails with a message telling the agent to retire something first. Compaction is agent-driven; nothing is silently evicted.
+- **Novelty** — a proposal already covered by a live rule in the same scope resolves as `duplicate` or `already_covered` instead of adding near-identical guidance. This, not a global count, is what controls proliferation.
+- **Cap** — `max_active_rules` defaults to `0`, meaning unlimited. Set a positive value as an operator safety bound; nothing is ever silently evicted.
+- **Metric validation** — `metric` must name a real evaluator metric. Validation matches it against `breach:<metric>` signatures to decide what counts as evidence, so a name matching nothing reads as "never breached" and can invert the rule's own verdict.
 - **Sanitization** — rule text and rationale cross the trust boundary before they can ever reach a prompt.
 
-## Legacy records
+## Older stores
 
-Records written before `scope` existed are migrated **on read** — untagged → `global`, tagged → `scoped` — so a store from an older release keeps working with no migration command and no rewrite pass. The first render regenerates the `rules/` subtree. See [Upgrading](/harness/reference/migration-v07) for the details.
+A record with no `scope` reads as the default, `global` — like any other unspecified field. Existing `global`, `scoped`, and custom scope files keep working untouched: nothing is migrated, moved, or duplicated, and there is no migration command. The first render regenerates `rules.md` and the `rules/` subtree from whatever the store holds. See [Upgrading to v0.9](/harness/reference/migration-v09).
+
+A scope whose rules all retire keeps its file, rewritten empty, rather than being deleted — a prior context may reference the path, and a file saying "no rules here" is a better answer than a missing one.
 
 ## Retrieval
 
-`rule_retrieval` (default `true`) and `rules_context_topk` (default `8`) narrow the **active** rules inside a rendered scope file when a query is supplied — the path `harness_rules_search` and replay-context rendering use. They do not shape the system prompt, which carries no rule bodies to shape.
+`rule_retrieval` (default `true`) and `rules_context_topk` (default `8`) narrow the **active** rules inside a rendered scope file when a caller passes a query. They do not shape the system prompt, which carries no rule bodies to shape, and they do not affect the task-facing read/search/list tools — those never preselect on the agent's behalf.
 
 The scorer is deliberately simple and dependency-free: casefolded word tokens, tag hits weighted double over rule/rationale text, normalized by query size, ties broken by recency. `breach:tool_correctness` tokenizes to `breach` + `tool_correctness`, so signatures, metric names, and task words all match naturally.
 
@@ -161,8 +169,8 @@ harness.rules.retire("r-9772c134b8", reason="superseded by a broader rule")
 harness.rules.effectiveness()               # per-rule notice counts before/after
 ```
 
-The agent-facing equivalents are `harness_rules_read`, `harness_rules_list`, `harness_rules_search`, `harness_rule_add` (with `scope`), `harness_rule_retire`, and `harness_rule_status` — see [the toolset](/harness/loop/agent-toolset).
+The task-agent equivalents are exactly four reads: `harness_rules_read`, `harness_rules_list`, `harness_rules_search`, and `harness_rule_status` — see [the task toolset](/harness/loop/agent-toolset). Writing (`harness_rule_add`) belongs to [the repair agent](/harness/loop/repair-agent); promotion and retirement belong to [validation](/harness/closed-loop/rule-validation) alone.
 
 <Note>
-  `render_markdown()` — the skill root plus *every* scope file, candidates included — is the **replay context**: what a candidate rule is validated against and what a regression run replays with. It is deliberately not what the system prompt receives.
+  `render_markdown()` renders the guide plus *every* scope file, candidates included. It is an explicit operator call — not the system prompt, and no longer the replay context either: a [replay](/harness/closed-loop/eval-set-and-replay#the-replay-function) now receives a capability-only context and discovers rules through the same read-only tools, with only the candidate under test visible.
 </Note>

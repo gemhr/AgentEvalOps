@@ -22,7 +22,7 @@ def grade(session_id: str, end_state: dict) -> float | None:
         return None
     return my_benchmark.score(task_id)      # e.g. 0.0 … 1.0
 
-harness = Harness.create(verifier=grade)
+harness = Harness.create(verifier=grade)   # create() only — the for_*() factories do not take verifier=
 ```
 
 - **Signature:** `(session_id, end_state) -> float | bool | None`. The `end_state` is whatever your loop passed in the turn payload, so put the task identity in there.

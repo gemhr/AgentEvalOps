@@ -7,9 +7,65 @@ rss: true
 
 Release history for the **PandaProbe Harness** (`pandaprobe-harness`) — the self-healing envelope for PandaProbe-instrumented agents.
 
-Current version: `v0.7.0`
+Current version: `v0.9.0`
 
-<Update label="v0.8.0" description="Unreleased" tags={["Trace only", "Breaking"]}>
+<Update label="v0.9.0" description="2026-08-06" tags={["The repair agent", "Breaking"]}>
+  ### The repair agent moves into the package
+
+  Through v0.8 the *task* agent administered its own workspace: it read its mailbox, inspected diagnostic traces, wrote and retired rules, and acknowledged notices. A measured AppWorld run showed the cost of that design directly — handed a 10-tool administrative surface, the agent spent its turns operating the harness instead of doing the task, and **9 of 13 rules it wrote were about gaming its own diagnostic protocol**.
+
+  v0.9 splits the two roles. The developer owns the task agent, its model, framework, prompts, domain tools, loop, and environment. PandaProbe owns a **separate, package-owned repair agent** that reads the notice, inspects the flagged trace, and writes at most one candidate rule per failure — on its own model call, in its own session, with its own trace. The task agent keeps four read-only tools and never administers anything.
+
+  ```text
+  developer task agent → task trace → evaluation/gate → notice
+                                                  ↓
+                                      PandaProbe's repair agent
+                                                  ↓
+                                       candidate rule
+                                                  ↓
+  developer task agent ── read-only tools ──→ shared workspace
+  ```
+
+  <Note>
+    The repair agent needs a model. `Harness.create()` raises unless you set `repair_model` (or `HARNESS_REPAIR_MODEL`), or run `observe_only=True`. No billable default is ever selected for you. See [Upgrading to v0.9](/harness/reference/migration-v09).
+  </Note>
+
+  #### Added
+
+  - **`ManagedRepairAgent`** — a package-owned, bounded, provider-neutral tool loop over PandaProbe's official LiteLLM wrapper. It owns the repair prompt, the capability set, and the episode lifecycle; hosts supply only model transport. Configured by `repair_model`, `repair_timeout_s`, `repair_max_turns` (default 6), `repair_max_tokens`, `repair_temperature`, `repair_reasoning_effort` (default `"none"`, which current OpenAI reasoning models require for function tools on the wrapped chat-completions path), `trace_repair_agent`, and `domain_policy`.
+  - **`TaskToolset`** — the only tool surface intended for a task agent: `harness_rules_read`, `harness_rules_search`, `harness_rules_list`, and `harness_rule_status`. All read-only. Dispatch rejects every administrative or mutating call, including hallucinated ones.
+  - **Structured repair outcomes.** `SettleResult.repair` returns a `RepairResult` carrying status, task/repair session IDs, episode and notice IDs, recommended and selected scope, considered/existing/candidate rule IDs, suppression reason, model turns and tool calls, normalized usage, and an error category. Repair failure or timeout never fails the developer task.
+  - **Repair episodes.** Related same-turn notices whose trace or signature evidence overlaps are coalesced into one episode, resolved atomically. An episode may create at most one candidate. Timeout, cancellation, or failure acknowledges nothing.
+  - **Model-driven rule scoping.** The repair agent decides where a rule is filed, from the failure evidence it already holds — part of the existing repair call, not an extra model round. `global` is the default for broadly reusable rules; a concise contextual name (an application, workflow, or domain seen in the evidence) is preferred when the rule belongs to that context; `scoped` is the fallback when no meaningful stable name can be determined. Custom names are an open catalog, normalized only for filename safety.
+  - **`RuleScopeHint` and `task_summary`** on `TurnContext` — bounded, optional host metadata that *informs* the scope decision without dictating it. A host's own label for itself (a benchmark or integration name) is rejected as a scope, because it says where the agent ran rather than what failed.
+  - **`Harness.settle_validation(timeout=...)`**, **`Harness.validation_pending`**, and a `timeout=` argument on `drain_validation()`, which now returns whether it actually drained. Call `settle_validation()` at a phase boundary before snapshotting or reporting a ruleset.
+  - **`validation_round_budget_s`** and **`replay_env_wait_timeout_s`**, plus `ReplayContext.mark_execution_started()`. The first bounds replay work per validation round; the second keeps time spent queueing for a shared environment out of the replay execution budget.
+  - **Validation telemetry.** New journal events `validation_round_started`, `validation_candidate_started`, `validation_replay_case`, `validation_verdict`, and `validation_round_finished`, with a closed-set `pending_reason` (`trial_in_progress`, `no_matching_replayable_case`, `replay_inconclusive`, `candidate_not_exercised`, `env_wait_timeout`, `round_budget_exhausted`). `rule_retire` now carries structured evidence — the per-case deltas that decided it.
+
+  #### Changed
+
+  - **BREAKING (workspace layout):** the generated task-facing guide is `<harness_root>/rules.md`, beside the `rules.jsonl` store and `rules/` scope files it indexes. It is regenerated from `rules.jsonl` on every rule mutation and at startup, so it is a derived view with no authority — delete it and it comes back.
+  - **BREAKING (default scope):** a new rule defaults to `global`, not `scoped`, and a task-facing read with no `scope` argument defaults to `global`. `scoped` is now a deliberate verdict — "specific, but no better name" — rather than a catch-all for silence. Existing `global`, `scoped`, and custom scope files keep working; no rule is migrated, moved, or duplicated.
+  - **BREAKING:** `DiagnosticNotice.recommended_scope` and `RepairAssignment.recommended_scope` are `str | None`. `None` means "no host recommendation", which is deliberately distinct from recommending the default.
+  - **Every candidate now reaches a verdict.** Replay is still the strong path, but a bounded round falls back to the cheap forward trial for candidates it cannot reach, and rounds rotate which candidate replays first. Previously a promotable candidate could accumulate observations indefinitely and never be asked.
+  - **Replay verdicts are attributable.** A replay sees only the candidate under test — active rules stay visible as the baseline — and a replay that never read the candidate cannot produce a conclusive verdict. On a failure case only the candidate's own target metric or the authoritative outcome score can retire it; a protected `win` case still retires on any metric. In one measured run, 44% of retirements had fired on a metric the rule never claimed.
+  - `harness_rule_add` rejects a path-shaped scope instead of slugifying it, and validates `metric` against the evaluator's metric registry. A rule whose metric matches no signature reads as "never breached", which can invert its own verdict — so the repair model is told to correct it rather than having it silently persisted.
+  - Task-facing context and the `rules.md` template say **learned rules**, not "optional learned guidance", and state plainly that PandaProbe does not automatically insert rule contents. No behavior change: nothing was ever injected.
+  - `settle()` waits for evaluation, notice persistence, and one bounded repair attempt. It deliberately does **not** wait for a validation round, because a replay can need the very resource the current turn holds.
+
+  #### Removed
+
+  - **BREAKING:** the task-agent self-administration architecture. Task agents no longer receive mailbox, trace-inspection, notice-acknowledgement, rule-write, rule-retirement, validation, or regression capabilities.
+  - **BREAKING:** `HarnessToolset`, `Harness.toolset`, `OP_SCHEMAS`, `build_toolset_from_env`, and the `pandaprobe-harness-agent` companion CLI. Use `Harness.task_tools`; the task schema is `TASK_OP_SCHEMAS`, and repair schemas and dispatch stay package-internal.
+  - **BREAKING:** `Harness.shell`. Task agents no longer receive a harness-owned administrative shell.
+  - **BREAKING:** the no-argument `Harness.system_context()` / `startup_context()` and the two-argument `compose_system_preamble(rules, mailbox)`. All now require a task session ID.
+  - **BREAKING:** `HarnessConfig.concurrent_eval` and `HARNESS_CONCURRENT_EVAL` — one eval run has covered every metric since v0.8, and nothing read the flag.
+  - **BREAKING:** the `"legacy"` `Resolution.kind` and the pre-v0.8 `severity: "relative"` alias. Every resolution now names what happened; an unrecognized kind reads as `no_proposal`, and an unknown severity reads as `breach` rather than silently de-escalating.
+
+  Operator CLIs are unchanged: `pandaprobe-harness-eval` for regression replay and `pandaprobe-harness-calibrate` for threshold calibration.
+</Update>
+
+<Update label="v0.8.0" description="2026-08-04" tags={["Trace only", "Breaking"]}>
   ### One trigger, one detection pipeline
 
   v0.8 removes the legacy session-composite trigger. The trace-level three-tier trigger is now the only path. `pandaprobe-harness==0.7.0` is the last release that can reproduce the session-mode ablation.

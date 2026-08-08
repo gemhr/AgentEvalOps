@@ -70,14 +70,17 @@ The platform is passive — it scores traces that already exist. To learn what *
 ```python
 from uuid import uuid4
 import pandaprobe
-from pandaprobe_harness import EvalCase, Harness
+from pandaprobe_harness import EvalCase, Harness, ReplayContext
 
-async def replay(case: EvalCase, system_context: str) -> str:
-    """Re-run my agent on the captured input under `system_context`;
-    return the NEW session id the run produced."""
+async def replay(case: EvalCase, context: ReplayContext) -> str:
+    """Re-run my agent on the captured input; return the NEW session id."""
     session_id = f"replay-{case.id}-{uuid4().hex[:6]}"
     with pandaprobe.session(session_id):                 # traces land under the new session
-        await my_agent_step(system_context + MY_PROMPT, case.replay_input)
+        await my_agent_step(
+            str(context) + MY_PROMPT,                    # capability preamble, no rule text
+            tools=list(context.task_tools.specs()),      # how the candidate is discovered
+            task=case.replay_input,
+        )
     return session_id
 
 harness = Harness.create(replay=replay)
@@ -85,9 +88,11 @@ harness = Harness.create(replay=replay)
 
 The contract, precisely:
 
-- **Input:** the `EvalCase` and the rule corpus to run under: the skill root plus every scope file, candidates included. During candidate validation the provisional rule is in that string, which is the whole point — the replay runs *with* the rule in force.
+- **Input:** the `EvalCase` and a `ReplayContext`. The context is a `str` subclass — so an older callback that concatenates it still works — but the string is a **capability-only preamble with no rule text**. Rules are reached through `context.task_tools`, and during candidate validation only the candidate under test is discoverable there.
+- **The candidate must be read.** Attach `context.task_tools` and let the replayed agent use them. A replay that never reads the candidate produces no conclusive verdict, because whatever moved, the rule under test did not move it.
 - **Output:** a **new** session id whose traces the harness can score — it re-scores the run's *last* trace on the Tier 1 + Tier 2 metrics. Never reuse the original session.
 - **Behavior:** each invocation is awaited sequentially and bounded by `replay_timeout_s`; exceptions and timeouts degrade to "inconclusive" — they never crash validation or a regression run.
+- **Shared environments:** if your replay must first acquire a single environment server, container, or device, call `context.mark_execution_started()` once you have it. Queueing is then charged to `replay_env_wait_timeout_s` and the execution budget starts fresh — otherwise a replay can "time out" having run nothing, and be recorded as inconclusive evidence about a rule that never executed.
 
 <Warning>
   **Be honest with yourself about this dependency.** Without a replay function, `ReplayValidator` and regression runs cannot execute: candidate validation falls back to forward trials (slower, statistical — announced once in the log and journal), and `run_regression` reports every case as `skipped` with one clear warning. The harness never silently pretends it replayed something.

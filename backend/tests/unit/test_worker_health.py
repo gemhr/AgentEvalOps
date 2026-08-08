@@ -95,7 +95,77 @@ def test_stale_heartbeat_with_queued_work_is_unhealthy(health: ModuleType, monke
 
     healthy, body = health._is_healthy()
     assert healthy is False
-    assert body == b"celery pool not responding" or body == b"celery pool not consuming"
+    assert body == b"celery pool not consuming"
+
+
+# -- _queue_has_work: prefetch accounting ------------------------------------
+#
+# A prefetched message leaves the queue list and lands in kombu's ``unacked``
+# hash, so a wedged pool can hold work while ``LLEN celery`` reads zero.  These
+# tests drive the real RESP parser with recorded replies.
+
+
+def _redis_reply(*counts: int) -> bytes:
+    """Build the pipelined reply for SELECT + N integer commands."""
+    return b"+OK\r\n" + b"".join(f":{n}\r\n".encode() for n in counts)
+
+
+def test_queue_has_work_counts_waiting_messages(health: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(health, "_redis_roundtrip", lambda _payload: _redis_reply(3, 0))
+    assert health._queue_has_work() is True
+
+
+def test_queue_has_work_counts_prefetched_unacked_messages(
+    health: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The regression: queue drained to zero but a worker still holds messages.
+
+    Reproduced against a live worker — with the default prefetch multiplier a
+    wedged pool checks out its messages, leaving ``LLEN celery`` at 0 while
+    ``HLEN unacked`` stays positive.  Counting only the list reported healthy.
+
+    Asserts on the *request* as well as the reply: a probe that never asks for
+    ``unacked`` cannot see prefetched work, so dropping that command must fail
+    here rather than silently reintroduce the blind spot.
+    """
+    sent: list[bytes] = []
+
+    def _record(payload: bytes) -> bytes:
+        sent.append(payload)
+        return _redis_reply(0, 8)
+
+    monkeypatch.setattr(health, "_redis_roundtrip", _record)
+
+    assert health._queue_has_work() is True
+    assert b"unacked" in sent[0], "probe must query the unacked hash, not just LLEN"
+    assert b"celery" in sent[0], "probe must still query the queue list"
+
+
+def test_queue_has_work_is_false_when_broker_is_idle(health: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nothing waiting and nothing checked out — an idle worker must not restart."""
+    monkeypatch.setattr(health, "_redis_roundtrip", lambda _payload: _redis_reply(0, 0))
+    assert health._queue_has_work() is False
+
+
+def test_queue_has_work_is_false_when_the_broker_errors(health: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A broker hiccup must never be the sole reason a container is killed."""
+
+    def _boom(_payload: bytes) -> bytes:
+        raise OSError("connection reset")
+
+    monkeypatch.setattr(health, "_redis_roundtrip", _boom)
+    assert health._queue_has_work() is False
+
+
+def test_wedged_pool_holding_prefetched_work_is_unhealthy(health: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    """End to end: stale heartbeat + drained queue + unacked messages -> restart."""
+    monkeypatch.setattr(health, "_redis_is_reachable", lambda: True)
+    monkeypatch.setattr(health, "_heartbeat_age_s", lambda: health._HEARTBEAT_MAX_AGE_S + 1)
+    monkeypatch.setattr(health, "_redis_roundtrip", lambda _payload: _redis_reply(0, 8))
+
+    healthy, body = health._is_healthy()
+    assert healthy is False
+    assert body == b"celery pool not consuming"
 
 
 def test_busy_worker_with_fresh_heartbeat_is_healthy(health: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:

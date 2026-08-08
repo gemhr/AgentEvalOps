@@ -25,6 +25,13 @@ with an empty queue has no reason to stamp a heartbeat and must not be
 restarted for it.  We only declare failure when there is work to do and the
 pool demonstrably is not doing it.
 
+"Work to do" must count *checked-out* messages as well as waiting ones.  Celery
+prefetches (``worker_prefetch_multiplier`` defaults to 4, so up to 40 messages
+for a ``--autoscale=10,2`` pool), and kombu moves each prefetched message off the
+queue list into an ``unacked`` hash.  A wedged pool therefore drains ``LLEN
+celery`` to zero while still holding every message it grabbed — exactly the state
+that must trigger a restart, so counting only the list would report healthy.
+
 Beat has no pool, so it keeps the broker-only check (``ROLE=beat``).
 
 Usage (CI deploy command)::
@@ -85,20 +92,29 @@ def _redis_is_reachable() -> bool:
 
 
 def _queue_has_work() -> bool:
-    """True when tasks are waiting on the default queue.
+    """True when any task is waiting *or* already checked out by a worker.
 
-    The Redis broker stores the default queue as a list named after the queue,
-    so ``LLEN celery`` is the backlog.  ``SELECT`` is per-connection, so both
-    commands are pipelined on one socket.  On any error we assume *no* backlog,
-    so a broker hiccup can never by itself get a healthy container killed.
+    Two sources, because a message leaves the queue the moment it is prefetched:
+
+    * ``LLEN celery`` — messages still waiting to be delivered.
+    * ``HLEN unacked`` — messages delivered to some worker but not yet acked.
+      Counting these is what catches a wedged pool sitting on prefetched work,
+      which drains the queue list to zero without doing anything.
+
+    ``unacked`` is shared broker state, so it also reflects sibling instances.
+    That is acceptable here: this is only a corroborating signal for an already
+    stale *local* heartbeat, and erring toward "there is work" merely means a
+    demonstrably idle-but-stale pool gets recycled.
+
+    ``SELECT`` is per-connection, so all commands are pipelined on one socket.
+    On any error we assume *no* work, so a broker hiccup can never by itself get
+    a healthy container killed.
     """
     try:
-        reply = _redis_roundtrip(_resp("SELECT", _REDIS_DB) + _resp("LLEN", "celery"))
-        # Replies arrive in order: "+OK\r\n" for SELECT, then ":<n>\r\n" for LLEN.
-        for line in reply.split(b"\r\n"):
-            if line.startswith(b":"):
-                return int(line[1:]) > 0
-        return False
+        reply = _redis_roundtrip(_resp("SELECT", _REDIS_DB) + _resp("LLEN", "celery") + _resp("HLEN", "unacked"))
+        # Integer replies arrive in order after SELECT's "+OK": LLEN, then HLEN.
+        counts = [int(line[1:]) for line in reply.split(b"\r\n") if line.startswith(b":")]
+        return any(count > 0 for count in counts)
     except (OSError, ConnectionError, ValueError):
         return False
 

@@ -97,7 +97,7 @@ report = calibrate(
 print(report.render_text())      # or report.to_json()
 ```
 
-`pandaprobe-harness-calibrate --json` emits the identical structure from the command line. A self-contained walkthrough lives at `examples/calibration_demo.py` in the repository.
+`pandaprobe-harness-calibrate --json` emits the identical structure from the command line. A self-contained walkthrough lives at `examples/misc/calibration_demo.py` in the repository.
 
 <Tip>
   Pair calibration with **shadow mode**: run with `observe_only=true` for a week, label a sample of sessions, calibrate, set your Tier-2 thresholds and `gate_target` — then let the agent act.

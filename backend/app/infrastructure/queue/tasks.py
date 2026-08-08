@@ -21,6 +21,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
+from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -49,6 +50,43 @@ async def _worker_session() -> AsyncGenerator:
         yield session
 
 
+#: How long a dispatcher holds its single-flight lock. Longer than any dispatch
+#: takes (~3s for ~500 orgs) but short enough that a killed worker cannot block
+#: the next scheduled cycle, which is 300s away for the usage/monitor schedules.
+_DISPATCH_LOCK_TTL = 120
+_DISPATCH_LOCK_PREFIX = "pp:dispatch-lock:"
+
+
+@asynccontextmanager
+async def _dispatch_once(name: str) -> AsyncGenerator[bool, None]:
+    """Yield True only for the first caller to claim ``name`` within the TTL.
+
+    Dispatchers fan out one task per organisation, so every duplicate dispatch
+    multiplies the queue by the org count. The observed case is recovery from a
+    worker outage: beat keeps queueing on its 300s schedule regardless, so a
+    6.6h wedge left 79 dispatch messages that all ran within two minutes of the
+    restart and fanned out ~3,000 usage-sync tasks against ~460 real orgs. This
+    collapses that thundering herd into one fan-out per TTL.
+
+    Fails OPEN — if Redis is unreachable we still dispatch, because dropping
+    usage sync silently is worse than dispatching twice. (Largely academic: the
+    lock shares Redis with the broker, so a dispatcher that cannot reach Redis
+    could not have received this task nor enqueued its children anyway.)
+    """
+    import redis.asyncio as aioredis
+
+    client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        claimed = bool(await client.set(f"{_DISPATCH_LOCK_PREFIX}{name}", "1", nx=True, ex=_DISPATCH_LOCK_TTL))
+    except Exception as exc:  # noqa: BLE001 - never let the lock itself break dispatch
+        logger.warning("dispatch_lock_unavailable", dispatcher=name, error=str(exc))
+        claimed = True
+    try:
+        yield claimed
+    finally:
+        await client.aclose()
+
+
 # ---------------------------------------------------------------------------
 # Trace persistence
 # ---------------------------------------------------------------------------
@@ -67,6 +105,10 @@ def process_trace(self: Any, payload: dict[str, Any]) -> dict[str, str]:
     """
     try:
         return asyncio.run(_persist_trace(payload))
+    except SoftTimeLimitExceeded:
+        # Retrying a timeout just burns the limit again (max_retries + 1 times).
+        logger.error("process_trace_timeout", trace_id=payload.get("trace_id"))
+        raise
     except Exception as exc:
         logger.error("process_trace_failed", error=str(exc), trace_id=payload.get("trace_id"))
         raise self.retry(exc=exc)
@@ -93,7 +135,18 @@ async def _persist_trace(payload: dict[str, Any]) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-@celery.task(name="execute_eval_run", bind=True, max_retries=2, default_retry_delay=10)
+_EVAL_SOFT_TIME_LIMIT = 3300  # 55 min
+_EVAL_TIME_LIMIT = 3600  # 60 min
+
+
+@celery.task(
+    name="execute_eval_run",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=10,
+    soft_time_limit=_EVAL_SOFT_TIME_LIMIT,
+    time_limit=_EVAL_TIME_LIMIT,
+)
 def execute_eval_run(
     self: Any,
     run_id: str,
@@ -122,6 +175,10 @@ def execute_eval_run(
     """
     try:
         return asyncio.run(_run_eval_run(run_id, project_id, trace_ids, trace_metric_map))
+    except SoftTimeLimitExceeded:
+        logger.error("execute_eval_run_timeout", run_id=run_id)
+        asyncio.run(_fail_eval_run(run_id, "Eval run exceeded its time limit."))
+        raise
     except Exception as exc:
         logger.error("execute_eval_run_failed", error=str(exc), run_id=run_id)
         asyncio.run(_fail_eval_run(run_id, str(exc)))
@@ -347,6 +404,9 @@ def process_single_monitor(self: Any, monitor_id: str, project_id: str) -> dict[
             monitor_id=monitor_id,
         )
         return {"monitor_id": monitor_id, "status": "quota_exceeded"}
+    except SoftTimeLimitExceeded:
+        logger.error("process_single_monitor_timeout", monitor_id=monitor_id)
+        raise
     except Exception as exc:
         logger.error("process_single_monitor_failed", monitor_id=monitor_id, error=str(exc))
         raise self.retry(exc=exc)
@@ -425,7 +485,14 @@ async def _process_single_monitor(monitor_id: str, project_id: str) -> dict[str,
 SIGNAL_METRICS = ["confidence", "coherence", "loop_detection", "tool_correctness"]
 
 
-@celery.task(name="execute_session_eval_run", bind=True, max_retries=2, default_retry_delay=10)
+@celery.task(
+    name="execute_session_eval_run",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=10,
+    soft_time_limit=_EVAL_SOFT_TIME_LIMIT,
+    time_limit=_EVAL_TIME_LIMIT,
+)
 def execute_session_eval_run(
     self: Any,
     run_id: str,
@@ -440,6 +507,10 @@ def execute_session_eval_run(
     """
     try:
         return asyncio.run(_run_session_eval(run_id, project_id, session_ids))
+    except SoftTimeLimitExceeded:
+        logger.error("execute_session_eval_run_timeout", run_id=run_id)
+        asyncio.run(_fail_eval_run(run_id, "Session eval run exceeded its time limit."))
+        raise
     except Exception as exc:
         logger.error("execute_session_eval_run_failed", error=str(exc), run_id=run_id)
         asyncio.run(_fail_eval_run(run_id, str(exc)))
@@ -771,11 +842,16 @@ def dispatch_sync_usage(self: Any) -> dict[str, Any]:
 async def _dispatch_sync_usage() -> dict[str, Any]:
     from app.infrastructure.db.repositories.billing_repo import BillingRepository
 
-    async with _worker_session() as session:
-        org_ids = await BillingRepository(session).list_all_active_org_ids()
+    async with _dispatch_once("sync_usage") as claimed:
+        if not claimed:
+            logger.info("dispatch_sync_usage_skipped_duplicate")
+            return {"status": "skipped_duplicate", "count": 0}
 
-    for oid in org_ids:
-        sync_single_org_usage.delay(str(oid))
+        async with _worker_session() as session:
+            org_ids = await BillingRepository(session).list_all_active_org_ids()
+
+        for oid in org_ids:
+            sync_single_org_usage.delay(str(oid))
 
     logger.info("dispatch_sync_usage_done", dispatched=len(org_ids))
     return {"status": "dispatched", "count": len(org_ids)}
@@ -827,11 +903,16 @@ def dispatch_overage_billing(self: Any) -> dict[str, Any]:
 async def _dispatch_overage_billing() -> dict[str, Any]:
     from app.infrastructure.db.repositories.billing_repo import BillingRepository
 
-    async with _worker_session() as session:
-        org_ids = await BillingRepository(session).list_paid_active_org_ids()
+    async with _dispatch_once("overage_billing") as claimed:
+        if not claimed:
+            logger.info("dispatch_overage_billing_skipped_duplicate")
+            return {"status": "skipped_duplicate", "count": 0}
 
-    for oid in org_ids:
-        bill_single_org.delay(str(oid))
+        async with _worker_session() as session:
+            org_ids = await BillingRepository(session).list_paid_active_org_ids()
+
+        for oid in org_ids:
+            bill_single_org.delay(str(oid))
 
     logger.info("dispatch_overage_billing_done", dispatched=len(org_ids))
     return {"status": "dispatched", "count": len(org_ids)}
@@ -850,8 +931,13 @@ def bill_single_org(self: Any, org_id_str: str) -> dict[str, str]:
     ``rate_limit="80/s"`` keeps the total Stripe API call rate across
     all workers safely below Stripe's 100 req/s live-mode limit.
     """
+    from app.services.billing_service import StripeNotConfiguredError
+
     try:
         return asyncio.run(_bill_single_org(org_id_str))
+    except StripeNotConfiguredError as exc:
+        logger.error("bill_single_org_misconfigured", org_id=org_id_str, error=str(exc))
+        return {"org_id": org_id_str, "status": "stripe_not_configured"}
     except Exception as exc:
         logger.error("bill_single_org_failed", org_id=org_id_str, error=str(exc))
         raise self.retry(exc=exc)
@@ -911,11 +997,16 @@ async def _dispatch_hobby_reset() -> dict[str, Any]:
     from app.infrastructure.db.repositories.billing_repo import BillingRepository
 
     now = datetime.now(timezone.utc)
-    async with _worker_session() as session:
-        org_ids = await BillingRepository(session).list_hobby_org_ids_due_for_reset(now)
+    async with _dispatch_once("hobby_reset") as claimed:
+        if not claimed:
+            logger.info("dispatch_hobby_reset_skipped_duplicate")
+            return {"status": "skipped_duplicate", "count": 0}
 
-    for oid in org_ids:
-        reset_single_hobby_org.delay(str(oid))
+        async with _worker_session() as session:
+            org_ids = await BillingRepository(session).list_hobby_org_ids_due_for_reset(now)
+
+        for oid in org_ids:
+            reset_single_hobby_org.delay(str(oid))
 
     logger.info("dispatch_hobby_reset_done", dispatched=len(org_ids))
     return {"status": "dispatched", "count": len(org_ids)}

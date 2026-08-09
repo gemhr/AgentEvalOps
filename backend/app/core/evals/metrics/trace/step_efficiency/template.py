@@ -9,6 +9,8 @@ import json
 import textwrap
 from typing import Any
 
+from app.core.evals.metrics.utils import HARNESS_TOOL_GUIDANCE
+
 
 class StepEfficiencyTemplate:
     """Stateless container for prompt-building class methods."""
@@ -48,6 +50,11 @@ class StepEfficiencyTemplate:
             - Redundant steps: Did the agent repeat or duplicate work?
             - Minimal action principle: Could the task have been done with fewer steps?
             - Resource economy: Did the agent use more tools, calls, or iterations than necessary?
+
+            {HARNESS_TOOL_GUIDANCE}
+            Judge efficiency over the task-directed steps only. Do not count \
+            harness meta-tool calls as unnecessary, redundant, or superfluous \
+            steps, and do not lower the score for their presence or number.
 
             Scoring guide:
             - 1.0 = Perfectly efficient; minimal steps, no redundancy.

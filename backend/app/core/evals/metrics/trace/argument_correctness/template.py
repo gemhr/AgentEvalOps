@@ -13,6 +13,8 @@ import json
 import textwrap
 from typing import Any
 
+from app.core.evals.metrics.utils import HARNESS_TOOL_GUIDANCE
+
 
 class ArgumentCorrectnessTemplate:
     """Stateless container for prompt-building class methods."""
@@ -35,6 +37,10 @@ class ArgumentCorrectnessTemplate:
             Look for spans with kind `TOOL` and any spans whose input \
             contains tool_calls, function_call, or similar structures.
 
+            Preserve tool names verbatim, including any harness prefix such as \
+            `harness_`; the verdict stage relies on the exact name to tell an \
+            harness meta-tool apart from a task tool.
+
             Return **only** valid JSON with two keys: `user_input` (string) \
             and `tool_calls` (array of objects with name, parameters, reasoning).
 
@@ -52,6 +58,13 @@ class ArgumentCorrectnessTemplate:
             correctly address the user's task. Consider: Are the right values \
             passed? Are required parameters present? Do they match the user's \
             intent?
+
+            {HARNESS_TOOL_GUIDANCE}
+            For a harness meta-tool call, judge only whether its own arguments \
+            are well-formed for what it does — a scope name that exists, a notice \
+            id that is present. Return "yes" when they are, and never "no" merely \
+            because the call does not advance the user's task. Its purpose is to \
+            read harness state, so that is not a defect in its arguments.
 
             Return a JSON object with a single key `verdicts`: an array of \
             objects. Each object has:

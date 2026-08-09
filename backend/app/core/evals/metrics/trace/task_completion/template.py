@@ -10,6 +10,8 @@ import json
 import textwrap
 from typing import Any
 
+from app.core.evals.metrics.utils import HARNESS_TOOL_GUIDANCE
+
 
 class TaskCompletionTemplate:
     """Stateless container for prompt-building class methods."""
@@ -30,6 +32,12 @@ class TaskCompletionTemplate:
             or "efficiently".  Enumerate each relevant action the trace \
             shows, in plain language.
 
+            {HARNESS_TOOL_GUIDANCE}
+            When describing the outcome, report harness meta-tool activity \
+            plainly as consulting harness state, and keep it distinct from work \
+            directed at the user's task, so the verdict stage can tell the two \
+            apart. Do not describe it as an attempt at the task.
+
             IMPORTANT: Return **only** valid JSON with two keys: \
             `task` and `outcome`.
 
@@ -45,6 +53,20 @@ class TaskCompletionTemplate:
         return textwrap.dedent(f"""\
             Given the task (desired outcome) and the actual achieved \
             outcome, score how well the actual outcome fulfils the task.
+
+            A trace may cover only part of a longer, multi-step effort. Score the \
+            progress the outcome actually shows toward the task; reserve 0.0 for \
+            an outcome that shows no progress or contradicts the task, not for one \
+            that is merely incomplete.
+
+            If the outcome consists only of the agent consulting its harness's \
+            own state — retrieving learned guidance or rules, reading or \
+            acknowledging a diagnostic notice, inspecting an earlier trace, often \
+            through tools named with a harness prefix such as `harness_` — then \
+            the trace captures sanctioned preparation rather than an attempt at \
+            the task. Score it as showing no task progress yet, and say so in the \
+            reason; do not treat it as a failed or incorrect attempt, and do not \
+            credit it as progress either.
 
             Return a JSON object with two keys:
             - `verdict`: a float between 0 and 1 (1 = perfectly achieved).

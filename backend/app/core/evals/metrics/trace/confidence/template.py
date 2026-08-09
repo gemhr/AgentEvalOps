@@ -4,6 +4,8 @@ import json
 import textwrap
 from typing import Any
 
+from app.core.evals.metrics.utils import HARNESS_TOOL_GUIDANCE
+
 
 class ConfidenceTemplate:
     """Stateless container for prompt-building class methods."""
@@ -26,6 +28,12 @@ class ConfidenceTemplate:
             - **Indicators of low confidence**: hedging language, contradictions, \
             unnecessary retries, vague or incomplete outputs, repeated tool \
             calls with the same parameters, or abandoning a strategy mid-way.
+
+            {HARNESS_TOOL_GUIDANCE}
+            Consulting harness state is not hesitation, indecision, or a \
+            contradictory step: checking learned guidance before acting is a \
+            deliberate choice. Do not read it as hedging or as abandoning a \
+            strategy, and judge decisiveness over the task-directed actions only.
 
             Return a JSON object with:
             - `confidence`: a float between 0.0 and 1.0 \

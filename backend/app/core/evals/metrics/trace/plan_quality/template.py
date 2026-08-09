@@ -26,6 +26,16 @@ class PlanQualityTemplate:
             being overly verbose?
             - **Alignment with task**: Does the plan match the user's intent?
 
+            The plan describes task work only. Harness meta-tool calls (for
+            example `harness_*` names that retrieve learned rules or read
+            diagnostic notices) are deliberately excluded from it, so do not mark
+            the plan incomplete for omitting them, and do not fault it for
+            including one if it appears.
+
+            This prompt receives only the task and the extracted plan, never the
+            tool calls themselves, so the shared harness-tool guidance the other
+            judges carry does not apply here.
+
             Scoring guide:
             - 1.0 = Excellent plan; complete, coherent, optimal.
             - 0.75 = Good plan; minor flaws or suboptimal choices.

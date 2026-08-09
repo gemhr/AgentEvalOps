@@ -9,6 +9,8 @@ import json
 import textwrap
 from typing import Any
 
+from app.core.evals.metrics.utils import HARNESS_TOOL_GUIDANCE
+
 
 class PlanAdherenceTemplate:
     """Stateless container for prompt-building class methods."""
@@ -31,6 +33,9 @@ class PlanAdherenceTemplate:
             - Every step must be supported by trace evidence (reasoning, thought, \
             or action fields). Do NOT hallucinate steps.
             - Focus on intent: what did the agent plan to do, in order?
+            - Exclude harness meta-tool calls (for example `harness_*` \
+            names that retrieve learned rules or read diagnostic notices). They \
+            are harness operation, not steps of the agent's task plan.
             - If no plan can be inferred from the trace, return an empty list.
             - Return **only** valid JSON with a single key: `plan` (list of strings).
 
@@ -56,6 +61,12 @@ class PlanAdherenceTemplate:
             - Check for extraneous actions not in the plan.
             - Assess order consistency: were steps followed in the intended order?
             - Assess completeness: were all planned steps addressed?
+
+            {HARNESS_TOOL_GUIDANCE}
+            A harness meta-tool call is not an extraneous action, even when the \
+            plan does not mention it: plans describe task work, while these calls \
+            are harness operation. Ignore them when checking for deviations and \
+            when assessing order.
 
             Scoring guide:
             - 1.0 = Perfect adherence; execution matches plan exactly.

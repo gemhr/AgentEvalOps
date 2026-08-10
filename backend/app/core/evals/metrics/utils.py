@@ -19,14 +19,14 @@ HARNESS_TOOL_GUIDANCE = textwrap.dedent("""\
     Judge these as NEUTRAL:
     - Do not treat them as incorrect, irrelevant, or mis-selected tools, and do
       not count them as unnecessary, redundant, or inefficient steps. Consulting
-      guidance before acting is sanctioned behaviour, not a mistake.
+      guidance before acting is expected behaviour, not a mistake.
     - Exclude them from the assessment rather than rewarding them. They earn no
       credit, and a trace containing only harness calls with no attempt at the
       user's task still scores poorly for the missing attempt.
-    - A trace whose visible work is entirely harness calls is preparation
-      within a longer task, not a failure: score the task-directed work present,
-      and if there is none, say the trace shows no task-directed activity rather
-      than that the wrong tools were chosen.
+    - A trace whose visible work is entirely harness calls has not yet attempted
+      the task: score the task-directed work present, and if there is none, say
+      the trace shows no task-directed activity rather than that the wrong tools
+      were chosen.
     - Judge only the task-directed actions on their own merits.
 """)
 

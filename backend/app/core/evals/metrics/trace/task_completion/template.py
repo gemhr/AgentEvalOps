@@ -61,12 +61,13 @@ class TaskCompletionTemplate:
 
             If the outcome consists only of the agent consulting its harness's \
             own state — retrieving learned guidance or rules, reading or \
-            acknowledging a diagnostic notice, inspecting an earlier trace, often \
+            acknowledging a diagnostic notice, inspecting an earlier trace, \
             through tools named with a harness prefix such as `harness_` — then \
-            the trace captures sanctioned preparation rather than an attempt at \
-            the task. Score it as showing no task progress yet, and say so in the \
-            reason; do not treat it as a failed or incorrect attempt, and do not \
-            credit it as progress either.
+            the trace has not yet attempted the task. Score it as showing no task \
+            progress yet and say exactly that in the reason; do not treat it as a \
+            failed or incorrect attempt, and do not credit it as progress either.
+
+            Judge every other action normally.
 
             Return a JSON object with two keys:
             - `verdict`: a float between 0 and 1 (1 = perfectly achieved).

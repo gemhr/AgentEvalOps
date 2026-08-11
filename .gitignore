@@ -33,3 +33,6 @@ logs/
 *.ipynb
 .pytest_cache/
 .ruff_cache/
+
+# AI
+.ai/

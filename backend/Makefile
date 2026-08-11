@@ -3,7 +3,7 @@
 # -- Installation & environment -----------------------------------------------
 
 install:  ## Install locked dependencies via uv
-	pip install uv && uv sync --frozen
+	uv sync --frozen
 
 # -- Local development --------------------------------------------------------
 

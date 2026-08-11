@@ -1714,7 +1714,7 @@ dependencies = [
     { name = "structlog" },
     { name = "supabase" },
     { name = "uvicorn" },
-    { name = "uvloop" },
+    { name = "uvloop", marker = "sys_platform != 'win32'" },
 ]
 
 [package.dev-dependencies]
@@ -1756,7 +1756,7 @@ requires-dist = [
     { name = "structlog", specifier = ">=24.4.0" },
     { name = "supabase", specifier = ">=2.0.0" },
     { name = "uvicorn", specifier = ">=0.34.0" },
-    { name = "uvloop", specifier = ">=0.21.0" },
+    { name = "uvloop", marker = "sys_platform != 'win32'", specifier = ">=0.21.0" },
 ]
 
 [package.metadata.requires-dev]

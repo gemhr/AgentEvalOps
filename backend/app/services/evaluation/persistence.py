@@ -162,6 +162,37 @@ class EvaluationPersistenceService:
     def __init__(self, uow_factory: UowFactory) -> None:
         self._uow_factory = uow_factory
 
+    async def get_run(self, project_id: UUID, run_id: UUID) -> EvaluationRun:
+        """按 tenant scope 读取 Run，不暴露 Repository 或 Session。"""
+        async with self._uow_factory() as uow:
+            run = await uow.runs.get_run(project_id, run_id)
+            if run is None:
+                raise EvaluationEntityNotFound("run not found")
+            return run
+
+    async def get_attempt(self, project_id: UUID, attempt_id: UUID) -> ExecutionAttempt:
+        """按 tenant scope 读取 Attempt，不暴露 Repository 或 Session。"""
+        async with self._uow_factory() as uow:
+            attempt = await uow.attempts.get_attempt(project_id, attempt_id)
+            if attempt is None:
+                raise EvaluationEntityNotFound("attempt not found")
+            return attempt
+
+    async def list_attempts(self, project_id: UUID, run_id: UUID) -> tuple[ExecutionAttempt, ...]:
+        """列出指定 tenant Run 的全部 Attempts。"""
+        async with self._uow_factory() as uow:
+            return await uow.attempts.list_attempts(project_id, run_id)
+
+    async def list_results(
+        self,
+        project_id: UUID,
+        run_id: UUID,
+        attempt_id: UUID | None = None,
+    ) -> tuple[EvaluationResult, ...]:
+        """列出指定 tenant Run/Attempt 的 append-only Results。"""
+        async with self._uow_factory() as uow:
+            return await uow.results.list_results(project_id, run_id, attempt_id)
+
     async def create_run(
         self,
         *,

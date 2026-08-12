@@ -2,6 +2,25 @@
 
 # ruff: noqa: D415
 
+from app.services.evaluation.loop import (
+    EvaluationLoopContractError,
+    EvaluationLoopResult,
+    EvaluationLoopService,
+    EvaluatorResolver,
+    ExecutionTargetResolver,
+    ResolvedEvaluator,
+    TargetVersionRequired,
+)
 from app.services.evaluation.persistence import ClaimResult, EvaluationPersistenceService
 
-__all__ = ["ClaimResult", "EvaluationPersistenceService"]
+__all__ = [
+    "ClaimResult",
+    "EvaluationLoopContractError",
+    "EvaluationLoopResult",
+    "EvaluationLoopService",
+    "EvaluationPersistenceService",
+    "EvaluatorResolver",
+    "ExecutionTargetResolver",
+    "ResolvedEvaluator",
+    "TargetVersionRequired",
+]

@@ -16,6 +16,7 @@ from app.core.evaluation import (
     PolicyDisposition, ProvenanceCompleteness, ScoreDirection, TestCaseVersion as CaseVersion, VersionRef,
 )
 from app.core.evaluation.run_attempts import AttemptStatus, RunNotFinishable, RunStatus
+from app.core.evaluation.run_attempts import EvaluationEntityNotFound
 from app.services.evaluation import EvaluationPersistenceService
 
 NOW = datetime(2026, 8, 12, tzinfo=timezone.utc)
@@ -96,6 +97,41 @@ async def persisted_success_context():
         provenance_completeness=ProvenanceCompleteness.COMPLETE, created_at=NOW,
     )
     return run, terminal, token, result
+
+
+@pytest.mark.asyncio
+async def test_query_facade_reads_tenant_scoped_entities_and_collections():
+    run, attempt, _, result = await persisted_success_context()
+    uow = FakeUow()
+    uow.runs.get_run.return_value = run
+    uow.attempts.get_attempt.return_value = attempt
+    uow.attempts.list_attempts.return_value = (attempt,)
+    uow.results.list_results.return_value = (result,)
+    service = EvaluationPersistenceService(lambda: uow)
+
+    assert await service.get_run(run.project_id, run.run_id) is run
+    assert await service.get_attempt(run.project_id, attempt.attempt_id) is attempt
+    assert await service.list_attempts(run.project_id, run.run_id) == (attempt,)
+    assert await service.list_results(run.project_id, run.run_id, attempt.attempt_id) == (result,)
+    uow.results.list_results.assert_awaited_once_with(run.project_id, run.run_id, attempt.attempt_id)
+
+
+@pytest.mark.asyncio
+async def test_query_facade_hides_foreign_entities_and_preserves_empty_lists():
+    uow = FakeUow()
+    uow.runs.get_run.return_value = None
+    uow.attempts.get_attempt.return_value = None
+    uow.attempts.list_attempts.return_value = ()
+    uow.results.list_results.return_value = ()
+    service = EvaluationPersistenceService(lambda: uow)
+    project_id = uuid4()
+
+    with pytest.raises(EvaluationEntityNotFound, match="run"):
+        await service.get_run(project_id, uuid4())
+    with pytest.raises(EvaluationEntityNotFound, match="attempt"):
+        await service.get_attempt(project_id, uuid4())
+    assert await service.list_attempts(project_id, uuid4()) == ()
+    assert await service.list_results(project_id, uuid4()) == ()
 
 
 @pytest.mark.asyncio

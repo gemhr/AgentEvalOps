@@ -4,20 +4,25 @@ All table definitions live here so that Alembic can discover them via
 ``Base.metadata`` for auto-generated migrations.
 """
 
+# ruff: noqa: D415
+
 import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum as SAEnum,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -552,4 +557,236 @@ class UsageRecordModel(Base):
     __table_args__ = (
         UniqueConstraint("org_id", "period_start", name="uq_usage_record_org_period"),
         Index("ix_usage_records_org_period", "org_id", "period_start"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Evaluation bounded context (append-only WP3 persistence)
+# ---------------------------------------------------------------------------
+
+
+class EvaluationRunModel(Base):
+    """Authoritative EvaluationRun state and immutable input snapshots。"""
+
+    __tablename__ = "evaluation_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    dataset_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    dataset_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    suite_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    suite_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    execution_target_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    execution_target_kind: Mapped[str] = mapped_column(String(100), nullable=False)
+    target_version_kind: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    target_version_value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    dataset_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    suite_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    execution_target_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    subject_ref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, server_default=text("CURRENT_TIMESTAMP"))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("project_id", "id", name="uq_evaluation_runs_project_id_id"),
+        UniqueConstraint(
+            "project_id", "id", "dataset_id", "dataset_version", "suite_id", "suite_version",
+            name="uq_evaluation_runs_result_provenance",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING','RUNNING','COMPLETED','FAILED','OUTCOME_UNKNOWN')",
+            name="ck_evaluation_runs_status",
+        ),
+        CheckConstraint(
+            "(target_version_kind IS NULL) = (target_version_value IS NULL)",
+            name="ck_evaluation_runs_target_version_pair",
+        ),
+        CheckConstraint(
+            "((status IN ('COMPLETED','FAILED','OUTCOME_UNKNOWN')) = (finished_at IS NOT NULL))",
+            name="ck_evaluation_runs_terminal_finished",
+        ),
+        CheckConstraint(
+            "finished_at IS NULL OR finished_at >= COALESCE(started_at, created_at)",
+            name="ck_evaluation_runs_finished_order",
+        ),
+        Index("ix_evaluation_runs_project_created", "project_id", "created_at"),
+        Index("ix_evaluation_runs_project_status_created", "project_id", "status", "created_at"),
+    )
+
+
+class ExecutionAttemptModel(Base):
+    """一次 TestCase execution try 与 claim fencing state。"""
+
+    __tablename__ = "evaluation_attempts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    case_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    case_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    retry_of_attempt_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    execution_target_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    execution_target_kind: Mapped[str] = mapped_column(String(100), nullable=False)
+    target_version_kind: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    target_version_value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    target_config_kind: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    target_config_value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    execution_request_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    request_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    claim_token: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    worker_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    task_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, server_default=text("CURRENT_TIMESTAMP"))
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    execution_outcome_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    output_artifact_ref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    outcome_evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    error_category: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    outcome_metadata: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["project_id", "run_id"], ["evaluation_runs.project_id", "evaluation_runs.id"],
+            name="fk_evaluation_attempts_project_run", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "run_id", "retry_of_attempt_id"],
+            ["evaluation_attempts.project_id", "evaluation_attempts.run_id", "evaluation_attempts.id"],
+            name="fk_evaluation_attempts_retry_parent",
+        ),
+        UniqueConstraint("project_id", "run_id", "id", name="uq_evaluation_attempts_project_run_id"),
+        UniqueConstraint(
+            "project_id", "run_id", "id", "case_id", "case_version", "execution_target_id", "execution_request_id",
+            name="uq_evaluation_attempts_result_provenance",
+        ),
+        UniqueConstraint(
+            "project_id", "run_id", "case_id", "case_version", "attempt_no",
+            name="uq_evaluation_attempts_case_number",
+        ),
+        UniqueConstraint("project_id", "run_id", "execution_request_id", name="uq_evaluation_attempts_request"),
+        UniqueConstraint("claim_token", name="uq_evaluation_attempts_claim_token"),
+        CheckConstraint("attempt_no > 0", name="ck_evaluation_attempts_number_positive"),
+        CheckConstraint(
+            "(attempt_no = 1 AND retry_of_attempt_id IS NULL) OR (attempt_no > 1 AND retry_of_attempt_id IS NOT NULL)",
+            name="ck_evaluation_attempts_retry_lineage",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING','CLAIMED','RUNNING','TERMINAL')", name="ck_evaluation_attempts_status",
+        ),
+        CheckConstraint(
+            "(target_version_kind IS NULL) = (target_version_value IS NULL)",
+            name="ck_evaluation_attempts_target_version_pair",
+        ),
+        CheckConstraint(
+            "(target_config_kind IS NULL) = (target_config_value IS NULL)",
+            name="ck_evaluation_attempts_target_config_pair",
+        ),
+        CheckConstraint(
+            "(status = 'PENDING' AND claim_token IS NULL AND claimed_at IS NULL AND lease_expires_at IS NULL) OR "
+            "(status IN ('CLAIMED','RUNNING') AND claim_token IS NOT NULL AND claimed_at IS NOT NULL AND lease_expires_at IS NOT NULL) OR "
+            "(status = 'TERMINAL' AND claim_token IS NOT NULL)",
+            name="ck_evaluation_attempts_claim_state",
+        ),
+        CheckConstraint(
+            "(status = 'TERMINAL') = (execution_outcome_kind IS NOT NULL AND finished_at IS NOT NULL)",
+            name="ck_evaluation_attempts_terminal_outcome",
+        ),
+        CheckConstraint(
+            "execution_outcome_kind IS NULL OR execution_outcome_kind IN ('SUCCESS','FAILURE','TIMEOUT','CANCELLED','OUTCOME_UNKNOWN')",
+            name="ck_evaluation_attempts_outcome_kind",
+        ),
+        CheckConstraint(
+            "execution_outcome_kind IS NULL OR "
+            "(execution_outcome_kind = 'SUCCESS' AND output_artifact_ref IS NOT NULL AND error_category IS NULL) OR "
+            "(execution_outcome_kind <> 'SUCCESS' AND output_artifact_ref IS NULL AND error_category IS NOT NULL AND reason IS NOT NULL)",
+            name="ck_evaluation_attempts_outcome_payload",
+        ),
+        Index(
+            "uq_evaluation_attempts_direct_retry", "project_id", "run_id", "retry_of_attempt_id",
+            unique=True, postgresql_where=text("retry_of_attempt_id IS NOT NULL"),
+        ),
+        Index("ix_evaluation_attempts_case_number", "project_id", "run_id", "case_id", "case_version", "attempt_no"),
+        Index("ix_evaluation_attempts_run_status", "project_id", "run_id", "status"),
+        Index(
+            "ix_evaluation_attempts_stale", "lease_expires_at",
+            postgresql_where=text("status IN ('CLAIMED','RUNNING')"),
+        ),
+    )
+
+
+class EvaluationResultModel(Base):
+    """Append-only evaluator fact；UPDATE 由 migration trigger 禁止。"""
+
+    __tablename__ = "evaluation_results"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    attempt_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    dataset_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    dataset_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    case_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    case_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    suite_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    suite_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    evaluator_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    evaluator_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    config_ref_kind: Mapped[str] = mapped_column(String(100), nullable=False)
+    config_ref_value: Mapped[str] = mapped_column(String(255), nullable=False)
+    prompt_ref_kind: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    prompt_ref_value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    execution_target_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    target_version_kind: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    target_version_value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    execution_request_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    verdict: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    provenance_completeness: Mapped[str] = mapped_column(String(16), nullable=False)
+    output_artifact_ref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, server_default=text("CURRENT_TIMESTAMP"))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["project_id", "run_id", "dataset_id", "dataset_version", "suite_id", "suite_version"],
+            ["evaluation_runs.project_id", "evaluation_runs.id", "evaluation_runs.dataset_id", "evaluation_runs.dataset_version", "evaluation_runs.suite_id", "evaluation_runs.suite_version"],
+            name="fk_evaluation_results_run_provenance", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "run_id", "attempt_id", "case_id", "case_version", "execution_target_id", "execution_request_id"],
+            ["evaluation_attempts.project_id", "evaluation_attempts.run_id", "evaluation_attempts.id", "evaluation_attempts.case_id", "evaluation_attempts.case_version", "evaluation_attempts.execution_target_id", "evaluation_attempts.execution_request_id"],
+            name="fk_evaluation_results_attempt_provenance", ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "run_id", "attempt_id", "case_id", "case_version", "evaluator_id", "evaluator_version",
+            name="uq_evaluation_results_logical_slot",
+        ),
+        CheckConstraint("verdict IN ('PASS','FAIL','INCONCLUSIVE','ERROR')", name="ck_evaluation_results_verdict"),
+        CheckConstraint(
+            "provenance_completeness IN ('COMPLETE','PARTIAL')", name="ck_evaluation_results_provenance",
+        ),
+        CheckConstraint("(prompt_ref_kind IS NULL) = (prompt_ref_value IS NULL)", name="ck_evaluation_results_prompt_pair"),
+        CheckConstraint("(target_version_kind IS NULL) = (target_version_value IS NULL)", name="ck_evaluation_results_target_pair"),
+        CheckConstraint(
+            "score IS NULL OR score NOT IN ('Infinity'::float8, '-Infinity'::float8, 'NaN'::float8)",
+            name="ck_evaluation_results_finite_score",
+        ),
+        Index("ix_evaluation_results_run_created", "project_id", "run_id", "created_at"),
+        Index("ix_evaluation_results_attempt", "project_id", "attempt_id"),
+        Index("ix_evaluation_results_case_evaluator", "project_id", "case_id", "case_version", "evaluator_id", "evaluator_version"),
     )

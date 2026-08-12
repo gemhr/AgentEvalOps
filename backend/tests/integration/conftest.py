@@ -111,7 +111,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     # Remove all data while preserving the schema.
     await session.execute(
         text(
-            "TRUNCATE eval_monitors, session_scores, trace_scores, eval_runs, spans, traces, api_keys, memberships, users, projects, subscriptions, usage_records, organizations CASCADE"
+            "TRUNCATE evaluation_results, evaluation_attempts, evaluation_runs, eval_monitors, session_scores, trace_scores, eval_runs, spans, traces, api_keys, memberships, users, projects, subscriptions, usage_records, organizations CASCADE"
         )
     )
     await session.commit()

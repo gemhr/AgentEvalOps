@@ -651,7 +651,7 @@ class ExecutionAttemptModel(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     execution_outcome_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    output_artifact_ref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    output_artifact_ref: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     outcome_evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
     error_category: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)

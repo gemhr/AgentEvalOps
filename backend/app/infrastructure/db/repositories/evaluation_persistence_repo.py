@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from datetime import timedelta
+import re
 from types import TracebackType
 from typing import Any
 from uuid import UUID
@@ -27,6 +28,12 @@ from app.core.evaluation.run_attempts import (
     RunStatus,
 )
 from app.infrastructure.db.models import EvaluationResultModel, EvaluationRunModel, ExecutionAttemptModel
+
+
+_RETRY_UNIQUE_CONSTRAINTS = frozenset(
+    {"uq_evaluation_attempts_case_number", "uq_evaluation_attempts_direct_retry"}
+)
+_UNIQUE_CONSTRAINT_PATTERN = re.compile(r'unique constraint "([^"]+)"')
 
 
 def _plain(value: object) -> object:
@@ -124,6 +131,55 @@ def _attempt_model(value: ExecutionAttempt) -> ExecutionAttemptModel:
         output_artifact_ref=_artifact(value.output_artifact_ref),
         outcome_evidence_refs=[_evidence(item) for item in value.outcome_evidence_refs],
         outcome_metadata=_plain(value.outcome_metadata), error_category=value.error_category, reason=value.reason,
+    )
+
+
+def _retry_constraint_name(exc: IntegrityError) -> str | None:
+    """从驱动异常链提取精确 PostgreSQL constraint name。"""
+    pending: list[object] = [exc.orig]
+    visited: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in visited:
+            continue
+        visited.add(id(current))
+        constraint_name = getattr(current, "constraint_name", None)
+        if isinstance(constraint_name, str):
+            return constraint_name
+        diagnostic = getattr(current, "diag", None)
+        diagnostic_name = getattr(diagnostic, "constraint_name", None)
+        if isinstance(diagnostic_name, str):
+            return diagnostic_name
+        for attribute in ("orig", "__cause__", "__context__"):
+            nested = getattr(current, attribute, None)
+            if nested is not None:
+                pending.append(nested)
+
+    match = _UNIQUE_CONSTRAINT_PATTERN.search(str(exc.orig))
+    if match is not None and match.group(1) in _RETRY_UNIQUE_CONSTRAINTS:
+        return match.group(1)
+    return None
+
+
+def _retry_intent_matches(row: ExecutionAttemptModel, requested: ExecutionAttempt) -> bool:
+    """比较重试请求的不可变业务意图，忽略 child-specific identity/lifecycle。"""
+    target = requested.execution_target_ref
+    return (
+        row.project_id == requested.project_id
+        and row.run_id == requested.run_id
+        and row.retry_of_attempt_id == requested.retry_of_attempt_id
+        and row.case_id == requested.case_ref.case_id
+        and row.case_version == requested.case_ref.version
+        and row.attempt_no == requested.attempt_no
+        and row.execution_target_id == target.target_id
+        and row.execution_target_kind == target.target_kind
+        and row.target_version_kind == (target.target_version_ref.kind if target.target_version_ref else None)
+        and row.target_version_value
+        == (target.target_version_ref.opaque_value if target.target_version_ref else None)
+        and row.target_config_kind == (target.config_ref.kind if target.config_ref else None)
+        and row.target_config_value == (target.config_ref.opaque_value if target.config_ref else None)
+        and row.idempotency_key == requested.execution_request.idempotency_key
+        and row.request_snapshot == _plain(requested.request_snapshot)
     )
 
 
@@ -239,11 +295,23 @@ class PostgresExecutionAttemptRepository:
         return None if row is None else _attempt_from(row)
 
     async def create_retry(self, attempt: ExecutionAttempt) -> None:
-        self._session.add(_attempt_model(attempt))
         try:
-            await self._session.flush()
+            async with self._session.begin_nested():
+                self._session.add(_attempt_model(attempt))
+                await self._session.flush()
         except IntegrityError as exc:
-            if "uq_evaluation_attempts_direct_retry" in str(exc.orig):
+            if _retry_constraint_name(exc) not in _RETRY_UNIQUE_CONSTRAINTS:
+                raise
+            existing = (
+                await self._session.execute(
+                    select(ExecutionAttemptModel).where(
+                        ExecutionAttemptModel.project_id == attempt.project_id,
+                        ExecutionAttemptModel.run_id == attempt.run_id,
+                        ExecutionAttemptModel.retry_of_attempt_id == attempt.retry_of_attempt_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing is not None and _retry_intent_matches(existing, attempt):
                 raise RetryAlreadyCreated("direct retry child already exists") from exc
             raise
 

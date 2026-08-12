@@ -5,11 +5,17 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
-from app.core.evaluation.catalog import DatasetVersion, EvaluationSuiteVersion, TestCaseVersion
+from app.core.evaluation.catalog import (
+    DatasetVersion,
+    EvaluationPolicy,
+    EvaluationSuiteVersion,
+    EvaluatorSpec,
+    TestCaseVersion,
+)
 from app.core.evaluation.execution import (
     ExecutionOutcome,
     ExecutionRequest,
@@ -18,7 +24,7 @@ from app.core.evaluation.execution import (
     validate_target_capabilities,
 )
 from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue
-from app.core.evaluation.references import CaseVersionRef, VersionRef
+from app.core.evaluation.references import ArtifactRef, CapabilityRequirement, CaseVersionRef, VersionRef
 from app.core.evaluation.repositories import EvaluationPersistenceUnitOfWork
 from app.core.evaluation.results import EvaluationResult, ProvenanceCompleteness
 from app.core.evaluation.run_attempts import (
@@ -49,6 +55,86 @@ def _plain(value: object) -> object:
 
 def _version(ref: VersionRef | None) -> dict[str, str] | None:
     return None if ref is None else {"kind": ref.kind, "opaque_value": ref.opaque_value}
+
+
+def _artifact(ref: ArtifactRef | None) -> dict[str, object] | None:
+    if ref is None:
+        return None
+    return {
+        "artifact_id": ref.artifact_id,
+        "digest": ref.digest,
+        "media_type": ref.media_type,
+        "metadata": _plain(ref.metadata),
+    }
+
+
+def _serialize_evaluator_spec(spec: EvaluatorSpec) -> dict[str, object]:
+    snapshot = {
+        "evaluator_id": spec.evaluator_id,
+        "evaluator_version": spec.evaluator_version,
+        "evaluator_kind": spec.evaluator_kind.value,
+        "config_ref": _version(spec.config_ref),
+        "config_snapshot": _plain(spec.config_snapshot),
+        "threshold": spec.threshold,
+        "score_direction": spec.score_direction.value,
+        "score_range": None if spec.score_range is None else list(spec.score_range),
+        "comparison_tolerance": spec.comparison_tolerance,
+        "prompt_ref": _version(spec.prompt_ref),
+        "required": spec.required,
+    }
+    if set(snapshot) != {item.name for item in fields(EvaluatorSpec)}:
+        raise RuntimeError("EvaluatorSpec snapshot serializer is out of sync with the domain")
+    return snapshot
+
+
+def _serialize_policy(policy: EvaluationPolicy) -> dict[str, object]:
+    snapshot = {
+        "required_result_missing": policy.required_result_missing.value,
+        "evaluator_error": policy.evaluator_error.value,
+        "evaluator_inconclusive": policy.evaluator_inconclusive.value,
+        "metadata": _plain(policy.metadata),
+    }
+    if set(snapshot) != {item.name for item in fields(EvaluationPolicy)}:
+        raise RuntimeError("EvaluationPolicy snapshot serializer is out of sync with the domain")
+    return snapshot
+
+
+def _serialize_capability(requirement: CapabilityRequirement) -> dict[str, str]:
+    snapshot = {"identifier": requirement.identifier}
+    if set(snapshot) != {item.name for item in fields(CapabilityRequirement)}:
+        raise RuntimeError("CapabilityRequirement snapshot serializer is out of sync with the domain")
+    return snapshot
+
+
+def _serialize_suite_snapshot(suite: EvaluationSuiteVersion) -> dict[str, object]:
+    snapshot = {
+        "suite_id": suite.suite_id,
+        "version": suite.version,
+        "created_at": suite.created_at.isoformat(),
+        "selected_cases": [
+            {"case_id": ref.case_id, "version": ref.version} for ref in suite.case_selection
+        ],
+        "evaluators": [_serialize_evaluator_spec(spec) for spec in suite.evaluator_specs],
+        "evaluation_policy": _serialize_policy(suite.evaluation_policy),
+        "target_capability_requirements": [
+            _serialize_capability(requirement) for requirement in suite.target_capability_requirements
+        ],
+        "metadata": _plain(suite.metadata),
+    }
+    suite_fields = {item.name for item in fields(EvaluationSuiteVersion)}
+    serialized_fields = {
+        "suite_id",
+        "version",
+        "case_selection",
+        "evaluator_specs",
+        "evaluation_policy",
+        "created_at",
+        "target_capability_requirements",
+        "metadata",
+    }
+    if suite_fields != serialized_fields:
+        raise RuntimeError("EvaluationSuiteVersion snapshot serializer is out of sync with the domain")
+    return snapshot
 
 
 def _target_snapshot(ref: ExecutionTargetRef) -> dict[str, object]:
@@ -113,20 +199,7 @@ class EvaluationPersistenceService:
                 "version": dataset.version,
                 "cases": [{"case_id": ref.case_id, "version": ref.version} for ref in dataset.case_version_refs],
             },
-            suite_snapshot={
-                "suite_id": suite.suite_id,
-                "version": suite.version,
-                "selected_cases": [{"case_id": ref.case_id, "version": ref.version} for ref in suite.case_selection],
-                "evaluators": [
-                    {
-                        "evaluator_id": spec.evaluator_id,
-                        "evaluator_version": spec.evaluator_version,
-                        "required": spec.required,
-                        "score_range": spec.score_range,
-                    }
-                    for spec in suite.evaluator_specs
-                ],
-            },
+            suite_snapshot=_serialize_suite_snapshot(suite),
             execution_target_snapshot=_target_snapshot(target),
             subject_ref=subject_ref,
             metadata={} if metadata is None else metadata,
@@ -277,6 +350,14 @@ class EvaluationPersistenceService:
             spec = specs.get((result.evaluator_id, result.evaluator_version))
             if spec is None:
                 raise ValueError("evaluator provenance is outside suite snapshot")
+            if _version(result.config_ref) != spec["config_ref"]:
+                raise ValueError("result evaluator config provenance mismatch")
+            if _version(result.prompt_ref) != spec["prompt_ref"]:
+                raise ValueError("result evaluator prompt provenance mismatch")
+            if result.target_version_ref != attempt.execution_target_ref.target_version_ref:
+                raise ValueError("result target version provenance mismatch")
+            if _artifact(result.output_artifact_ref) != _artifact(attempt.output_artifact_ref):
+                raise ValueError("result output artifact provenance mismatch")
             score_range = spec["score_range"]
             if result.score is not None and score_range is not None and not (score_range[0] <= result.score <= score_range[1]):
                 raise ValueError("result score is outside evaluator range")

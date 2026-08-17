@@ -7,6 +7,7 @@ from app.api.v1.routes import (
     cli,
     evaluations,
     health,
+    localagent_integrations,
     organizations,
     projects,
     sessions,
@@ -30,3 +31,4 @@ v1_router.include_router(traces.router)
 v1_router.include_router(sessions.router)
 v1_router.include_router(evaluations.router)
 v1_router.include_router(webhooks.router)
+v1_router.include_router(localagent_integrations.router)

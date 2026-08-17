@@ -15,6 +15,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.api.middleware import RequestContextMiddleware
 from app.api.rate_limit import limiter
 from app.api.v1.router import v1_router
+from app.core.localagent.entities import LocalAgentCompatibilityError
 from app.infrastructure.redis.client import close_redis_pool
 from app.logging import logger
 from app.registry.exceptions import PandaProbeError
@@ -102,6 +103,26 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 async def domain_exception_handler(_request: Request, exc: PandaProbeError) -> JSONResponse:
     """Translate domain exceptions into structured JSON error responses."""
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(LocalAgentCompatibilityError)
+async def localagent_compatibility_exception_handler(
+    _request: Request, exc: LocalAgentCompatibilityError
+) -> JSONResponse:
+    """Translate compatibility failures into the frozen bounded ``{status, error_code}`` DTO.
+
+    Content-free by construction: only the stable code is returned, never
+    payload, IDs, raw exception detail or request bodies.
+    """
+    logger.warning(
+        "localagent_compatibility_rejected",
+        status_code=exc.status_code,
+        error_code=exc.error_code,
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"status": "REJECTED", "error_code": exc.error_code},
+    )
 
 
 @app.exception_handler(RequestValidationError)

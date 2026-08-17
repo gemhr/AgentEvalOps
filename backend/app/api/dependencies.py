@@ -20,6 +20,13 @@ from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBea
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.context import ApiContext, AuthMethod
+from app.core.localagent.entities import (
+    LocalAgentAuthenticationFailedError,
+    LocalAgentCompatibilityError,
+    LocalAgentPersistenceUnavailableError,
+    LocalAgentProjectForbiddenError,
+    LocalAgentProjectNotFoundError,
+)
 from app.infrastructure.auth.adapters import get_auth_adapter
 from app.infrastructure.db.engine import get_db_session
 from app.infrastructure.db.repositories.identity_repo import IdentityRepository
@@ -120,6 +127,96 @@ def require_project(ctx: ApiContext = Depends(get_data_plane_context)) -> ApiCon
     """Thin wrapper that guarantees ``ctx.project`` is present."""
     if ctx.project is None:
         raise ValidationError("Project scope required. Provide X-Project-ID (Bearer) or X-Project-Name (API key).")
+    return ctx
+
+
+async def require_localagent_project(
+    request: Request,
+    x_api_key: str | None = Depends(_api_key_scheme),
+    x_project_id: str | None = Depends(_project_id_scheme),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiContext:
+    """Existing-project-only M2M auth dependency for the LocalAgent endpoint.
+
+    Accepts ONLY ``X-API-Key`` + ``X-Project-ID``.  The API key must be
+    valid, active and unexpired; the project must already exist and belong
+    to the key's organization.  Projects are NEVER auto-created here and
+    ``X-Project-Name`` is deliberately ignored.  The compatibility route
+    does NOT depend on this helper: it calls
+    :func:`authenticate_localagent_project` explicitly so that framing and
+    the bounded body receive run before any PostgreSQL/Redis access (frozen
+    WP4-C processing order).  This dependency is retained as the reusable
+    FastAPI wrapper of the same logic.
+    """
+    return await authenticate_localagent_project(request, session)
+
+
+async def authenticate_localagent_project(request: Request, session: AsyncSession) -> ApiContext:
+    """Existing-project-only M2M auth for the LocalAgent compatibility endpoint.
+
+    Stage 3 of the frozen WP4-C request order: PostgreSQL reads only, no
+    committed mutation.  The only write (``touch_api_key``) stays inside
+    the request transaction and is rolled back with it if any later stage
+    (admission/validation/commit) fails.  Accepts ONLY ``X-API-Key`` +
+    ``X-Project-ID``; projects are NEVER auto-created and ``X-Project-Name``
+    is deliberately ignored.
+    """
+    request_id: str = getattr(request.state, "request_id", "unknown")
+    x_api_key = request.headers.get("X-API-Key")
+    x_project_id = request.headers.get("X-Project-ID")
+
+    try:
+        if not x_api_key:
+            raise LocalAgentAuthenticationFailedError()
+
+        key_hash = hash_api_key(x_api_key)
+        identity_repo = IdentityRepository(session)
+        project_repo = ProjectRepository(session)
+
+        api_key = await identity_repo.get_api_key_by_hash(key_hash)
+        if api_key is None:
+            raise LocalAgentAuthenticationFailedError()
+        if api_key.expires_at is not None and api_key.expires_at < datetime.now(timezone.utc):
+            raise LocalAgentAuthenticationFailedError()
+
+        await identity_repo.touch_api_key(api_key.id)
+
+        organization = await identity_repo.get_organization(api_key.org_id)
+        if organization is None:
+            raise LocalAgentAuthenticationFailedError()
+
+        if not x_project_id:
+            raise LocalAgentProjectNotFoundError()
+        try:
+            project_id = UUID(x_project_id)
+        except ValueError:
+            raise LocalAgentProjectNotFoundError() from None
+
+        project = await project_repo.get_project(project_id)
+        if project is None:
+            raise LocalAgentProjectNotFoundError()
+        if project.org_id != api_key.org_id:
+            raise LocalAgentProjectForbiddenError()
+    except LocalAgentCompatibilityError:
+        raise
+    except Exception as exc:
+        raise LocalAgentPersistenceUnavailableError() from exc
+
+    log = structlog.get_logger().bind(
+        request_id=request_id,
+        org_id=str(organization.id),
+        project_id=str(project.id),
+    )
+
+    ctx = ApiContext(
+        request_id=request_id,
+        auth_method=AuthMethod.API_KEY,
+        organization=organization,
+        project=project,
+        user=None,
+        logger=log,
+    )
+    request.state.api_context = ctx
     return ctx
 
 

@@ -15,6 +15,13 @@ from sqlalchemy.ext.asyncio import (
 
 from app.registry.settings import settings
 
+# Pre-R3 shared engine: SQLAlchemy/asyncpg DEFAULT JSON/JSONB semantics (120
+# OPTION_B_COLUMN_LOCAL_CODEC).  The engine must NOT install a global
+# json_serializer/json_deserializer — the R3 engine-wide exact codec changed
+# unrelated JSONB behavior ({True: "x"} keys, mixed-key sort TypeError, tuple
+# keys, NaN/Infinity failure stage, Decimal).  Only the LocalAgent sidecar
+# ``attributes`` column uses the column-local exact JSONB bridge
+# (``LocalAgentAttributesJSONB`` in app/infrastructure/db/types/).
 engine = create_async_engine(
     settings.DATABASE_URL,
     pool_size=settings.POSTGRES_POOL_SIZE,

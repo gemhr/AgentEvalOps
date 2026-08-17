@@ -8,6 +8,7 @@ All table definitions live here so that Alembic can discover them via
 
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
@@ -19,6 +20,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -27,6 +29,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from app.infrastructure.db.types.localagent_jsonb import LocalAgentAttributesJSONB
 from app.registry.constants import (
     EvaluationStatus,
     InvitationStatus,
@@ -789,4 +792,152 @@ class EvaluationResultModel(Base):
         Index("ix_evaluation_results_run_created", "project_id", "run_id", "created_at"),
         Index("ix_evaluation_results_attempt", "project_id", "attempt_id"),
         Index("ix_evaluation_results_case_evaluator", "project_id", "case_id", "case_version", "evaluator_id", "evaluator_version"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# LocalAgent Stage3-WP4-C compatibility boundary (immutable)
+# ---------------------------------------------------------------------------
+#
+# These tables persist the frozen LocalAgent envelope truth (sidecar),
+# the global external string identity -> server internal UUID bindings
+# and the per-trace runtime run identity.  Rows are immutable: UPDATE is
+# rejected by migration triggers.  Legacy Trace/Span rows remain the
+# mutable server write model; they are never the contract Owner.
+
+
+class LocalAgentExternalTraceIdentityModel(Base):
+    """Global external trace identity binding (immutable).
+
+    Binds a LocalAgent external ``trace_id`` (safe string, not a UUID) to
+    its owning project, server-generated internal trace UUID and the one
+    runtime ``run_id``.  The external trace id is globally unique, so a
+    foreign project reusing it is rejected with 409.
+    """
+
+    __tablename__ = "localagent_external_trace_identity"
+
+    external_trace_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    internal_trace_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+    __table_args__ = (Index("ix_localagent_trace_identity_project", "project_id"),)
+
+
+class LocalAgentExternalSpanIdentityModel(Base):
+    """Global external span identity binding (immutable).
+
+    Binds a LocalAgent external ``span_id`` to its owning project,
+    server-generated internal span UUID and the external trace id it
+    belongs to.  The external span id is globally unique, so a foreign
+    project reusing it is rejected with 409.
+    """
+
+    __tablename__ = "localagent_external_span_identity"
+
+    external_span_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    internal_span_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    external_trace_id: Mapped[str] = mapped_column(
+        String(128),
+        ForeignKey("localagent_external_trace_identity.external_trace_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_localagent_span_identity_project", "project_id"),
+        Index("ix_localagent_span_identity_trace", "external_trace_id"),
+    )
+
+
+class LocalAgentTraceEnvelopeSidecarModel(Base):
+    """Complete immutable LocalAgent envelope truth for one accepted span.
+
+    First-class frozen fields plus the server-computed canonical payload
+    digest and the resolved internal UUIDs.  ``attributes`` holds only
+    validated LocalAgent safe attributes in a dedicated JSONB column;
+    ``error_code`` is a safe code and is never copied into raw legacy
+    ``Span.error``.
+    """
+
+    __tablename__ = "localagent_trace_envelope_sidecars"
+
+    envelope_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    external_run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    external_trace_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    external_span_id: Mapped[str] = mapped_column(
+        String(128),
+        ForeignKey("localagent_external_span_identity.external_span_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    external_parent_span_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    step_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    operation: Mapped[str] = mapped_column(String(128), nullable=False)
+    component: Mapped[str] = mapped_column(String(128), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Authoritative lossless storage of the exact semantic duration (P1-06).
+    # PostgreSQL NUMERIC without precision/scale cannot truncate the frozen
+    # domain (309-digit ints and exact binary64 floats); NaN/±Infinity are not
+    # representable in NUMERIC at all.
+    duration_ms: Mapped[Decimal] = mapped_column(Numeric(), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Column-local exact JSONB bridge (120 OPTION_B_COLUMN_LOCAL_CODEC):
+    # ONLY this column uses LocalAgentAttributesJSONB so producer-valid
+    # >4300-digit NON_NEGATIVE_INT attributes survive write AND fresh
+    # readback, while every unrelated JSONB column keeps SQLAlchemy/asyncpg
+    # default behavior on the shared engine.  Physical column remains jsonb.
+    attributes: Mapped[dict] = mapped_column(
+        LocalAgentAttributesJSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    contract_identity: Mapped[str] = mapped_column(String(64), nullable=False)
+    contract_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    contract_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    canonical_payload_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    internal_trace_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    internal_span_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("external_span_id", name="uq_localagent_sidecar_span"),
+        CheckConstraint(
+            "status IN ('OK','ERROR','CANCELLED','TIMED_OUT')",
+            name="ck_localagent_sidecar_status",
+        ),
+        CheckConstraint(
+            "completed_at >= started_at",
+            name="ck_localagent_sidecar_time_order",
+        ),
+        # PostgreSQL NUMERIC can store NaN/±Infinity; NaN compares GREATER than
+        # every finite value (and than Infinity), so a non-negative rule alone
+        # would accept NaN.  ``< 'Infinity'::numeric`` rejects +Infinity AND
+        # NaN, while ``>= 0`` rejects negatives and -Infinity — the complete
+        # defense-in-depth CHECK for the authoritative duration column.
+        CheckConstraint(
+            "duration_ms >= 0 AND duration_ms < 'Infinity'::numeric",
+            name="ck_localagent_sidecar_duration",
+        ),
+        CheckConstraint(
+            "(status = 'OK' AND error_code IS NULL) OR (status <> 'OK' AND error_code IS NOT NULL)",
+            name="ck_localagent_sidecar_status_error",
+        ),
+        Index("ix_localagent_sidecar_project_created", "project_id", "created_at"),
+        Index("ix_localagent_sidecar_trace", "external_trace_id"),
     )

@@ -43,6 +43,7 @@ from app.core.evaluation.references import (
     EvidenceRef,
     VersionRef,
 )
+from app.core.evaluation.report import RegressionReport, RegressionReportContractError, ReleaseDecision
 from app.core.evaluation.results import (
     EvaluationResult,
     EvaluationResultDraft,
@@ -104,6 +105,9 @@ __all__ = [
     "ProvenanceCompleteness",
     "RegressionClassification",
     "RegressionComparisonError",
+    "RegressionReport",
+    "RegressionReportContractError",
+    "ReleaseDecision",
     "ResultAlignmentAmbiguous",
     "ResultAlreadyFinalized",
     "RetryAlreadyCreated",

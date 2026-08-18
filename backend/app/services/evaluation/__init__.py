@@ -13,6 +13,7 @@ from app.services.evaluation.loop import (
     TargetVersionRequired,
 )
 from app.services.evaluation.persistence import ClaimResult, EvaluationPersistenceService
+from app.services.evaluation.report import RegressionReportService
 
 __all__ = [
     "ClaimResult",
@@ -23,6 +24,7 @@ __all__ = [
     "EvaluationPersistenceService",
     "EvaluatorResolver",
     "ExecutionTargetResolver",
+    "RegressionReportService",
     "ResolvedEvaluator",
     "TargetVersionRequired",
 ]

@@ -1,11 +1,12 @@
 .PHONY: install dev worker lint format migration migrate \
        backend-install backend-dev backend-worker backend-lint backend-format \
+       backend-demo \
        backend-test-unit backend-test-integration \
        frontend-install frontend-dev frontend-build frontend-lint frontend-typecheck \
        frontend-format frontend-format-check frontend-test-unit frontend-test-e2e \
        frontend-e2e-install frontend-test \
        up down logs logs-app logs-worker logs-beat logs-frontend ps restart \
-       test-unit test-integration test-all test-db-up test-db-down help
+       test-unit test-integration test-all test-db-up test-db-down demo help
 
 # =============================================================================
 #  PandaProbe Monorepo Makefile
@@ -36,6 +37,9 @@ backend-format:  ## Auto-format backend code
 
 backend-test-unit:  ## Run backend unit tests
 	$(MAKE) -C backend test-unit
+
+backend-demo:  ## Run the synthetic closed-loop evaluation demo (requires the stack up)
+	cd backend && uv run python -m scripts.demo.closed_loop_demo --scenario fail
 
 backend-test-integration:  ## Run backend integration tests (starts test infra)
 	docker compose -f docker-compose.test.yml up -d --wait
@@ -140,6 +144,9 @@ restart:  ## Restart all dev services
 	docker compose -f docker-compose.dev.yml restart
 
 # -- Testing ------------------------------------------------------------------
+
+demo:  ## Run the synthetic closed-loop evaluation demo (requires the stack up)
+	$(MAKE) backend-demo
 
 test-unit:  ## Run all unit tests (backend + frontend)
 	$(MAKE) backend-test-unit

@@ -74,6 +74,33 @@ Once running, open:
 - **Dashboard** — http://localhost:3000
 - **API reference** — http://localhost:8000/scalar
 
+### Closed-loop evaluation demo
+
+With the stack running, one command walks the full evaluation closed loop on
+**synthetic** data: a failing Trace → Trace-to-Dataset feedback → two
+`EvaluationRun`s (baseline + candidate) → regression comparison → regression
+report → release decision.
+
+```bash
+cd backend
+export AGENTEVALOPS_DEMO_DATABASE_URL="<your-local-postgresql-dsn>"  # e.g. postgresql+asyncpg://<user>@localhost:5432/<db>
+uv run python -m scripts.demo.closed_loop_demo --scenario fail
+```
+
+- `--scenario fail` (default) regresses a critical case → `ReleaseDecision: FAIL`;
+  `--scenario pass` keeps every case healthy → `ReleaseDecision: PASS`.
+- `--json-output demo-report.json` writes a JSON artifact.
+- The DSN is resolved at runtime: explicit `--dsn` → `AGENTEVALOPS_DEMO_DATABASE_URL`
+  → the project database configuration (`POSTGRES_*` from `.env.development`).
+  No credentials are hardcoded in docs, scripts or `--help`; they are never
+  printed to stdout or written into the artifact.
+- The demo creates an isolated `DEMO` org/project with fresh UUIDs and never
+  touches real data; `--cleanup` deletes only those demo-owned rows.
+- No LLM/API key/network is required — the target and evaluator are
+  deterministic fixtures. On PowerShell: `$env:AGENTEVALOPS_DEMO_DATABASE_URL = "<your-local-postgresql-dsn>"`.
+  See `backend/scripts/seed/README.md` for the older seed traces and legacy
+  evaluation API walkthrough.
+
 ## Architecture
 
 ```mermaid

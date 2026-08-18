@@ -194,7 +194,7 @@ After ingesting the 7 seed traces, you can test the evaluation system. Make sure
 API_KEY="sk_pp_YOUR_KEY_HERE"
 PROJECT="my-dev-project"
 
-curl -s http://localhost:8000/evaluations/metrics \
+curl -s http://localhost:8000/evaluations/trace-metrics \
   -H "X-API-Key: $API_KEY" \
   -H "X-Project-Name: $PROJECT" | python3 -m json.tool
 ```
@@ -206,17 +206,17 @@ You should see 6 metrics: `argument_correctness`, `plan_adherence`, `plan_qualit
 Before creating a run, fetch the template for a metric to see its prompt preview and defaults:
 
 ```bash
-curl -s "http://localhost:8000/evaluations/runs/template?metric=task_completion" \
+curl -s "http://localhost:8000/evaluations/trace-runs/template?metric=task_completion" \
   -H "X-API-Key: $API_KEY" \
   -H "X-Project-Name: $PROJECT" | python3 -m json.tool
 ```
 
-### Test 1: Filtered Eval Run (POST /evaluations/runs)
+### Test 1: Filtered Eval Run (POST /evaluations/trace-runs)
 
 Run `task_completion` on all COMPLETED traces:
 
 ```bash
-curl -s -X POST http://localhost:8000/evaluations/runs \
+curl -s -X POST http://localhost:8000/evaluations/trace-runs \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $API_KEY" \
   -H "X-Project-Name: $PROJECT" \
@@ -234,7 +234,7 @@ This should return `202` with `total_traces: 6` (all COMPLETED traces, excluding
 Run multiple metrics with a date filter and sampling:
 
 ```bash
-curl -s -X POST http://localhost:8000/evaluations/runs \
+curl -s -X POST http://localhost:8000/evaluations/trace-runs \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $API_KEY" \
   -H "X-Project-Name: $PROJECT" \
@@ -254,7 +254,7 @@ This evaluates ~50% of matching traces with both metrics.
 Run tool-related metrics only on traces with tool spans (the code review and support agents):
 
 ```bash
-curl -s -X POST http://localhost:8000/evaluations/runs \
+curl -s -X POST http://localhost:8000/evaluations/trace-runs \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $API_KEY" \
   -H "X-Project-Name: $PROJECT" \
@@ -267,12 +267,12 @@ curl -s -X POST http://localhost:8000/evaluations/runs \
   }' | python3 -m json.tool
 ```
 
-### Test 2: Batch Eval Run (POST /evaluations/runs/batch)
+### Test 2: Batch Eval Run (POST /evaluations/trace-runs/batch)
 
 Evaluate specific traces by ID — pick the RAG pipeline and code review agent:
 
 ```bash
-curl -s -X POST http://localhost:8000/evaluations/runs/batch \
+curl -s -X POST http://localhost:8000/evaluations/trace-runs/batch \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $API_KEY" \
   -H "X-Project-Name: $PROJECT" \
@@ -291,7 +291,7 @@ This evaluates exactly 2 traces with 3 metrics each (6 trace scores total).
 Evaluate the error trace to verify it still gets scored (the trace has ERROR status but the LLM judge evaluates what the agent did):
 
 ```bash
-curl -s -X POST http://localhost:8000/evaluations/runs/batch \
+curl -s -X POST http://localhost:8000/evaluations/trace-runs/batch \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $API_KEY" \
   -H "X-Project-Name: $PROJECT" \
@@ -309,7 +309,7 @@ curl -s -X POST http://localhost:8000/evaluations/runs/batch \
 Check run progress (replace `RUN_ID` with the `id` from the POST response):
 
 ```bash
-curl -s http://localhost:8000/evaluations/runs/RUN_ID \
+curl -s http://localhost:8000/evaluations/trace-runs/RUN_ID \
   -H "X-API-Key: $API_KEY" \
   -H "X-Project-Name: $PROJECT" | python3 -m json.tool
 ```
@@ -319,7 +319,7 @@ Look at `status` (PENDING -> RUNNING -> COMPLETED), `evaluated_count`, and `fail
 List all runs:
 
 ```bash
-curl -s http://localhost:8000/evaluations/runs \
+curl -s http://localhost:8000/evaluations/trace-runs \
   -H "X-API-Key: $API_KEY" \
   -H "X-Project-Name: $PROJECT" | python3 -m json.tool
 ```

@@ -151,6 +151,12 @@ class SpanResponse(BaseModel):
     cost: dict[str, float] | None
     latency_ms: float | None = None
     time_to_first_token_ms: float | None = None
+    normalized_operation: str | None = None
+    normalized_component: str | None = None
+    normalized_outcome: str | None = None
+    normalized_error_code: str | None = None
+    normalized_duration_ms: float | None = None
+    normalized_attributes: dict[str, Any] | None = None
 
 
 class TraceResponse(BaseModel):
@@ -173,6 +179,11 @@ class TraceResponse(BaseModel):
     spans: list[SpanResponse] = Field(default_factory=list)
     total_tokens: int = 0
     total_cost: float = 0.0
+    normalized_source_kind: str | None = None
+    normalized_outcome: str | None = None
+    source_contract_identity: str | None = None
+    source_contract_version: int | None = None
+    subject_version_ref: str | None = None
 
 
 class TraceListItem(BaseModel):
@@ -192,6 +203,8 @@ class TraceListItem(BaseModel):
     span_count: int = 0
     total_tokens: int = 0
     total_cost: float = 0.0
+    normalized_source_kind: str | None = None
+    normalized_outcome: str | None = None
 
 
 class SpansAccepted(BaseModel):
@@ -227,11 +240,12 @@ class BatchTagsResponse(BaseModel):
 
 
 class AnalyticsBucket(BaseModel):
-    """Time-bucketed trace volume, error, and latency statistics."""
+    """Time-bucketed trace volume, failure, and latency statistics."""
 
     bucket: str
     trace_count: int = 0
     error_count: int = 0
+    failure_count: int = 0
     avg_latency_ms: float | None = None
     p50_latency_ms: float | None = None
     p90_latency_ms: float | None = None
@@ -401,8 +415,13 @@ async def get_analytics(
     granularity: AnalyticsGranularity = Query(default=AnalyticsGranularity.DAY),
     started_after: datetime = Query(...),
     started_before: datetime = Query(...),
+    normalized_source_kind: str | None = Query(default=None),
 ) -> list[AnalyticsBucket] | list[TokenCostBucket] | list[TopModel]:
     """Time-series analytics for traces.
+
+    ``failure_count`` reuses the WP1 failing rule; ``error_count`` keeps its
+    legacy semantics.  ``normalized_source_kind`` optionally restricts all
+    metrics to one producer source (e.g. ``localagent`` / ``legacy``).
 
     Auth: `Bearer` + `X-Project-ID` | `X-API-Key` + `X-Project-Name`
     """
@@ -414,12 +433,14 @@ async def get_analytics(
             granularity,
             started_after,
             started_before,
+            normalized_source_kind=normalized_source_kind,
         )
         return [
             AnalyticsBucket(
                 bucket=r.bucket.isoformat() if r.bucket else "",
                 trace_count=r.trace_count or 0,
                 error_count=r.error_count or 0,
+                failure_count=r.failure_count or 0,
                 avg_latency_ms=float(r.avg_latency_ms) if r.avg_latency_ms is not None else None,
                 p50_latency_ms=float(r.p50_latency_ms) if r.p50_latency_ms is not None else None,
                 p90_latency_ms=float(r.p90_latency_ms) if r.p90_latency_ms is not None else None,
@@ -673,6 +694,12 @@ def _span_to_response(s: Any) -> SpanResponse:
         cost=s.cost,
         latency_ms=latency,
         time_to_first_token_ms=ttft,
+        normalized_operation=s.normalized_operation,
+        normalized_component=s.normalized_component,
+        normalized_outcome=s.normalized_outcome.value if s.normalized_outcome else None,
+        normalized_error_code=s.normalized_error_code,
+        normalized_duration_ms=float(s.normalized_duration_ms) if s.normalized_duration_ms is not None else None,
+        normalized_attributes=s.normalized_attributes,
     )
 
 
@@ -693,6 +720,8 @@ def _row_to_list_item(r: Any) -> TraceListItem:
         span_count=int(r.span_count) if r.span_count is not None else 0,
         total_tokens=int(r.total_tokens) if r.total_tokens is not None else 0,
         total_cost=float(r.total_cost) if r.total_cost is not None else 0.0,
+        normalized_source_kind=r.normalized_source_kind if hasattr(r, "normalized_source_kind") else None,
+        normalized_outcome=r.normalized_outcome if hasattr(r, "normalized_outcome") else None,
     )
 
 
@@ -716,4 +745,9 @@ def _trace_to_response(detail: TraceDetail) -> TraceResponse:
         spans=[_span_to_response(s) for s in t.spans],
         total_tokens=detail.total_tokens,
         total_cost=detail.total_cost,
+        normalized_source_kind=t.normalized_source_kind,
+        normalized_outcome=t.normalized_outcome.value if t.normalized_outcome else None,
+        source_contract_identity=t.source_contract_identity,
+        source_contract_version=t.source_contract_version,
+        subject_version_ref=t.subject_version_ref,
     )

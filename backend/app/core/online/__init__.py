@@ -5,7 +5,9 @@ from app.core.online.entities import (
     GenericOutcome,
     NormalizedOnlineSpan,
     NormalizedOnlineTrace,
+    TraceEvidenceCandidate,
     summarize_outcomes,
+    trace_evidence_ref,
 )
 
 __all__ = [
@@ -13,5 +15,7 @@ __all__ = [
     "GenericOutcome",
     "NormalizedOnlineSpan",
     "NormalizedOnlineTrace",
+    "TraceEvidenceCandidate",
     "summarize_outcomes",
+    "trace_evidence_ref",
 ]

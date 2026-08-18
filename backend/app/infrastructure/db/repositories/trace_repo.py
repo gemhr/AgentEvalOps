@@ -61,6 +61,22 @@ _GENERIC_FAILURE_OUTCOMES = {
 }
 
 
+def _failing_predicate(t: Any, s: Any) -> Any:
+    """WP1 frozen failing rule: trace-level failure outcome OR a failing child span.
+
+    ``t`` is the ``traces`` table, ``s`` the ``spans`` table.  The EXISTS
+    subquery is correlated per trace row, so a trace with multiple failing
+    spans is still counted exactly once.
+    """
+    return or_(
+        t.c.normalized_outcome.in_(_GENERIC_FAILURE_OUTCOMES),
+        exists().where(
+            s.c.trace_id == t.c.trace_id,
+            s.c.normalized_outcome.in_(_GENERIC_FAILURE_OUTCOMES),
+        ),
+    )
+
+
 def _escape_like(value: str) -> str:
     """Escape ``%`` and ``_`` so they are treated as literals in ILIKE patterns."""
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -943,9 +959,20 @@ class TraceRepository(TraceIngestPort):
         granularity: AnalyticsGranularity,
         started_after: datetime,
         started_before: datetime,
+        *,
+        normalized_source_kind: str | None = None,
     ) -> list[Row[Any]]:
-        """Return time-bucketed trace statistics (volume, errors, latency)."""
+        """Return time-bucketed trace statistics (volume, failures, latency).
+
+        ``trace_count`` is the generic request count (Trace row count).
+        ``failure_count`` reuses the frozen WP1 failing rule; ``error_count``
+        keeps its legacy ``Trace.status == ERROR`` semantics.  Latency is
+        ``ended_at - started_at``; rows without ``ended_at`` are excluded by
+        SQL aggregation.  When ``normalized_source_kind`` is given, all
+        metrics apply to the same filtered Trace set.
+        """
         t = TraceModel.__table__
+        s = SpanModel.__table__
         latency_secs = func.extract("epoch", t.c.ended_at - t.c.started_at)
 
         stmt = (
@@ -953,6 +980,7 @@ class TraceRepository(TraceIngestPort):
                 func.date_trunc(granularity.value, t.c.started_at).label("bucket"),
                 func.count().label("trace_count"),
                 func.count().filter(t.c.status == TraceStatus.ERROR.value).label("error_count"),
+                func.count().filter(_failing_predicate(t, s)).label("failure_count"),
                 (func.avg(latency_secs) * 1000).label("avg_latency_ms"),
                 func.percentile_cont(0.5).within_group(latency_secs).op("*")(1000).label("p50_latency_ms"),
                 func.percentile_cont(0.9).within_group(latency_secs).op("*")(1000).label("p90_latency_ms"),
@@ -966,6 +994,8 @@ class TraceRepository(TraceIngestPort):
             .group_by(text("bucket"))
             .order_by(text("bucket"))
         )
+        if normalized_source_kind is not None:
+            stmt = stmt.where(t.c.normalized_source_kind == normalized_source_kind)
         return list((await self._session.execute(stmt)).all())
 
     async def get_token_cost_analytics(
@@ -1114,16 +1144,12 @@ class TraceRepository(TraceIngestPort):
             span_table.c.trace_id == t.c.trace_id,
             span_table.c.normalized_operation == normalized_operation,
         )
-        failure_exists = exists().where(
-            span_table.c.trace_id == t.c.trace_id,
-            span_table.c.normalized_outcome.in_(_GENERIC_FAILURE_OUTCOMES),
-        )
         if normalized_operation is not None:
             stmt = stmt.where(operation_exists)
         if failing is True:
-            stmt = stmt.where(t.c.normalized_outcome.in_(_GENERIC_FAILURE_OUTCOMES) | failure_exists)
+            stmt = stmt.where(_failing_predicate(t, span_table))
         elif failing is False:
-            stmt = stmt.where(~(t.c.normalized_outcome.in_(_GENERIC_FAILURE_OUTCOMES) | failure_exists))
+            stmt = stmt.where(~_failing_predicate(t, span_table))
         return stmt
 
     @staticmethod
@@ -1159,6 +1185,12 @@ class TraceRepository(TraceIngestPort):
             completion_start_time=row.completion_start_time,
             model_parameters=row.model_parameters,
             cost=row.cost,
+            normalized_operation=row.normalized_operation,
+            normalized_component=row.normalized_component,
+            normalized_outcome=GenericOutcome(row.normalized_outcome) if row.normalized_outcome else None,
+            normalized_error_code=row.normalized_error_code,
+            normalized_duration_ms=row.normalized_duration_ms,
+            normalized_attributes=row.normalized_attributes,
         )
 
     @classmethod
@@ -1180,4 +1212,9 @@ class TraceRepository(TraceIngestPort):
             environment=row.environment,
             release=row.release,
             spans=spans,
+            normalized_source_kind=row.normalized_source_kind,
+            normalized_outcome=GenericOutcome(row.normalized_outcome) if row.normalized_outcome else None,
+            source_contract_identity=row.source_contract_identity,
+            source_contract_version=row.source_contract_version,
+            subject_version_ref=row.subject_version_ref,
         )

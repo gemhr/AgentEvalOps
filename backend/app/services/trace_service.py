@@ -12,7 +12,7 @@ from uuid import UUID
 from sqlalchemy import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.online.entities import GenericOutcome
+from app.core.online.entities import GenericOutcome, TraceEvidenceCandidate
 from app.core.traces.entities import Span, Trace, TraceDetail
 from app.infrastructure.db.repositories.trace_repo import TraceRepository
 from app.logging import logger
@@ -281,13 +281,62 @@ class TraceService:
         granularity: AnalyticsGranularity,
         started_after: datetime,
         started_before: datetime,
+        *,
+        normalized_source_kind: str | None = None,
     ) -> list[Row[Any]]:
-        """Return time-bucketed trace statistics (volume, errors, latency)."""
+        """Return time-bucketed trace statistics (volume, failures, latency).
+
+        ``trace_count`` is the generic request count; ``failure_count``
+        reuses the frozen WP1 failing rule and ``error_count`` keeps its
+        legacy semantics.
+        """
         return await self._repo.get_trace_analytics(
             project_id,
             granularity,
             started_after,
             started_before,
+            normalized_source_kind=normalized_source_kind,
+        )
+
+    # -- Online → Evaluation handoff -------------------------------------
+
+    async def list_evaluation_candidates(
+        self,
+        project_id: UUID,
+        *,
+        started_after: datetime | None = None,
+        started_before: datetime | None = None,
+        source_kind: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[TraceEvidenceCandidate]:
+        """Return failing traces as evaluation candidate value DTOs.
+
+        Selection is strictly the WP1 failing rule via the existing failing
+        trace query; non-failing traces never become candidates.  This is a
+        query-time handoff: no dataset, test case or evaluation run is
+        created, and nothing is persisted.
+        """
+        rows, _ = await self.list_traces(
+            project_id,
+            limit=limit,
+            offset=offset,
+            started_after=started_after,
+            started_before=started_before,
+            normalized_source_kind=source_kind,
+            failing=True,
+        )
+        return [self._row_to_candidate(r) for r in rows]
+
+    @staticmethod
+    def _row_to_candidate(row: Row[Any]) -> TraceEvidenceCandidate:
+        """Convert a failing trace list row into a candidate value DTO."""
+        return TraceEvidenceCandidate(
+            project_id=row.project_id,
+            trace_id=row.trace_id,
+            occurred_at=row.started_at,
+            source_kind=row.normalized_source_kind,
+            normalized_outcome=GenericOutcome(row.normalized_outcome) if row.normalized_outcome else None,
         )
 
     async def get_token_cost_analytics(

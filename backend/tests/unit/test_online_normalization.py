@@ -1,5 +1,6 @@
 """Focused tests for the runtime-neutral online normalization boundary."""
 
+import dataclasses
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -10,12 +11,19 @@ import pytest
 from app.core.localagent.entities import LocalAgentTraceEnvelopeInV1
 from app.core.localagent.mapper import normalized_span, normalized_trace
 from app.core.online.entities import (
+    FAILURE_OUTCOMES,
     GenericOutcome,
     NormalizedOnlineSpan,
+    TraceEvidenceCandidate,
     summarize_outcomes,
 )
 from app.core.traces.entities import Span, Trace
-from app.infrastructure.db.repositories.trace_repo import _legacy_normalized_span, _legacy_normalized_trace
+from app.infrastructure.db.models import SpanModel
+from app.infrastructure.db.repositories.trace_repo import (
+    TraceRepository,
+    _legacy_normalized_span,
+    _legacy_normalized_trace,
+)
 from app.registry.constants import SpanKind, SpanStatusCode, TraceStatus
 
 
@@ -164,3 +172,105 @@ def test_generic_operation_is_open_string() -> None:
         duration_ms=None,
     )
     assert span.operation == "producer-specific/operation:v2"
+
+
+# -- WP2: TraceEvidenceCandidate / EvidenceRef ---------------------------------
+
+
+def test_trace_evidence_candidate_builds_identity_only_evidence_ref() -> None:
+    project_id = uuid4()
+    trace_id = uuid4()
+    candidate = TraceEvidenceCandidate(
+        project_id=project_id,
+        trace_id=trace_id,
+        occurred_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        source_kind="localagent",
+        normalized_outcome=GenericOutcome.FAILURE,
+    )
+    ref = candidate.evidence_ref
+    assert ref.kind == "trace"
+    assert ref.identifier == str(trace_id)
+    assert ref.media_type is None
+    assert ref.schema_version is None
+    assert ref.metadata == {}
+    assert candidate.project_id == project_id
+
+
+def test_trace_evidence_candidate_from_trace() -> None:
+    trace_id = uuid4()
+    project_id = uuid4()
+    started_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    trace = Trace(
+        trace_id=trace_id,
+        project_id=project_id,
+        name="trace",
+        status=TraceStatus.COMPLETED,
+        started_at=started_at,
+        normalized_source_kind="localagent",
+        normalized_outcome=GenericOutcome.FAILURE,
+    )
+    candidate = TraceEvidenceCandidate.from_trace(trace)
+    assert candidate.trace_id == trace_id
+    assert candidate.project_id == project_id
+    assert candidate.occurred_at == started_at
+    assert candidate.source_kind == "localagent"
+    assert candidate.normalized_outcome == GenericOutcome.FAILURE
+    assert candidate.evidence_ref.identifier == str(trace_id)
+
+
+def test_trace_evidence_candidate_copies_no_payload() -> None:
+    field_names = {f.name for f in dataclasses.fields(TraceEvidenceCandidate)}
+    assert not (field_names & {"input", "output", "error", "attributes", "operations", "spans"})
+    assert not any("payload" in name for name in field_names)
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [GenericOutcome.FAILURE, GenericOutcome.CANCELLED, GenericOutcome.TIMEOUT],
+)
+def test_failure_outcomes_include_failure_cancelled_timeout(outcome: GenericOutcome) -> None:
+    assert outcome in FAILURE_OUTCOMES
+
+
+def test_unknown_and_success_are_not_failure() -> None:
+    assert GenericOutcome.UNKNOWN not in FAILURE_OUTCOMES
+    assert GenericOutcome.SUCCESS not in FAILURE_OUTCOMES
+
+
+def test_trace_evidence_candidate_keeps_historical_null() -> None:
+    trace = Trace(
+        trace_id=uuid4(),
+        project_id=uuid4(),
+        name="trace",
+        status=TraceStatus.COMPLETED,
+        started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    candidate = TraceEvidenceCandidate.from_trace(trace)
+    assert candidate.source_kind is None
+    assert candidate.normalized_outcome is None
+
+
+def test_span_normalized_fields_read_back_from_model() -> None:
+    row = SpanModel(
+        span_id=uuid4(),
+        trace_id=uuid4(),
+        parent_span_id=None,
+        name="operation",
+        kind=SpanKind.OTHER,
+        status=SpanStatusCode.OK,
+        metadata_={},
+        started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        ended_at=datetime(2026, 1, 1, 0, 0, 1, tzinfo=timezone.utc),
+        normalized_operation="runtime.step",
+        normalized_component="worker",
+        normalized_outcome=GenericOutcome.SUCCESS.value,
+        normalized_error_code=None,
+        normalized_duration_ms=Decimal("1000.5"),
+        normalized_attributes={"plan_version": 3},
+    )
+    span = TraceRepository._to_span(row)
+    assert span.normalized_operation == "runtime.step"
+    assert span.normalized_component == "worker"
+    assert span.normalized_outcome == GenericOutcome.SUCCESS
+    assert span.normalized_duration_ms == Decimal("1000.5")
+    assert span.normalized_attributes == {"plan_version": 3}

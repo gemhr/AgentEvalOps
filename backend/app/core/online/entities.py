@@ -7,8 +7,13 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 from uuid import UUID
+
+from app.core.evaluation.references import EvidenceRef
+
+if TYPE_CHECKING:
+    from app.core.traces.entities import Trace
 
 
 class GenericOutcome(StrEnum):
@@ -123,3 +128,46 @@ def summarize_outcomes(
     if not outcomes:
         return default
     return max(outcomes, key=_OUTCOME_PRECEDENCE.__getitem__)
+
+
+def trace_evidence_ref(trace_id: UUID) -> EvidenceRef:
+    """Build the frozen identity-only evidence reference for a trace.
+
+    The identifier is the global ``trace_id`` UUID string; tenant safety is
+    enforced by the caller's project context plus a project-scoped resolver,
+    never by encoding the project into the reference.
+    """
+    return EvidenceRef(kind="trace", identifier=str(trace_id))
+
+
+@dataclass(frozen=True, slots=True)
+class TraceEvidenceCandidate:
+    """A failing trace selected as a candidate for offline evaluation.
+
+    This is a query-time value DTO owned by the Online Core.  It is not a
+    database entity, not an Evaluation Dataset/TestCase fact, and is never
+    persisted.  The evidence reference stays identity-only: no input,
+    output, error, attribute or span payload is copied.
+    """
+
+    project_id: UUID
+    trace_id: UUID
+    occurred_at: datetime
+    evidence_ref: EvidenceRef = field(init=False, compare=False)
+    source_kind: str | None = None
+    normalized_outcome: GenericOutcome | None = None
+
+    def __post_init__(self) -> None:
+        """Derive the identity-only evidence reference from the trace id."""
+        object.__setattr__(self, "evidence_ref", trace_evidence_ref(self.trace_id))
+
+    @classmethod
+    def from_trace(cls, trace: Trace) -> "TraceEvidenceCandidate":
+        """Convert a resolved domain Trace into a candidate value DTO."""
+        return cls(
+            project_id=trace.project_id,
+            trace_id=trace.trace_id,
+            occurred_at=trace.started_at,
+            source_kind=trace.normalized_source_kind,
+            normalized_outcome=trace.normalized_outcome,
+        )

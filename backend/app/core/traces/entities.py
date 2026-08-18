@@ -7,11 +7,13 @@ models have **zero** infrastructure dependencies.
 
 import dataclasses
 from datetime import datetime
-from typing import Any
+from decimal import Decimal
+from typing import Any, Mapping
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.core.online.entities import GenericOutcome
 from app.registry.constants import SpanKind, SpanStatusCode, TraceStatus
 
 
@@ -42,6 +44,12 @@ class Span(BaseModel):
     completion_start_time: datetime | None = None
     model_parameters: dict[str, Any] | None = None
     cost: dict[str, float] | None = None
+    normalized_operation: str | None = Field(default=None, max_length=512)
+    normalized_component: str | None = Field(default=None, max_length=255)
+    normalized_outcome: GenericOutcome | None = None
+    normalized_error_code: str | None = Field(default=None, max_length=128)
+    normalized_duration_ms: Decimal | None = None
+    normalized_attributes: Mapping[str, Any] | None = None
 
 
 class Trace(BaseModel):
@@ -66,6 +74,11 @@ class Trace(BaseModel):
     environment: str | None = Field(default=None, max_length=255)
     release: str | None = Field(default=None, max_length=255)
     spans: list[Span] = Field(default_factory=list)
+    normalized_source_kind: str | None = Field(default=None, max_length=64)
+    normalized_outcome: GenericOutcome | None = None
+    source_contract_identity: str | None = Field(default=None, max_length=128)
+    source_contract_version: int | None = None
+    subject_version_ref: str | None = Field(default=None, max_length=255)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

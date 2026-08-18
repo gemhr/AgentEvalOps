@@ -13,6 +13,16 @@ from app.core.evaluation.catalog import (
     ScoreDirection,
     TestCaseVersion,
 )
+from app.core.evaluation.comparison import (
+    AlignedResultComparison,
+    ComparisonReason,
+    EvaluationRunComparison,
+    RegressionClassification,
+    RegressionComparisonError,
+    ResultAlignmentAmbiguous,
+    RunComparisonProvenance,
+    RunsNotComparable,
+)
 from app.core.evaluation.evaluators import EvaluationInput, EvaluatorContext
 from app.core.evaluation.execution import (
     FIXTURE_TARGET_KIND,
@@ -54,6 +64,7 @@ from app.core.evaluation.run_attempts import (
 )
 
 __all__ = [
+    "AlignedResultComparison",
     "ArtifactRef",
     "AttemptClaimLost",
     "AttemptNotClaimed",
@@ -61,11 +72,13 @@ __all__ = [
     "AssertionSpec",
     "CapabilityRequirement",
     "CaseVersionRef",
+    "ComparisonReason",
     "DatasetVersion",
     "EvaluationInput",
     "EvaluationEntityNotFound",
     "EvaluationPersistenceError",
     "EvaluationRun",
+    "EvaluationRunComparison",
     "EvaluationPolicy",
     "EvaluationResult",
     "EvaluationResultDraft",
@@ -89,10 +102,15 @@ __all__ = [
     "OutcomeKind",
     "PolicyDisposition",
     "ProvenanceCompleteness",
+    "RegressionClassification",
+    "RegressionComparisonError",
+    "ResultAlignmentAmbiguous",
     "ResultAlreadyFinalized",
     "RetryAlreadyCreated",
+    "RunComparisonProvenance",
     "RunNotFinishable",
     "RunStatus",
+    "RunsNotComparable",
     "ScoreDirection",
     "TestCaseVersion",
     "UnsupportedTargetCapabilitiesError",

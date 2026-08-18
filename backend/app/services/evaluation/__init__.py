@@ -2,6 +2,7 @@
 
 # ruff: noqa: D415
 
+from app.services.evaluation.comparison import EvaluationComparisonService
 from app.services.evaluation.loop import (
     EvaluationLoopContractError,
     EvaluationLoopResult,
@@ -15,6 +16,7 @@ from app.services.evaluation.persistence import ClaimResult, EvaluationPersisten
 
 __all__ = [
     "ClaimResult",
+    "EvaluationComparisonService",
     "EvaluationLoopContractError",
     "EvaluationLoopResult",
     "EvaluationLoopService",

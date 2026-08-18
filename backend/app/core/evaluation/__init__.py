@@ -34,6 +34,11 @@ from app.core.evaluation.execution import (
     UnsupportedTargetCapabilitiesError,
     validate_target_capabilities,
 )
+from app.core.evaluation.feedback import (
+    TraceFeedbackCandidateError,
+    TraceFeedbackCommand,
+    TraceFeedbackError,
+)
 from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue, JsonValue, freeze_json
 from app.core.evaluation.ports import Evaluator, JudgeModelPort
 from app.core.evaluation.references import (
@@ -117,6 +122,9 @@ __all__ = [
     "RunsNotComparable",
     "ScoreDirection",
     "TestCaseVersion",
+    "TraceFeedbackCandidateError",
+    "TraceFeedbackCommand",
+    "TraceFeedbackError",
     "UnsupportedTargetCapabilitiesError",
     "VersionRef",
     "freeze_json",

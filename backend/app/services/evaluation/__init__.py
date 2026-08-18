@@ -3,6 +3,7 @@
 # ruff: noqa: D415
 
 from app.services.evaluation.comparison import EvaluationComparisonService
+from app.services.evaluation.feedback import TraceFeedbackService
 from app.services.evaluation.loop import (
     EvaluationLoopContractError,
     EvaluationLoopResult,
@@ -27,4 +28,5 @@ __all__ = [
     "RegressionReportService",
     "ResolvedEvaluator",
     "TargetVersionRequired",
+    "TraceFeedbackService",
 ]

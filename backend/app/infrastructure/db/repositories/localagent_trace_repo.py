@@ -25,7 +25,12 @@ from app.core.localagent.entities import (
     LocalAgentTraceEnvelopeInV1,
     LocalAgentTraceIdentityConflictError,
 )
-from app.core.localagent.mapper import legacy_span_row, legacy_trace_row
+from app.core.localagent.mapper import (
+    legacy_span_row,
+    legacy_trace_row,
+    normalized_span,
+    normalized_trace,
+)
 from app.infrastructure.db.models import (
     LocalAgentExternalSpanIdentityModel,
     LocalAgentExternalTraceIdentityModel,
@@ -33,6 +38,7 @@ from app.infrastructure.db.models import (
     SpanModel,
     TraceModel,
 )
+from app.infrastructure.db.repositories.trace_repo import TraceRepository
 
 INGEST_OUTCOME_PERSISTED = "PERSISTED"
 INGEST_OUTCOME_DUPLICATE = "DUPLICATE_ACCEPTED"
@@ -219,5 +225,19 @@ class LocalAgentTraceRepository:
                 internal_trace_uuid=internal_trace_uuid,
                 internal_span_uuid=internal_span_uuid,
             )
+        )
+        await TraceRepository(self._session).persist_normalized(
+            normalized_trace(
+                envelope,
+                internal_trace_uuid=internal_trace_uuid,
+                project_id=project_id,
+            ),
+            normalized_span(
+                envelope,
+                internal_trace_uuid=internal_trace_uuid,
+                internal_span_uuid=internal_span_uuid,
+                internal_parent_uuid=internal_parent_uuid,
+                project_id=project_id,
+            ),
         )
         return INGEST_OUTCOME_PERSISTED

@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.online.entities import GenericOutcome
 from app.core.traces.entities import Span, Trace, TraceDetail
 from app.infrastructure.db.repositories.trace_repo import TraceRepository
 from app.logging import logger
@@ -116,6 +117,11 @@ class TraceService:
         name: str | None = None,
         started_after: datetime | None = None,
         started_before: datetime | None = None,
+        normalized_outcome: GenericOutcome | None = None,
+        failing: bool | None = None,
+        normalized_operation: str | None = None,
+        normalized_source_kind: str | None = None,
+        source_contract_version: int | None = None,
         sort_by: TraceSortBy = TraceSortBy.STARTED_AT,
         sort_order: SortOrder = SortOrder.DESC,
     ) -> tuple[list[Row[Any]], int]:
@@ -131,6 +137,11 @@ class TraceService:
             name=name,
             started_after=started_after,
             started_before=started_before,
+            normalized_outcome=normalized_outcome,
+            failing=failing,
+            normalized_operation=normalized_operation,
+            normalized_source_kind=normalized_source_kind,
+            source_contract_version=source_contract_version,
             sort_by=sort_by,
             sort_order=sort_order,
         )

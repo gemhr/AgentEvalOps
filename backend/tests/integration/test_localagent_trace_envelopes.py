@@ -46,6 +46,7 @@ from app.infrastructure.db.models import (
 )
 from app.infrastructure.db.repositories.identity_repo import IdentityRepository
 from app.infrastructure.db.repositories.project_repo import ProjectRepository
+from app.infrastructure.db.repositories.trace_repo import TraceRepository
 from app.registry.constants import SpanKind, SpanStatusCode, TraceStatus
 from app.registry.security import hash_api_key
 
@@ -218,6 +219,11 @@ async def test_first_envelope_201_and_complete_readback(
     assert trace_row.name == "localagent.trace"
     assert trace_row.status == TraceStatus.COMPLETED.value
     assert trace_row.input is None and trace_row.output is None
+    assert trace_row.normalized_source_kind == "localagent"
+    assert trace_row.normalized_outcome == "SUCCESS"
+    assert trace_row.source_contract_identity == "localagent.runtime.trace_export"
+    assert trace_row.source_contract_version == 1
+    assert trace_row.subject_version_ref is None
 
     span_row = (
         await db_session.execute(select(SpanModel).where(SpanModel.span_id == sidecar.internal_span_uuid))
@@ -229,8 +235,52 @@ async def test_first_envelope_201_and_complete_readback(
     assert span_row.error is None  # raw legacy error must remain NULL
     assert span_row.input is None and span_row.output is None
     assert span_row.metadata_ == {}
+    assert span_row.normalized_operation == "runtime.step"
+    assert span_row.normalized_component == "planner"
+    assert span_row.normalized_outcome == "SUCCESS"
+    assert span_row.normalized_error_code is None
+    assert span_row.normalized_duration_ms == 5000
+    assert span_row.normalized_attributes == {}
     assert span_row.started_at == datetime(2026, 1, 1, tzinfo=timezone.utc)
     assert span_row.ended_at == datetime(2026, 1, 1, 0, 0, 5, tzinfo=timezone.utc)
+
+
+async def test_localagent_normalized_projection_is_queryable(
+    client: AsyncClient, la_headers: dict[str, str]
+):
+    resp = await client.post(URL, json=envelope_payload(), headers=la_headers)
+    assert resp.status_code == 201
+
+    response = await client.get(
+        "/traces",
+        params={
+            "normalized_source_kind": "localagent",
+            "source_contract_version": 1,
+            "normalized_operation": "runtime.step",
+            "normalized_outcome": "SUCCESS",
+            "failing": "false",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+
+
+async def test_localagent_projection_failure_rolls_back_entire_ingest(
+    client: AsyncClient, db_session: AsyncSession, la_headers: dict[str, str], monkeypatch
+):
+    async def fail_projection(*args, **kwargs):
+        raise RuntimeError("projection failure")
+
+    monkeypatch.setattr(TraceRepository, "persist_normalized", fail_projection)
+    resp = await client.post(URL, json=envelope_payload(), headers=la_headers)
+    assert resp.status_code == 500
+    assert await _counts(db_session) == {
+        "sidecars": 0,
+        "trace_bindings": 0,
+        "span_bindings": 0,
+        "traces": 0,
+        "spans": 0,
+    }
 
 
 async def test_legacy_trace_readback_through_existing_endpoint(

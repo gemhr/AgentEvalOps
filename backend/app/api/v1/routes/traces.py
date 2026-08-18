@@ -22,6 +22,7 @@ from app.api.context import ApiContext
 from app.api.dependencies import require_project
 from app.api.rate_limit import limiter
 from app.api.v1.schemas import PaginatedResponse
+from app.core.online.entities import GenericOutcome
 from app.core.traces.entities import Span, Trace, TraceDetail
 from app.infrastructure.db.engine import get_db_session
 from app.infrastructure.redis.client import get_redis
@@ -356,6 +357,11 @@ async def list_traces(
     name: str | None = Query(default=None),
     started_after: datetime | None = Query(default=None),
     started_before: datetime | None = Query(default=None),
+    normalized_outcome: GenericOutcome | None = Query(default=None),
+    failing: bool | None = Query(default=None),
+    normalized_operation: str | None = Query(default=None),
+    normalized_source_kind: str | None = Query(default=None),
+    source_contract_version: int | None = Query(default=None, ge=0),
     sort_by: TraceSortBy = Query(default=TraceSortBy.STARTED_AT),
     sort_order: SortOrder = Query(default=SortOrder.DESC),
 ) -> PaginatedResponse[TraceListItem]:
@@ -375,6 +381,11 @@ async def list_traces(
         name=name,
         started_after=started_after,
         started_before=started_before,
+        normalized_outcome=normalized_outcome,
+        failing=failing,
+        normalized_operation=normalized_operation,
+        normalized_source_kind=normalized_source_kind,
+        source_contract_version=source_contract_version,
         sort_by=sort_by,
         sort_order=sort_order,
     )

@@ -225,6 +225,11 @@ class TraceModel(Base):
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
     environment: Mapped[str | None] = mapped_column(String(255), nullable=True)
     release: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    normalized_source_kind: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    normalized_outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    source_contract_identity: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    source_contract_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    subject_version_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     project: Mapped["ProjectModel"] = relationship(back_populates="traces")
@@ -242,6 +247,13 @@ class TraceModel(Base):
         Index("ix_traces_project_status", "project_id", "status"),
         Index("ix_traces_project_user_id", "project_id", "user_id"),
         Index("ix_traces_project_started", "project_id", "started_at"),
+        Index(
+            "ix_traces_project_normalized_source_outcome_started",
+            "project_id",
+            "normalized_source_kind",
+            "normalized_outcome",
+            "started_at",
+        ),
     )
 
 
@@ -279,10 +291,24 @@ class SpanModel(Base):
     completion_start_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     model_parameters: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     cost: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    normalized_operation: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    normalized_component: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    normalized_outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    normalized_error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    normalized_duration_ms: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
+    normalized_attributes: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=dict)
 
     trace: Mapped["TraceModel"] = relationship(back_populates="spans")
 
-    __table_args__ = (Index("ix_spans_trace_id", "trace_id"),)
+    __table_args__ = (
+        Index("ix_spans_trace_id", "trace_id"),
+        Index(
+            "ix_spans_trace_normalized_operation_outcome",
+            "trace_id",
+            "normalized_operation",
+            "normalized_outcome",
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------

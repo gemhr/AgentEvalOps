@@ -5,16 +5,19 @@ and their child spans.
 """
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Row, cast, delete, func, select, text, update
+from sqlalchemy import Row, cast, delete, exists, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.types import Float, Integer, String
 
+from app.core.online.entities import GenericOutcome, NormalizedOnlineSpan, NormalizedOnlineTrace, summarize_outcomes
+from app.core.online.ports import TraceIngestPort
 from app.core.traces.entities import Span, Trace
 from app.infrastructure.db.models import SpanModel, TraceModel
 from app.registry.constants import (
@@ -26,10 +29,36 @@ from app.registry.constants import (
     TraceSortBy,
     TraceStatus,
 )
+from app.registry.exceptions import ConflictError
 
 # Fields that are NOT NULL in the DB — ignore explicit None to avoid constraint violations.
 _TRACE_NOT_NULL = frozenset({"name", "status", "tags"})
 _SPAN_NOT_NULL = frozenset({"name", "kind", "status"})
+
+
+class TraceOwnershipConflictError(ConflictError):
+    """A global trace identity belongs to another project."""
+
+    detail = "Trace identity belongs to another project."
+
+
+class SpanOwnershipConflictError(ConflictError):
+    """A global span identity belongs to another project or trace."""
+
+    detail = "Span identity belongs to another project or trace."
+
+
+class NormalizedSourceConflictError(ConflictError):
+    """A normalized trace is already owned by another source kind or contract."""
+
+    detail = "Normalized trace source ownership conflict."
+
+
+_GENERIC_FAILURE_OUTCOMES = {
+    GenericOutcome.FAILURE.value,
+    GenericOutcome.CANCELLED.value,
+    GenericOutcome.TIMEOUT.value,
+}
 
 
 def _escape_like(value: str) -> str:
@@ -37,7 +66,60 @@ def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-class TraceRepository:
+def _legacy_trace_outcome(status: TraceStatus) -> GenericOutcome:
+    if status == TraceStatus.ERROR:
+        return GenericOutcome.FAILURE
+    if status == TraceStatus.COMPLETED:
+        return GenericOutcome.SUCCESS
+    return GenericOutcome.UNKNOWN
+
+
+def _legacy_span_outcome(status: SpanStatusCode) -> GenericOutcome:
+    return {
+        SpanStatusCode.OK: GenericOutcome.SUCCESS,
+        SpanStatusCode.ERROR: GenericOutcome.FAILURE,
+        SpanStatusCode.UNSET: GenericOutcome.UNKNOWN,
+    }[status]
+
+
+def _duration_ms(started_at: datetime, ended_at: datetime | None) -> Decimal | None:
+    """Compute milliseconds from timedelta components without float conversion."""
+    if ended_at is None:
+        return None
+    delta = ended_at - started_at
+    return (
+        Decimal(delta.days) * Decimal(86_400_000)
+        + Decimal(delta.seconds) * Decimal(1_000)
+        + Decimal(delta.microseconds) / Decimal(1_000)
+    )
+
+
+def _legacy_normalized_trace(trace: Trace) -> NormalizedOnlineTrace:
+    return NormalizedOnlineTrace(
+        project_id=trace.project_id,
+        trace_id=trace.trace_id,
+        source_kind="legacy",
+        outcome=_legacy_trace_outcome(trace.status),
+    )
+
+
+def _legacy_normalized_span(trace: Trace, span: Span) -> NormalizedOnlineSpan:
+    return NormalizedOnlineSpan(
+        project_id=trace.project_id,
+        trace_id=trace.trace_id,
+        span_id=span.span_id,
+        parent_span_id=span.parent_span_id,
+        operation=span.name,
+        component=None,
+        outcome=_legacy_span_outcome(span.status),
+        error_code=None,
+        started_at=span.started_at,
+        ended_at=span.ended_at,
+        duration_ms=_duration_ms(span.started_at, span.ended_at),
+    )
+
+
+class TraceRepository(TraceIngestPort):
     """Concrete trace repository backed by PostgreSQL + SQLAlchemy."""
 
     def __init__(self, session: AsyncSession) -> None:
@@ -74,6 +156,7 @@ class TraceRepository:
         stmt = pg_insert(t).values(**vals)
         stmt = stmt.on_conflict_do_update(
             index_elements=["trace_id"],
+            where=t.c.project_id == stmt.excluded.project_id,
             set_=dict(
                 name=stmt.excluded.name,
                 status=stmt.excluded.status,
@@ -100,16 +183,32 @@ class TraceRepository:
                 release=func.coalesce(stmt.excluded.release, t.c.release),
             ),
         )
-        await self._session.execute(stmt)
+        result = await self._session.execute(stmt)
+        if result.rowcount == 0:  # type: ignore[union-attr]
+            owner = (
+                await self._session.execute(
+                    select(TraceModel.project_id).where(TraceModel.trace_id == trace.trace_id)
+                )
+            ).scalar_one_or_none()
+            if owner is not None and owner != trace.project_id:
+                raise TraceOwnershipConflictError()
+            raise TraceOwnershipConflictError()
 
         for span in trace.spans:
-            await self._upsert_span(span)
+            await self._upsert_span(span, trace.project_id)
+
+        await self.persist_normalized(_legacy_normalized_trace(trace))
+        for span in trace.spans:
+            await self.persist_normalized(
+                _legacy_normalized_trace(trace),
+                _legacy_normalized_span(trace, span),
+            )
 
         await self._session.flush()
         return trace
 
-    async def _upsert_span(self, span: Span) -> None:
-        """Insert or merge a single span using ON CONFLICT."""
+    async def _upsert_span(self, span: Span, project_id: UUID) -> None:
+        """Insert or merge a span with database-arbitrated ownership."""
         s = SpanModel.__table__
         vals: dict[str, Any] = dict(
             span_id=span.span_id,
@@ -134,6 +233,13 @@ class TraceRepository:
         stmt = pg_insert(s).values(**vals)
         stmt = stmt.on_conflict_do_update(
             index_elements=["span_id"],
+            where=(
+                s.c.trace_id == stmt.excluded.trace_id
+            )
+            & exists().where(
+                TraceModel.trace_id == s.c.trace_id,
+                TraceModel.project_id == project_id,
+            ),
             set_=dict(
                 name=stmt.excluded.name,
                 kind=stmt.excluded.kind,
@@ -153,7 +259,131 @@ class TraceRepository:
                 cost=func.coalesce(stmt.excluded.cost, s.c.cost),
             ),
         )
-        await self._session.execute(stmt)
+        result = await self._session.execute(stmt)
+        if result.rowcount == 0:  # type: ignore[union-attr]
+            existing = (
+                await self._session.execute(
+                    select(SpanModel.trace_id, TraceModel.project_id)
+                    .join(TraceModel, SpanModel.trace_id == TraceModel.trace_id)
+                    .where(SpanModel.span_id == span.span_id)
+                )
+            ).one_or_none()
+            if existing is None or existing.project_id != project_id or existing.trace_id != span.trace_id:
+                raise SpanOwnershipConflictError()
+            raise SpanOwnershipConflictError()
+
+    async def persist_normalized(
+        self,
+        trace: NormalizedOnlineTrace,
+        span: NormalizedOnlineSpan | None = None,
+    ) -> None:
+        """Persist normalized projection facts inside the caller's transaction."""
+        t = TraceModel.__table__
+        s = SpanModel.__table__
+        current = (
+            await self._session.execute(
+                select(
+                    t.c.project_id,
+                    t.c.normalized_source_kind,
+                    t.c.normalized_outcome,
+                    t.c.source_contract_identity,
+                    t.c.source_contract_version,
+                    t.c.subject_version_ref,
+                ).where(t.c.trace_id == trace.trace_id)
+            )
+        ).one_or_none()
+        if current is None or current.project_id != trace.project_id:
+            raise TraceOwnershipConflictError()
+        if current.normalized_source_kind not in (None, trace.source_kind):
+            raise NormalizedSourceConflictError()
+        if (
+            current.source_contract_identity is not None
+            and trace.source_contract_identity is not None
+            and current.source_contract_identity != trace.source_contract_identity
+        ):
+            raise NormalizedSourceConflictError()
+        if (
+            current.source_contract_version is not None
+            and trace.source_contract_version is not None
+            and current.source_contract_version != trace.source_contract_version
+        ):
+            raise NormalizedSourceConflictError()
+
+        trace_update = (
+            update(t)
+            .where(
+                t.c.trace_id == trace.trace_id,
+                t.c.project_id == trace.project_id,
+                or_(t.c.normalized_source_kind.is_(None), t.c.normalized_source_kind == trace.source_kind),
+                or_(
+                    trace.source_contract_identity is None,
+                    t.c.source_contract_identity.is_(None),
+                    t.c.source_contract_identity == trace.source_contract_identity,
+                ),
+                or_(
+                    trace.source_contract_version is None,
+                    t.c.source_contract_version.is_(None),
+                    t.c.source_contract_version == trace.source_contract_version,
+                ),
+            )
+            .values(
+                normalized_source_kind=trace.source_kind,
+                source_contract_identity=func.coalesce(
+                    t.c.source_contract_identity,
+                    trace.source_contract_identity,
+                ),
+                source_contract_version=func.coalesce(
+                    t.c.source_contract_version,
+                    trace.source_contract_version,
+                ),
+                subject_version_ref=func.coalesce(t.c.subject_version_ref, trace.subject_version_ref),
+            )
+        )
+        result = await self._session.execute(trace_update)
+        if result.rowcount != 1:  # type: ignore[union-attr]
+            raise NormalizedSourceConflictError()
+
+        if span is not None:
+            span_update = (
+                update(s)
+                .where(
+                    s.c.span_id == span.span_id,
+                    s.c.trace_id == span.trace_id,
+                    exists().where(
+                        TraceModel.trace_id == s.c.trace_id,
+                        TraceModel.project_id == span.project_id,
+                    ),
+                )
+                .values(
+                    normalized_operation=span.operation,
+                    normalized_component=span.component,
+                    normalized_outcome=span.outcome.value,
+                    normalized_error_code=span.error_code,
+                    normalized_duration_ms=span.duration_ms,
+                    normalized_attributes=dict(span.attributes),
+                )
+            )
+            span_result = await self._session.execute(span_update)
+            if span_result.rowcount != 1:  # type: ignore[union-attr]
+                raise SpanOwnershipConflictError()
+
+        observed_rows = (
+            await self._session.execute(
+                select(s.c.normalized_outcome).where(
+                    s.c.trace_id == trace.trace_id,
+                    s.c.normalized_outcome.is_not(None),
+                )
+            )
+        ).scalars().all()
+        observed = [GenericOutcome(value) for value in observed_rows if value in GenericOutcome._value2member_map_]
+        if current.normalized_outcome in GenericOutcome._value2member_map_:
+            observed.append(GenericOutcome(current.normalized_outcome))
+        summary = summarize_outcomes(observed, default=trace.outcome)
+        await self._session.execute(
+            update(t)
+            .where(t.c.trace_id == trace.trace_id, t.c.project_id == trace.project_id)
+            .values(normalized_outcome=summary.value)
+        )
 
     # -- Update -----------------------------------------------------------
 
@@ -245,7 +475,7 @@ class TraceRepository:
             return False
 
         for span in spans:
-            await self._upsert_span(span)
+            await self._upsert_span(span, project_id)
         await self._session.flush()
         return True
 
@@ -274,6 +504,11 @@ class TraceRepository:
         name: str | None = None,
         started_after: datetime | None = None,
         started_before: datetime | None = None,
+        normalized_outcome: GenericOutcome | None = None,
+        failing: bool | None = None,
+        normalized_operation: str | None = None,
+        normalized_source_kind: str | None = None,
+        source_contract_version: int | None = None,
         sort_by: TraceSortBy = TraceSortBy.STARTED_AT,
         sort_order: SortOrder = SortOrder.DESC,
     ) -> tuple[list[Row[Any]], int]:
@@ -308,6 +543,11 @@ class TraceRepository:
             name=name,
             started_after=started_after,
             started_before=started_before,
+            normalized_outcome=normalized_outcome,
+            failing=failing,
+            normalized_operation=normalized_operation,
+            normalized_source_kind=normalized_source_kind,
+            source_contract_version=source_contract_version,
         )
 
         count_stmt = select(func.count()).select_from(base.with_only_columns(t.c.trace_id).subquery())
@@ -843,6 +1083,11 @@ class TraceRepository:
         name: str | None = None,
         started_after: datetime | None = None,
         started_before: datetime | None = None,
+        normalized_outcome: GenericOutcome | None = None,
+        failing: bool | None = None,
+        normalized_operation: str | None = None,
+        normalized_source_kind: str | None = None,
+        source_contract_version: int | None = None,
     ) -> Any:
         if session_id is not None:
             stmt = stmt.where(t.c.session_id == session_id)
@@ -858,6 +1103,27 @@ class TraceRepository:
             stmt = stmt.where(t.c.started_at >= started_after)
         if started_before is not None:
             stmt = stmt.where(t.c.started_at < started_before)
+        if normalized_outcome is not None:
+            stmt = stmt.where(t.c.normalized_outcome == normalized_outcome.value)
+        if normalized_source_kind is not None:
+            stmt = stmt.where(t.c.normalized_source_kind == normalized_source_kind)
+        if source_contract_version is not None:
+            stmt = stmt.where(t.c.source_contract_version == source_contract_version)
+        span_table = SpanModel.__table__
+        operation_exists = exists().where(
+            span_table.c.trace_id == t.c.trace_id,
+            span_table.c.normalized_operation == normalized_operation,
+        )
+        failure_exists = exists().where(
+            span_table.c.trace_id == t.c.trace_id,
+            span_table.c.normalized_outcome.in_(_GENERIC_FAILURE_OUTCOMES),
+        )
+        if normalized_operation is not None:
+            stmt = stmt.where(operation_exists)
+        if failing is True:
+            stmt = stmt.where(t.c.normalized_outcome.in_(_GENERIC_FAILURE_OUTCOMES) | failure_exists)
+        elif failing is False:
+            stmt = stmt.where(~(t.c.normalized_outcome.in_(_GENERIC_FAILURE_OUTCOMES) | failure_exists))
         return stmt
 
     @staticmethod

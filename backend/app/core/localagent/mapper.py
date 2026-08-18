@@ -13,6 +13,7 @@ from typing import Any
 from uuid import UUID
 
 from app.core.localagent.entities import LocalAgentTraceEnvelopeInV1
+from app.core.online.entities import GenericOutcome, NormalizedOnlineSpan, NormalizedOnlineTrace
 from app.registry.constants import SpanKind, SpanStatusCode, TraceStatus
 
 # Code-owned display placeholder for the legacy trace container name.
@@ -30,6 +31,14 @@ _LOCALAGENT_TO_LEGACY_SPAN_STATUS = {
     "CANCELLED": SpanStatusCode.ERROR,
     "TIMED_OUT": SpanStatusCode.ERROR,
 }
+
+_LOCALAGENT_TO_GENERIC_OUTCOME = {
+    "OK": GenericOutcome.SUCCESS,
+    "ERROR": GenericOutcome.FAILURE,
+    "CANCELLED": GenericOutcome.CANCELLED,
+    "TIMED_OUT": GenericOutcome.TIMEOUT,
+}
+_GENERIC_ATTRIBUTE_KEYS = frozenset({"plan_version", "plan_fingerprint"})
 
 
 def legacy_trace_row(
@@ -90,3 +99,49 @@ def legacy_span_row(
         "model_parameters": None,
         "cost": None,
     }
+
+
+def normalized_trace(
+    envelope: LocalAgentTraceEnvelopeInV1,
+    *,
+    internal_trace_uuid: UUID,
+    project_id: UUID,
+) -> NormalizedOnlineTrace:
+    """Map a validated LocalAgent envelope to the generic trace projection."""
+    return NormalizedOnlineTrace(
+        project_id=project_id,
+        trace_id=internal_trace_uuid,
+        source_kind="localagent",
+        outcome=_LOCALAGENT_TO_GENERIC_OUTCOME[envelope.status],
+        source_contract_identity=envelope.contract_identity,
+        source_contract_version=envelope.contract_version,
+        subject_version_ref=None,
+    )
+
+
+def normalized_span(
+    envelope: LocalAgentTraceEnvelopeInV1,
+    *,
+    internal_trace_uuid: UUID,
+    internal_span_uuid: UUID,
+    internal_parent_uuid: UUID | None,
+    project_id: UUID,
+) -> NormalizedOnlineSpan:
+    """Map validated LocalAgent fields without copying the raw attribute map."""
+    safe_attributes = {
+        key: value for key, value in envelope.attributes.items() if key in _GENERIC_ATTRIBUTE_KEYS
+    }
+    return NormalizedOnlineSpan(
+        project_id=project_id,
+        trace_id=internal_trace_uuid,
+        span_id=internal_span_uuid,
+        parent_span_id=internal_parent_uuid,
+        operation=envelope.operation,
+        component=envelope.component,
+        outcome=_LOCALAGENT_TO_GENERIC_OUTCOME[envelope.status],
+        error_code=envelope.error_code,
+        started_at=envelope.started_at,
+        ended_at=envelope.completed_at,
+        duration_ms=envelope.duration_ms,
+        attributes=safe_attributes,
+    )

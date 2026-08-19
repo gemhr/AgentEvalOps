@@ -1,0 +1,102 @@
+# AgentEvalOps Evaluation Release Gate
+#
+# DEMO / SYNTHETIC gate integration.  This workflow proves that the frozen
+# ReleaseDecision (PASS/FAIL) can be mapped to a GitHub Actions job status:
+#   - scenario "pass" -> ReleaseDecision.PASS -> CLI exit 0   -> job PASS
+#   - scenario "fail" -> ReleaseDecision.FAIL  -> CLI exit 2   -> job FAIL
+#
+# It is NOT a production deployment gate: baseline/candidate are deterministic
+# synthetic fixtures, and this workflow does not gate the production image
+# release (release.yml is untouched).  Real baseline/candidate selection must
+# be connected before this adapter protects any production pipeline.
+#
+# PostgreSQL uses ephemeral CI trust auth (POSTGRES_HOST_AUTH_METHOD=trust):
+# no database password appears anywhere in this file.
+
+name: AgentEvalOps Evaluation Release Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Deterministic SYNTHETIC gate scenario (pass = gate PASS / exit 0, fail = gate FAIL / exit 2)"
+        type: choice
+        options:
+          - pass
+          - fail
+        default: pass
+  workflow_call:
+    inputs:
+      scenario:
+        description: "Deterministic SYNTHETIC gate scenario"
+        type: string
+        required: false
+        default: pass
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evaluation-release-gate:
+    name: Synthetic Evaluation Release Gate
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: pandaprobe_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Ephemeral CI trust auth: username only, no password.
+      AGENTEVALOPS_DEMO_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/pandaprobe_ci
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: make backend-install
+
+      - name: Prepare schema (alembic upgrade head)
+        working-directory: backend
+        run: uv run alembic upgrade head
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: pandaprobe_ci
+
+      # The gate step intentionally has no error suppression: the real process
+      # exit code (0 / 2 / 1) must propagate to the GitHub Actions job status.
+      - name: Run evaluation release gate (deterministic synthetic gate)
+        working-directory: backend
+        run: uv run python -m scripts.ci.release_gate --scenario "${{ inputs.scenario }}" --report-json artifacts/release-gate.json
+
+      # Upload the gate report even when the gate fails (exit 2), so the
+      # reason for the block is available in CI artifacts.  Only the report
+      # file is uploaded — never .env, database files or the workspace.
+      - name: Upload gate report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-gate-report
+          path: backend/artifacts/release-gate.json
+          if-no-files-found: error

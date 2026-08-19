@@ -101,6 +101,30 @@ uv run python -m scripts.demo.closed_loop_demo --scenario fail
   See `backend/scripts/seed/README.md` for the older seed traces and legacy
   evaluation API walkthrough.
 
+### CI Release Gate (synthetic)
+
+The same closed loop also drives a process exit contract for CI:
+
+```bash
+cd backend
+export AGENTEVALOPS_DEMO_DATABASE_URL="<your-local-postgresql-dsn>"  # or rely on project config
+uv run python -m scripts.ci.release_gate --scenario pass   # exit 0 (gate PASS)
+uv run python -m scripts.ci.release_gate --scenario fail   # exit 2 (gate FAIL)
+```
+
+- Exit contract: `0` = Release Gate PASS, `2` = Release Gate FAIL (business
+  block), `1` = execution / configuration / contract error. The exit code
+  always comes from the real `ReleaseDecision`, never from the `--scenario`
+  argument.
+- `--report-json path` writes the gate report before returning the exit code —
+  including on FAIL, so CI can upload why the release was blocked.
+
+`.github/workflows/evaluation-release-gate.yml` runs the same gate on a fresh
+PostgreSQL (`alembic upgrade head` → gate CLI) and maps the exit code to the
+job status. It is a **deterministic synthetic gate integration**, not a
+production deployment gate — real baseline/candidate selection is not
+connected yet.
+
 ## Architecture
 
 ```mermaid

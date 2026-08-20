@@ -14,6 +14,8 @@ from typing import Any
 from pydantic import computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import httpx
+
 
 class Environment(str, Enum):
     """Supported runtime environments."""
@@ -55,6 +57,19 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [s.strip() for s in v.split(",") if s.strip()]
         return v  # type: ignore[return-value]
+
+    @field_validator("LOCALAGENT_HTTP_BASE_URL", mode="after")
+    @classmethod
+    def _validate_localagent_base_url(cls, v: str) -> str:
+        """Fail closed on a malformed URL; empty is allowed (no LocalAgent configured)."""
+        if not v:
+            return v
+        url = httpx.URL(v.strip())
+        if url.scheme not in {"http", "https"} or not url.host or url.query or url.fragment:
+            raise ValueError(
+                "LOCALAGENT_HTTP_BASE_URL must be an absolute http(s) URL without query or fragment"
+            )
+        return str(url).rstrip("/")
 
     # -- PostgreSQL -----------------------------------------------------------
     POSTGRES_HOST: str = "localhost"
@@ -146,6 +161,13 @@ class Settings(BaseSettings):
     # -- PostHog / Product Analytics -------------------------------------------
     POSTHOG_API_KEY: str = ""
     POSTHOG_HOST: str = ""
+
+    # -- LocalAgent HTTP ExecutionTarget --------------------------------------
+    # Endpoint for the independent Local_Agent repository's structured
+    # COORDINATED runtime execution endpoint. Only consumed when the
+    # EvaluationLoopService resolves a LOCALAGENT_HTTP ExecutionTarget.
+    # Must be an absolute http(s) URL with no query/fragment when set.
+    LOCALAGENT_HTTP_BASE_URL: str = ""
 
     # -- Application URLs -----------------------------------------------------
     APP_URL: str = "https://app.pandaprobe.com"

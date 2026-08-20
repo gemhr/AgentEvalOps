@@ -41,6 +41,16 @@ from app.core.evaluation.feedback import (
 )
 from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue, JsonValue, freeze_json
 from app.core.evaluation.ports import Evaluator, JudgeModelPort
+from app.core.evaluation.rag_artifact import (
+    RAG_ARTIFACT_EVIDENCE_KIND,
+    RAG_ARTIFACT_EVIDENCE_SCHEMA_VERSION,
+    RAG_ARTIFACT_MEDIA_TYPE,
+    RAG_ARTIFACT_SCHEMA_VERSION,
+    RAG_EVALUATION_PROTOCOL_VERSION,
+    RagEvaluationArtifactV1,
+    build_rag_artifact_evidence,
+    validate_capture_status,
+)
 from app.core.evaluation.references import (
     ArtifactRef,
     CapabilityRequirement,
@@ -108,6 +118,12 @@ __all__ = [
     "OutcomeKind",
     "PolicyDisposition",
     "ProvenanceCompleteness",
+    "RAG_ARTIFACT_EVIDENCE_KIND",
+    "RAG_ARTIFACT_EVIDENCE_SCHEMA_VERSION",
+    "RAG_ARTIFACT_MEDIA_TYPE",
+    "RAG_ARTIFACT_SCHEMA_VERSION",
+    "RAG_EVALUATION_PROTOCOL_VERSION",
+    "RagEvaluationArtifactV1",
     "RegressionClassification",
     "RegressionComparisonError",
     "RegressionReport",
@@ -127,6 +143,8 @@ __all__ = [
     "TraceFeedbackError",
     "UnsupportedTargetCapabilitiesError",
     "VersionRef",
+    "build_rag_artifact_evidence",
     "freeze_json",
+    "validate_capture_status",
     "validate_target_capabilities",
 ]

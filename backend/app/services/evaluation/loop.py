@@ -22,7 +22,7 @@ from app.core.evaluation.catalog import (
 from app.core.evaluation.evaluators import EvaluationInput, EvaluatorContext
 from app.core.evaluation.execution import ExecutionOutcome, ExecutionTarget, ExecutionTargetRef, OutcomeKind
 from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue
-from app.core.evaluation.ports import Evaluator
+from app.core.evaluation.ports import Evaluator, JudgeModelPort
 from app.core.evaluation.references import CaseVersionRef, EvidenceRef, VersionRef
 from app.core.evaluation.results import (
     EvaluationResult,
@@ -70,6 +70,7 @@ class ResolvedEvaluator:
     evaluator_id: str
     evaluator_version: str
     evaluator: Evaluator
+    judge_model: JudgeModelPort | None = None
 
 
 class ExecutionTargetResolver(Protocol):
@@ -283,6 +284,7 @@ def _evaluation_input(test_case: TestCaseVersion, attempt: ExecutionAttempt) -> 
         raise EvaluationLoopContractError("terminal SUCCESS attempt requires an output artifact")
     return EvaluationInput(
         case_ref=attempt.case_ref,
+        input_payload=test_case.input_payload,
         expected_output=test_case.expected_output,
         assertion_specs=test_case.assertion_specs,
         actual_artifact=attempt.output_artifact_ref,
@@ -462,7 +464,7 @@ class EvaluationLoopService:
             slot = (spec.evaluator_id, spec.evaluator_version)
             if slot in finalized:
                 continue
-            draft = await self._evaluate(binding.evaluator, spec, input_value)
+            draft = await self._evaluate(binding.evaluator, spec, input_value, binding.judge_model)
             normalized, source = _normalize_draft(draft, preflight.policy)
             result = _result(
                 run=run,
@@ -524,9 +526,10 @@ class EvaluationLoopService:
         evaluator: Evaluator,
         spec: EvaluatorSpec,
         input_value: EvaluationInput,
+        judge_model: JudgeModelPort | None,
     ) -> EvaluationResultDraft:
         try:
-            draft = await evaluator.evaluate(input_value, EvaluatorContext(spec))
+            draft = await evaluator.evaluate(input_value, EvaluatorContext(spec, judge_model=judge_model))
         except Exception as exc:
             draft = EvaluationResultDraft(
                 evaluator_id=spec.evaluator_id,

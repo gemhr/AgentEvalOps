@@ -22,12 +22,14 @@ class EvaluationInput:
     case_ref: CaseVersionRef
     expected_output: FrozenJsonValue | None
     assertion_specs: tuple[AssertionSpec, ...]
+    input_payload: FrozenJsonValue = field(default_factory=FrozenDict, compare=False)
     actual_artifact: ArtifactRef | None = None
     execution_outcome_ref: EvidenceRef | None = None
     evidence_refs: tuple[EvidenceRef, ...] = ()
     metadata: FrozenDict = field(default_factory=FrozenDict, compare=False)
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "input_payload", freeze_json(self.input_payload))
         if self.expected_output is not None:
             object.__setattr__(self, "expected_output", freeze_json(self.expected_output))
         object.__setattr__(self, "assertion_specs", tuple(self.assertion_specs))

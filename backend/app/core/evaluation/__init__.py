@@ -39,6 +39,7 @@ from app.core.evaluation.dataset import (
     validate_case,
     validate_dataset,
 )
+from app.core.evaluation.dataset_bridge import bridge_dataset_to_catalog
 from app.core.evaluation.evaluators import EvaluationInput, EvaluatorContext
 from app.core.evaluation.execution import (
     FIXTURE_TARGET_KIND,
@@ -60,13 +61,23 @@ from app.core.evaluation.generation_evidence import (
     FinalAnswerEvidenceV1,
     build_final_answer_evidence,
 )
+from app.core.evaluation.generation_judge import (
+    CORRECTNESS_PROMPT_REF,
+    FAITHFULNESS_PROMPT_REF,
+    GENERATION_CORRECTNESS,
+    GENERATION_FAITHFULNESS,
+    GenerationCorrectnessEvaluator,
+    GenerationFaithfulnessEvaluator,
+    GenerationJudgeInput,
+    SelectedContextItem,
+)
 from app.core.evaluation.feedback import (
     TraceFeedbackCandidateError,
     TraceFeedbackCommand,
     TraceFeedbackError,
 )
 from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue, JsonValue, freeze_json
-from app.core.evaluation.ports import Evaluator, JudgeModelPort
+from app.core.evaluation.ports import Evaluator, JudgeModelPort, JudgeModelResponse
 from app.core.evaluation.ranking_metrics import (
     NDCGAtKResult,
     NDCG_METRIC_NAME,
@@ -132,6 +143,7 @@ __all__ = [
     "DEFAULT_K_VALUES",
     "CapabilityRequirement",
     "CaseVersionRef",
+    "CORRECTNESS_PROMPT_REF",
     "ComparisonReason",
     "DatasetVersion",
     "EVALUATION_DATASET_SCHEMA_VERSION",
@@ -166,14 +178,21 @@ __all__ = [
     "FINAL_ANSWER_MAX_BYTES",
     "FINAL_ANSWER_MEDIA_TYPE",
     "FinalAnswerEvidenceV1",
+    "FAITHFULNESS_PROMPT_REF",
     "FrozenDict",
     "FrozenJsonValue",
     "GenerationGroundTruth",
+    "GenerationCorrectnessEvaluator",
+    "GenerationFaithfulnessEvaluator",
+    "GenerationJudgeInput",
+    "GENERATION_CORRECTNESS",
+    "GENERATION_FAITHFULNESS",
     "GradedRelevance",
     "GroundTruth",
     "GroundTruthChunk",
     "JsonValue",
     "JudgeModelPort",
+    "JudgeModelResponse",
     "MRRResult",
     "MRR_METRIC_NAME",
     "MRR_SOURCE_EMPTY",
@@ -207,6 +226,7 @@ __all__ = [
     "RunStatus",
     "RunsNotComparable",
     "ScoreDirection",
+    "SelectedContextItem",
     "TestCaseVersion",
     "TraceFeedbackCandidateError",
     "TraceFeedbackCommand",
@@ -214,6 +234,7 @@ __all__ = [
     "UnsupportedTargetCapabilitiesError",
     "VersionRef",
     "build_rag_artifact_evidence",
+    "bridge_dataset_to_catalog",
     "build_final_answer_evidence",
     "calculate_mrr",
     "calculate_ndcg_at_k",

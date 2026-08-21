@@ -17,6 +17,7 @@ from app.adapters.evaluation.http_localagent import (
 from app.adapters.evaluation.localagent_resolver import (
     LocalAgentHttpExecutionTargetResolver,
 )
+from app.adapters.evaluation.llm_judge import GenerationJudgeEvaluatorResolver, LiteLLMJudgeModel
 
 __all__ = [
     "FixtureExecution",
@@ -31,6 +32,8 @@ __all__ = [
     "LOCALAGENT_HTTP_TARGET_VERSION",
     "LocalAgentHttpExecutionTarget",
     "LocalAgentHttpExecutionTargetResolver",
+    "GenerationJudgeEvaluatorResolver",
+    "LiteLLMJudgeModel",
     "RuntimeEvaluationExecuteResponse",
     "RuntimeExecuteResponse",
 ]

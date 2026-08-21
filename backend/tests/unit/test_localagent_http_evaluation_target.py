@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import hashlib
 
 import httpx
 import pytest
@@ -10,6 +11,8 @@ import pytest
 from app.adapters.evaluation import (
     LOCALAGENT_HTTP_EVALUATION_CONFIG,
     LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION,
+    LOCALAGENT_HTTP_EVALUATION_V2_CONFIG,
+    LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION,
     LOCALAGENT_HTTP_TARGET_ID,
     LOCALAGENT_HTTP_TARGET_KIND,
     LocalAgentHttpExecutionTarget,
@@ -24,6 +27,7 @@ from tests.unit.test_rag_artifact import artifact_payload
 
 ATTEMPT_ID = "11111111-1111-4111-8111-111111111111"
 EVALUATION_URL = "http://localagent.test/api/runtime/evaluation-execute/v1"
+EVALUATION_V2_URL = "http://localagent.test/api/runtime/evaluation-execute/v2"
 
 
 def target_ref(**changes: object) -> ExecutionTargetRef:
@@ -32,6 +36,17 @@ def target_ref(**changes: object) -> ExecutionTargetRef:
         "target_kind": LOCALAGENT_HTTP_TARGET_KIND,
         "target_version_ref": LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION,
         "config_ref": LOCALAGENT_HTTP_EVALUATION_CONFIG,
+    }
+    values.update(changes)
+    return ExecutionTargetRef(**values)  # type: ignore[arg-type]
+
+
+def target_ref_v2(**changes: object) -> ExecutionTargetRef:
+    values: dict[str, object] = {
+        "target_id": LOCALAGENT_HTTP_TARGET_ID,
+        "target_kind": LOCALAGENT_HTTP_TARGET_KIND,
+        "target_version_ref": LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION,
+        "config_ref": LOCALAGENT_HTTP_EVALUATION_V2_CONFIG,
     }
     values.update(changes)
     return ExecutionTargetRef(**values)  # type: ignore[arg-type]
@@ -73,6 +88,42 @@ def evaluation_body(
     }
 
 
+def evaluation_v2_body(
+    *,
+    status: str = "SUCCEEDED",
+    final_status: str = "COMPLETE",
+    final_error_code: str | None = None,
+    final_evidence: dict[str, object] | None = None,
+    artifacts: list[dict[str, object]] | None = None,
+    **changes: object,
+) -> dict[str, object]:
+    content = "answer-v2"
+    evidence = final_evidence
+    if evidence is None and final_status == "COMPLETE":
+        evidence = {
+            "schema_version": "final-answer-evidence.v1",
+            "evidence_id": f"final-answer://{ATTEMPT_ID}",
+            "run_id": ATTEMPT_ID,
+            "attempt_id": ATTEMPT_ID,
+            "media_type": "text/plain; charset=utf-8",
+            "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            "content": content,
+        }
+    if final_status == "FAILED" and final_error_code is None:
+        final_error_code = "FINAL_ANSWER_RUNTIME_NOT_SUCCEEDED"
+    body = evaluation_body(status=status, artifacts=artifacts)
+    body.update(
+        {
+            "protocol_version": "localagent-evaluation-execute.v2",
+            "final_answer_capture_status": final_status,
+            "final_answer_capture_error_code": final_error_code,
+            "final_answer_evidence": evidence,
+        }
+    )
+    body.update(changes)
+    return body
+
+
 def response(payload: dict[str, object], status_code: int = 200) -> httpx.Response:
     return httpx.Response(
         status_code,
@@ -97,6 +148,14 @@ class _FakeClient:
 def make_target(client: _FakeClient, **ref_changes: object) -> LocalAgentHttpExecutionTarget:
     return LocalAgentHttpExecutionTarget(
         target_ref(**ref_changes),
+        "http://localagent.test",
+        client=client,  # type: ignore[arg-type]
+    )
+
+
+def make_target_v2(client: _FakeClient, **ref_changes: object) -> LocalAgentHttpExecutionTarget:
+    return LocalAgentHttpExecutionTarget(
+        target_ref_v2(**ref_changes),
         "http://localagent.test",
         client=client,  # type: ignore[arg-type]
     )
@@ -239,3 +298,60 @@ async def test_artifact_malformed_under_partial_keeps_terminal_drops_artifacts()
     assert [ref.kind for ref in outcome.evidence_refs] == ["localagent_run"]
     assert outcome.metadata["rag_evaluation_capture_status"] == "PARTIAL"
     assert outcome.metadata["rag_evaluation_capture_error_code"] == "RAG_EVALUATION_PROJECTION_FAILED"
+
+
+@pytest.mark.asyncio
+async def test_v2_endpoint_maps_final_answer_and_rag_evidence() -> None:
+    async def result(url: str, payload: dict[str, object] | None) -> httpx.Response:
+        return response(evaluation_v2_body(artifacts=[artifact_payload()]))
+
+    client = _FakeClient(result)
+    outcome = await make_target_v2(client).execute(request())
+
+    assert client.calls[0][0] == EVALUATION_V2_URL
+    assert outcome.kind is OutcomeKind.SUCCESS
+    assert [ref.kind for ref in outcome.evidence_refs] == [
+        "localagent_run",
+        "rag_evaluation_artifact",
+        "final_answer",
+    ]
+    final_ref = outcome.evidence_refs[-1]
+    assert final_ref.identifier == f"final-answer://{ATTEMPT_ID}"
+    assert final_ref.metadata["payload"]["content"] == "answer-v2"
+    assert outcome.metadata["final_answer_capture_status"] == "COMPLETE"
+
+
+@pytest.mark.asyncio
+async def test_v2_runtime_failure_keeps_terminal_without_final_answer_evidence() -> None:
+    async def result(url: str, payload: dict[str, object] | None) -> httpx.Response:
+        return response(
+            evaluation_v2_body(
+                status="FAILED",
+                stop_reason="UNHANDLED_ERROR",
+                final_status="FAILED",
+                artifacts=[artifact_payload()],
+            )
+        )
+
+    outcome = await make_target_v2(_FakeClient(result)).execute(request())
+
+    assert outcome.kind is OutcomeKind.FAILURE
+    assert [ref.kind for ref in outcome.evidence_refs] == [
+        "localagent_run",
+        "rag_evaluation_artifact",
+    ]
+    assert outcome.metadata["final_answer_capture_status"] == "FAILED"
+
+
+@pytest.mark.asyncio
+async def test_v2_malformed_final_answer_fails_closed() -> None:
+    invalid = evaluation_v2_body()
+    invalid["final_answer_evidence"]["content_sha256"] = "0" * 64  # type: ignore[index]
+
+    async def result(url: str, payload: dict[str, object] | None) -> httpx.Response:
+        return response(invalid)
+
+    outcome = await make_target_v2(_FakeClient(result)).execute(request())
+
+    assert outcome.kind is OutcomeKind.OUTCOME_UNKNOWN
+    assert outcome.error_category == "PROTOCOL_MALFORMED"

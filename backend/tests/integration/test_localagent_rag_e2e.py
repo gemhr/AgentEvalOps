@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import socket
 import subprocess
@@ -18,6 +19,8 @@ import pytest
 from app.adapters.evaluation.http_localagent import (
     LOCALAGENT_HTTP_EVALUATION_CONFIG,
     LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION,
+    LOCALAGENT_HTTP_EVALUATION_V2_CONFIG,
+    LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION,
     LOCALAGENT_HTTP_TARGET_ID,
     LOCALAGENT_HTTP_TARGET_KIND,
     LocalAgentHttpExecutionTarget,
@@ -98,6 +101,7 @@ _SERVER_PROGRAM = textwrap.dedent(
                 "failure": (1, True, False),
                 "multi": (2, False, False),
                 "capture-failure": (1, False, True),
+                "final-overbound": (1, False, False),
             }
             count, failed, capture_failure = modes[query]
             service = RetrievalExecutionService(FakeRetrievalAdapter())
@@ -121,7 +125,10 @@ _SERVER_PROGRAM = textwrap.dedent(
                     run_context=context,
                 )
                 assert result.status is RetrievalExecutionStatus.SUCCEEDED
-            return None, _result(run_id, failed)
+            output = "unexpected failed output" if failed else "answer-v2"
+            if query == "final-overbound":
+                output = "中" * 21846
+            return output, _result(run_id, failed)
 
 
     server.chat_service = DeterministicEvaluationService()
@@ -134,12 +141,20 @@ def _persistence() -> EvaluationPersistenceService:
     return EvaluationPersistenceService(lambda: PostgresEvaluationPersistenceUnitOfWork(async_session_factory))
 
 
-def _target_ref() -> ExecutionTargetRef:
+def _target_ref(*, v2: bool = False) -> ExecutionTargetRef:
     return ExecutionTargetRef(
         target_id=LOCALAGENT_HTTP_TARGET_ID,
         target_kind=LOCALAGENT_HTTP_TARGET_KIND,
-        target_version_ref=LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION,
-        config_ref=LOCALAGENT_HTTP_EVALUATION_CONFIG,
+        target_version_ref=(
+            LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION
+            if v2
+            else LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION
+        ),
+        config_ref=(
+            LOCALAGENT_HTTP_EVALUATION_V2_CONFIG
+            if v2
+            else LOCALAGENT_HTTP_EVALUATION_CONFIG
+        ),
     )
 
 
@@ -185,7 +200,7 @@ async def localagent_e2e_url(monkeypatch):
             process.wait(timeout=5)
 
 
-async def _create_running_attempt(mode: str):
+async def _create_running_attempt(mode: str, *, v2: bool = False):
     now = datetime.now(timezone.utc)
     case_ref = CaseVersionRef(f"ac10-{mode}", "v1")
     case = CaseVersion(case_ref.case_id, case_ref.version, case_ref.case_id, {"agent_id": "core_router", "query": mode}, now)
@@ -205,7 +220,7 @@ async def _create_running_attempt(mode: str):
         dataset=dataset,
         suite=suite,
         cases={case_ref: case},
-        target=_target_ref(),
+        target=_target_ref(v2=v2),
         timeout=timedelta(seconds=30),
     )
     claim = await persistence.claim_attempt(TEST_PROJECT_ID, attempt.attempt_id, lease=timedelta(minutes=5))
@@ -213,9 +228,9 @@ async def _create_running_attempt(mode: str):
     return persistence, await persistence.start_attempt(TEST_PROJECT_ID, attempt.attempt_id, claim.claim_token), claim.claim_token
 
 
-async def _execute_persist_reload(mode: str, base_url: str):
-    persistence, running, claim_token = await _create_running_attempt(mode)
-    target = LocalAgentHttpExecutionTarget(_target_ref(), base_url)
+async def _execute_persist_reload(mode: str, base_url: str, *, v2: bool = False):
+    persistence, running, claim_token = await _create_running_attempt(mode, v2=v2)
+    target = LocalAgentHttpExecutionTarget(_target_ref(v2=v2), base_url)
     try:
         outcome = await target.execute(running.execution_request)
     finally:
@@ -229,6 +244,10 @@ async def _execute_persist_reload(mode: str, base_url: str):
 
 def _rag_refs(attempt):
     return tuple(ref for ref in attempt.outcome_evidence_refs if ref.kind == "rag_evaluation_artifact")
+
+
+def _final_answer_refs(attempt):
+    return tuple(ref for ref in attempt.outcome_evidence_refs if ref.kind == "final_answer")
 
 
 @pytest.mark.asyncio
@@ -278,3 +297,55 @@ async def test_capture_failure_preserves_runtime_success_and_capture_metadata(lo
     assert not _rag_refs(reloaded)
     assert reloaded.outcome_metadata["rag_evaluation_capture_status"] == "FAILED"
     assert reloaded.outcome_metadata["rag_evaluation_capture_error_code"] == "RAG_EVALUATION_QUERY_LIMIT_EXCEEDED"
+
+
+@pytest.mark.asyncio
+async def test_v2_final_answer_round_trips_over_real_http_and_postgres(localagent_e2e_url):
+    outcome, reloaded = await _execute_persist_reload(
+        "success", localagent_e2e_url, v2=True
+    )
+
+    assert outcome.kind is OutcomeKind.SUCCESS
+    refs = _final_answer_refs(reloaded)
+    assert len(refs) == 1
+    payload = refs[0].metadata["payload"]
+    assert refs[0].identifier == f"final-answer://{reloaded.attempt_id}"
+    assert payload["run_id"] == str(reloaded.attempt_id)
+    assert payload["attempt_id"] == str(reloaded.attempt_id)
+    assert payload["content"] == "answer-v2"
+    assert payload["content_sha256"] == hashlib.sha256(b"answer-v2").hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_v2_runtime_failure_persists_terminal_without_final_answer(localagent_e2e_url):
+    outcome, reloaded = await _execute_persist_reload(
+        "failure", localagent_e2e_url, v2=True
+    )
+
+    assert outcome.kind is OutcomeKind.FAILURE
+    assert reloaded.execution_outcome_kind is OutcomeKind.FAILURE
+    assert not _final_answer_refs(reloaded)
+    assert reloaded.outcome_metadata["final_answer_capture_status"] == "FAILED"
+
+
+@pytest.mark.asyncio
+async def test_v2_final_answer_over_bound_preserves_runtime_and_rag(localagent_e2e_url):
+    outcome, reloaded = await _execute_persist_reload(
+        "final-overbound", localagent_e2e_url, v2=True
+    )
+
+    assert outcome.kind is OutcomeKind.SUCCESS
+    assert len(_rag_refs(reloaded)) == 1
+    assert not _final_answer_refs(reloaded)
+    assert reloaded.outcome_metadata["final_answer_capture_status"] == "FAILED"
+    assert reloaded.outcome_metadata["final_answer_capture_error_code"] == "FINAL_ANSWER_CONTENT_LIMIT_EXCEEDED"
+
+
+@pytest.mark.asyncio
+async def test_v2_persists_rag_and_final_answer_evidence_together(localagent_e2e_url):
+    _outcome, reloaded = await _execute_persist_reload(
+        "success", localagent_e2e_url, v2=True
+    )
+
+    assert len(_rag_refs(reloaded)) == 1
+    assert len(_final_answer_refs(reloaded)) == 1

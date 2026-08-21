@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
@@ -18,6 +19,10 @@ from app.core.evaluation.execution import (
     ExecutionRequest,
     ExecutionTargetRef,
     OutcomeKind,
+)
+from app.core.evaluation.generation_evidence import (
+    FinalAnswerEvidenceV1,
+    build_final_answer_evidence,
 )
 from app.core.evaluation.rag_artifact import (
     RAG_EVALUATION_PROTOCOL_VERSION,
@@ -46,13 +51,23 @@ LOCALAGENT_HTTP_EVALUATION_CONFIG = VersionRef(
     kind="localagent_http_config",
     opaque_value="localagent-evaluation-v1",
 )
+LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION = VersionRef(
+    kind="localagent_http_execution_target",
+    opaque_value="evaluation-v2",
+)
+LOCALAGENT_HTTP_EVALUATION_V2_CONFIG = VersionRef(
+    kind="localagent_http_config",
+    opaque_value="localagent-evaluation-v2",
+)
 
 _MAX_PROVIDER_TIMEOUT_SECONDS = 3600.0
 _CLEANUP_TIMEOUT_SECONDS = 1.0
 _MAX_REASON_LENGTH = 500
 _EXECUTE_PATH = "/api/runtime/execute"
 _EVALUATION_EXECUTE_PATH = "/api/runtime/evaluation-execute/v1"
+_EVALUATION_EXECUTE_V2_PATH = "/api/runtime/evaluation-execute/v2"
 _CANCEL_PATH = "/api/runtime/runs/{run_id}/cancel"
+_EVALUATION_V2_PROTOCOL_VERSION = "localagent-evaluation-execute.v2"
 
 _STOP_REASONS = frozenset(
     {
@@ -100,6 +115,14 @@ class RuntimeEvaluationExecuteResponse(BaseModel):
     capture_status: Literal["COMPLETE", "PARTIAL", "FAILED"]
     capture_error_code: StrictStr | None
     rag_evaluation_artifacts: list[dict[str, object]]
+
+
+class RuntimeEvaluationExecuteV2Response(RuntimeEvaluationExecuteResponse):
+    """LocalAgent v2 evaluation response，含独立 final answer capture。"""
+
+    final_answer_capture_status: Literal["COMPLETE", "FAILED"]
+    final_answer_capture_error_code: StrictStr | None
+    final_answer_evidence: dict[str, object] | None
 
 
 class _RuntimeDeadlineExceeded(Exception):
@@ -340,6 +363,10 @@ class LocalAgentHttpExecutionTarget:
                 f"Unexpected HTTP status {response.status_code}",
                 kind=OutcomeKind.OUTCOME_UNKNOWN,
                 evidence=True,
+            )
+        if self._evaluation_v2_mode:
+            return self._map_evaluation_v2_body(
+                request, started_at, run_id, response
             )
         if self._evaluation_mode:
             return self._map_evaluation_body(request, started_at, run_id, response)
@@ -619,6 +646,109 @@ class LocalAgentHttpExecutionTarget:
             **capture_meta,
         )
 
+    def _map_evaluation_v2_body(
+        self,
+        request: ExecutionRequest,
+        started_at: datetime,
+        run_id: str,
+        response: httpx.Response,
+    ) -> ExecutionOutcome:
+        """严格消费 v2，final answer 失败不改写独立的 Runtime/RAG 事实。"""
+        try:
+            wire = RuntimeEvaluationExecuteV2Response.model_validate(response.json())
+        except (TypeError, ValueError):
+            return self._failure_outcome(
+                request,
+                started_at,
+                run_id,
+                "PROTOCOL_MALFORMED",
+                "LocalAgent evaluation v2 response is invalid",
+                kind=OutcomeKind.OUTCOME_UNKNOWN,
+                evidence=True,
+            )
+
+        if (
+            wire.protocol_version != _EVALUATION_V2_PROTOCOL_VERSION
+            or wire.run_id != run_id
+            or wire.stop_reason not in _STOP_REASONS
+        ):
+            return self._failure_outcome(
+                request,
+                started_at,
+                run_id,
+                "PROTOCOL_MALFORMED",
+                "LocalAgent evaluation v2 response identity, version or enum is invalid",
+                kind=OutcomeKind.OUTCOME_UNKNOWN,
+                evidence=True,
+            )
+
+        final_evidence: EvidenceRef | None = None
+        if wire.status == "SUCCEEDED" and wire.final_answer_capture_status == "COMPLETE":
+            if (
+                wire.final_answer_capture_error_code is not None
+                or wire.final_answer_evidence is None
+            ):
+                return self._final_answer_protocol_failure(request, started_at, run_id)
+            try:
+                artifact = FinalAnswerEvidenceV1.model_validate(
+                    wire.final_answer_evidence
+                )
+                if artifact.run_id != run_id:
+                    raise ValueError("final answer run_id mismatch")
+                final_evidence = build_final_answer_evidence(artifact)
+            except (TypeError, ValueError):
+                return self._final_answer_protocol_failure(request, started_at, run_id)
+        elif (
+            wire.final_answer_capture_status != "FAILED"
+            or wire.final_answer_evidence is not None
+            or wire.final_answer_capture_error_code is None
+        ):
+            return self._final_answer_protocol_failure(request, started_at, run_id)
+
+        v1_payload = wire.model_dump(mode="json")
+        for key in (
+            "final_answer_capture_status",
+            "final_answer_capture_error_code",
+            "final_answer_evidence",
+        ):
+            v1_payload.pop(key)
+        v1_payload["protocol_version"] = RAG_EVALUATION_PROTOCOL_VERSION
+        base = self._map_evaluation_body(
+            request,
+            started_at,
+            run_id,
+            httpx.Response(200, json=v1_payload, request=response.request),
+        )
+        if base.kind is OutcomeKind.OUTCOME_UNKNOWN:
+            return base
+
+        metadata = dict(base.metadata)
+        metadata["final_answer_capture_status"] = wire.final_answer_capture_status
+        if wire.final_answer_capture_error_code is not None:
+            metadata["final_answer_capture_error_code"] = wire.final_answer_capture_error_code
+        evidence_refs = (
+            (*base.evidence_refs, final_evidence)
+            if final_evidence is not None
+            else base.evidence_refs
+        )
+        return replace(base, evidence_refs=evidence_refs, metadata=metadata)
+
+    def _final_answer_protocol_failure(
+        self,
+        request: ExecutionRequest,
+        started_at: datetime,
+        run_id: str,
+    ) -> ExecutionOutcome:
+        return self._failure_outcome(
+            request,
+            started_at,
+            run_id,
+            "PROTOCOL_MALFORMED",
+            "LocalAgent final answer evidence is invalid",
+            kind=OutcomeKind.OUTCOME_UNKNOWN,
+            evidence=True,
+        )
+
     def _validate_request(self, request: ExecutionRequest) -> tuple[str, dict[str, str]]:
         if not isinstance(request.input_payload, Mapping):
             raise ValueError("LocalAgent input_payload must be a JSON object")
@@ -650,7 +780,13 @@ class LocalAgentHttpExecutionTarget:
             target_version_ref=LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION,
             config_ref=LOCALAGENT_HTTP_EVALUATION_CONFIG,
         )
-        if target_ref not in (legacy, evaluation):
+        evaluation_v2 = ExecutionTargetRef(
+            target_id=LOCALAGENT_HTTP_TARGET_ID,
+            target_kind=LOCALAGENT_HTTP_TARGET_KIND,
+            target_version_ref=LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION,
+            config_ref=LOCALAGENT_HTTP_EVALUATION_V2_CONFIG,
+        )
+        if target_ref not in (legacy, evaluation, evaluation_v2):
             raise ValueError("unsupported LocalAgent target identity/version/config")
 
     @property
@@ -661,7 +797,17 @@ class LocalAgentHttpExecutionTarget:
             and self._target_ref.config_ref == LOCALAGENT_HTTP_EVALUATION_CONFIG
         )
 
+    @property
+    def _evaluation_v2_mode(self) -> bool:
+        return (
+            self._target_ref.target_version_ref
+            == LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION
+            and self._target_ref.config_ref == LOCALAGENT_HTTP_EVALUATION_V2_CONFIG
+        )
+
     def _execute_path(self) -> str:
+        if self._evaluation_v2_mode:
+            return _EVALUATION_EXECUTE_V2_PATH
         return _EVALUATION_EXECUTE_PATH if self._evaluation_mode else _EXECUTE_PATH
 
     @staticmethod
@@ -688,7 +834,7 @@ class LocalAgentHttpExecutionTarget:
     def _metadata(
         request: ExecutionRequest,
         run_id: str,
-        wire: RuntimeExecuteResponse | RuntimeEvaluationExecuteResponse | None = None,
+        wire: RuntimeExecuteResponse | RuntimeEvaluationExecuteResponse | RuntimeEvaluationExecuteV2Response | None = None,
         **extra: object,
     ) -> dict[str, object]:
         metadata: dict[str, object] = {
@@ -715,7 +861,7 @@ class LocalAgentHttpExecutionTarget:
         *,
         kind: OutcomeKind = OutcomeKind.FAILURE,
         evidence: bool,
-        wire: RuntimeExecuteResponse | RuntimeEvaluationExecuteResponse | None = None,
+        wire: RuntimeExecuteResponse | RuntimeEvaluationExecuteResponse | RuntimeEvaluationExecuteV2Response | None = None,
         extra_evidence: tuple[EvidenceRef, ...] = (),
         **extra: object,
     ) -> ExecutionOutcome:

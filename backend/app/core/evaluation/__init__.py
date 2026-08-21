@@ -50,6 +50,16 @@ from app.core.evaluation.execution import (
     UnsupportedTargetCapabilitiesError,
     validate_target_capabilities,
 )
+from app.core.evaluation.generation_evidence import (
+    FINAL_ANSWER_CONTENT_MEDIA_TYPE,
+    FINAL_ANSWER_EVIDENCE_KIND,
+    FINAL_ANSWER_EVIDENCE_REF_SCHEMA_VERSION,
+    FINAL_ANSWER_EVIDENCE_SCHEMA_VERSION,
+    FINAL_ANSWER_MAX_BYTES,
+    FINAL_ANSWER_MEDIA_TYPE,
+    FinalAnswerEvidenceV1,
+    build_final_answer_evidence,
+)
 from app.core.evaluation.feedback import (
     TraceFeedbackCandidateError,
     TraceFeedbackCommand,
@@ -149,6 +159,13 @@ __all__ = [
     "ExecutionTarget",
     "ExecutionTargetRef",
     "FIXTURE_TARGET_KIND",
+    "FINAL_ANSWER_CONTENT_MEDIA_TYPE",
+    "FINAL_ANSWER_EVIDENCE_KIND",
+    "FINAL_ANSWER_EVIDENCE_REF_SCHEMA_VERSION",
+    "FINAL_ANSWER_EVIDENCE_SCHEMA_VERSION",
+    "FINAL_ANSWER_MAX_BYTES",
+    "FINAL_ANSWER_MEDIA_TYPE",
+    "FinalAnswerEvidenceV1",
     "FrozenDict",
     "FrozenJsonValue",
     "GenerationGroundTruth",
@@ -197,6 +214,7 @@ __all__ = [
     "UnsupportedTargetCapabilitiesError",
     "VersionRef",
     "build_rag_artifact_evidence",
+    "build_final_answer_evidence",
     "calculate_mrr",
     "calculate_ndcg_at_k",
     "calculate_recall_at_k",

@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterator
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,63 @@ from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator, m
 from app.core.evaluation.immutable import freeze_json
 
 EVALUATION_DATASET_SCHEMA_VERSION = "evaluation-dataset.v1"
+EVALUATION_DATASET_SECURITY_SCHEMA_VERSION = "evaluation-dataset.v2"
+
+# 受支持 document contract 版本：v1（retrieval/ranking/generation）与 v2（v1 + security）。
+SUPPORTED_DATASET_SCHEMA_VERSIONS = (
+    EVALUATION_DATASET_SCHEMA_VERSION,
+    EVALUATION_DATASET_SECURITY_SCHEMA_VERSION,
+)
+
+
+class SecurityCaseKind(StrEnum):
+    """Security case 的显式类别：攻击样本或良性对照。"""
+
+    ATTACK = "ATTACK"
+    BENIGN_CONTROL = "BENIGN_CONTROL"
+
+
+class AttackType(StrEnum):
+    """Prompt Injection 攻击类型的最小 versioned taxonomy。
+
+    只覆盖项目真实场景的最小集合，不扩展成完整 OWASP 分类。
+    """
+
+    DIRECT_INSTRUCTION_OVERRIDE = "DIRECT_INSTRUCTION_OVERRIDE"
+    INDIRECT_CONTEXT_INJECTION = "INDIRECT_CONTEXT_INJECTION"
+    SYSTEM_PROMPT_EXTRACTION = "SYSTEM_PROMPT_EXTRACTION"
+    ROLE_CONFUSION = "ROLE_CONFUSION"
+    UNAUTHORIZED_TOOL_INSTRUCTION = "UNAUTHORIZED_TOOL_INSTRUCTION"
+    CROSS_AGENT_INSTRUCTION_INJECTION = "CROSS_AGENT_INSTRUCTION_INJECTION"
+    JUDGE_INJECTION = "JUDGE_INJECTION"
+
+
+class AttackSource(StrEnum):
+    """攻击载荷进入系统的位置。"""
+
+    USER_INPUT = "USER_INPUT"
+    RETRIEVED_CONTEXT = "RETRIEVED_CONTEXT"
+    TOOL_OUTPUT = "TOOL_OUTPUT"
+    AGENT_MESSAGE = "AGENT_MESSAGE"
+    REFERENCE_DATA = "REFERENCE_DATA"
+
+
+class ExpectedSecurityBehavior(StrEnum):
+    """系统面对攻击时应遵守的安全边界（requirement list 的最小集合）。"""
+
+    PRESERVE_ORIGINAL_TASK = "PRESERVE_ORIGINAL_TASK"
+    IGNORE_UNTRUSTED_INSTRUCTION = "IGNORE_UNTRUSTED_INSTRUCTION"
+    DO_NOT_DISCLOSE_PROTECTED_CONTENT = "DO_NOT_DISCLOSE_PROTECTED_CONTENT"
+    DO_NOT_PERFORM_UNAUTHORIZED_ACTION = "DO_NOT_PERFORM_UNAUTHORIZED_ACTION"
+
+
+class Severity(StrEnum):
+    """Security case 的严重级别（当前仅为 Dataset Fact，不驱动 release decision）。"""
+
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
 
 # 与 producer wire id 一致的 bounded 标识符字符集。
 _WIRE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._~-]*$")
@@ -130,6 +188,38 @@ class GenerationGroundTruth(BaseModel):
     reference_answer: StrictStr = Field(min_length=1)
 
 
+class SecurityGroundTruth(BaseModel):
+    """Security Evaluation 的 Expected Behavior Ground Truth（Dataset 权威，非 Evaluator 输出）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    case_kind: SecurityCaseKind
+    attack_type: AttackType | None = None
+    attack_source: AttackSource | None = None
+    severity: Severity | None = None
+    expected_behaviors: list[ExpectedSecurityBehavior] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_case_semantics(self) -> "SecurityGroundTruth":
+        if self.case_kind == SecurityCaseKind.ATTACK:
+            if self.attack_type is None:
+                raise ValueError("attack case requires attack_type")
+            if self.attack_source is None:
+                raise ValueError("attack case requires attack_source")
+            if self.severity is None:
+                raise ValueError("attack case requires severity")
+        else:
+            if self.attack_type is not None:
+                raise ValueError("benign control must not declare attack_type")
+            if self.attack_source is not None:
+                raise ValueError("benign control must not declare attack_source")
+            if self.severity is not None:
+                raise ValueError("benign control must not declare severity")
+        if len(self.expected_behaviors) != len(set(self.expected_behaviors)):
+            raise ValueError("duplicate expected_behavior is not allowed")
+        return self
+
+
 class GroundTruth(BaseModel):
     """按 evaluator 族分段的 Ground Truth；至少提供一段。"""
 
@@ -138,11 +228,19 @@ class GroundTruth(BaseModel):
     retrieval: RetrievalGroundTruth | None = None
     ranking: RankingGroundTruth | None = None
     generation: GenerationGroundTruth | None = None
+    security: SecurityGroundTruth | None = None
 
     @model_validator(mode="after")
     def _require_section(self) -> "GroundTruth":
-        if self.retrieval is None and self.ranking is None and self.generation is None:
-            raise ValueError("ground_truth must provide at least one of retrieval/ranking/generation")
+        if (
+            self.retrieval is None
+            and self.ranking is None
+            and self.generation is None
+            and self.security is None
+        ):
+            raise ValueError(
+                "ground_truth must provide at least one of retrieval/ranking/generation/security"
+            )
         return self
 
 
@@ -195,7 +293,7 @@ class EvaluationDataset(BaseModel):
     @field_validator("dataset_schema_version")
     @classmethod
     def _schema_version(cls, value: str) -> str:
-        if value != EVALUATION_DATASET_SCHEMA_VERSION:
+        if value not in SUPPORTED_DATASET_SCHEMA_VERSIONS:
             raise ValueError(f"unsupported dataset_schema_version: {value}")
         return value
 
@@ -203,6 +301,17 @@ class EvaluationDataset(BaseModel):
     @classmethod
     def _ids(cls, value: str, info: Any) -> str:
         return _require_wire_id(value, info.field_name)
+
+    @model_validator(mode="after")
+    def _validate_security_version_contract(self) -> "EvaluationDataset":
+        if self.dataset_schema_version == EVALUATION_DATASET_SCHEMA_VERSION:
+            for case in self.cases:
+                if case.ground_truth.security is not None:
+                    raise ValueError(
+                        f"{EVALUATION_DATASET_SCHEMA_VERSION} must not declare security ground truth; "
+                        f"use {EVALUATION_DATASET_SECURITY_SCHEMA_VERSION} for security cases"
+                    )
+        return self
 
     @model_validator(mode="after")
     def _unique_case_ids(self) -> "EvaluationDataset":
@@ -259,16 +368,24 @@ def iter_cases(dataset: EvaluationDataset) -> Iterator[EvaluationCase]:
 
 
 __all__ = [
+    "AttackSource",
+    "AttackType",
     "EVALUATION_DATASET_SCHEMA_VERSION",
+    "EVALUATION_DATASET_SECURITY_SCHEMA_VERSION",
     "EvaluationCase",
     "EvaluationDataset",
     "EvaluationDatasetLoadError",
+    "ExpectedSecurityBehavior",
     "GenerationGroundTruth",
     "GradedRelevance",
     "GroundTruth",
     "GroundTruthChunk",
     "RankingGroundTruth",
     "RetrievalGroundTruth",
+    "SUPPORTED_DATASET_SCHEMA_VERSIONS",
+    "SecurityCaseKind",
+    "SecurityGroundTruth",
+    "Severity",
     "iter_cases",
     "load_dataset",
     "validate_case",

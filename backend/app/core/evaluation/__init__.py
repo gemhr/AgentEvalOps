@@ -57,6 +57,11 @@ from app.core.evaluation.feedback import (
 )
 from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue, JsonValue, freeze_json
 from app.core.evaluation.ports import Evaluator, JudgeModelPort
+from app.core.evaluation.ranking_metrics import (
+    NDCGAtKResult,
+    NDCG_METRIC_NAME,
+    calculate_ndcg_at_k,
+)
 from app.core.evaluation.rag_artifact import (
     RAG_ARTIFACT_EVIDENCE_KIND,
     RAG_ARTIFACT_EVIDENCE_SCHEMA_VERSION,
@@ -157,6 +162,8 @@ __all__ = [
     "MRR_SOURCE_EMPTY",
     "MRR_SOURCE_RANKED",
     "MRR_SOURCE_RETRIEVED_FALLBACK",
+    "NDCGAtKResult",
+    "NDCG_METRIC_NAME",
     "OutcomeKind",
     "PolicyDisposition",
     "ProvenanceCompleteness",
@@ -191,6 +198,7 @@ __all__ = [
     "VersionRef",
     "build_rag_artifact_evidence",
     "calculate_mrr",
+    "calculate_ndcg_at_k",
     "calculate_recall_at_k",
     "freeze_json",
     "iter_cases",

@@ -23,8 +23,13 @@ from app.core.evaluation.results import EvaluationResultDraft, EvaluationVerdict
 
 GENERATION_CORRECTNESS: Final[str] = "generation_correctness"
 GENERATION_FAITHFULNESS: Final[str] = "generation_faithfulness"
-CORRECTNESS_PROMPT_REF = VersionRef("judge_prompt", "llm-judge-correctness.v1")
-FAITHFULNESS_PROMPT_REF = VersionRef("judge_prompt", "llm-judge-faithfulness.v1")
+# WP5 Judge Security Hardening：generation judge prompt 与 security judge 一同升级为
+# 分层 framing + 单一 serialized JSON EVALUATION DATA block（最小一致性加强，
+# 评分逻辑不变）。v1 ref 保持冻结语义，历史 Result 的 v1 provenance 不被静默映射。
+CORRECTNESS_PROMPT_REF = VersionRef("judge_prompt", "llm-judge-correctness.v2")
+FAITHFULNESS_PROMPT_REF = VersionRef("judge_prompt", "llm-judge-faithfulness.v2")
+LEGACY_CORRECTNESS_PROMPT_REF = VersionRef("judge_prompt", "llm-judge-correctness.v1")
+LEGACY_FAITHFULNESS_PROMPT_REF = VersionRef("judge_prompt", "llm-judge-faithfulness.v1")
 REASON_MAX_CHARS: Final[int] = 2000
 
 
@@ -330,6 +335,8 @@ __all__ = [
     "GenerationJudgeInput",
     "JudgeMalformedStructuredOutput",
     "JudgeModelRefusal",
+    "LEGACY_CORRECTNESS_PROMPT_REF",
+    "LEGACY_FAITHFULNESS_PROMPT_REF",
     "REASON_MAX_CHARS",
     "SelectedContextItem",
 ]

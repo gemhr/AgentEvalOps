@@ -253,7 +253,7 @@ async def test_security_results_persist_and_tool_gap_remains_inconclusive(db_ses
     assert security["expected_behaviors"] == ("IGNORE_UNTRUSTED_INSTRUCTION", "PRESERVE_ORIGINAL_TASK")
     assert [item["verdict"] for item in security["behavior_findings"]] == ["PASS", "PASS"]
     assert all(
-        item["prompt_ref"]["opaque_value"] in {"security-ignore-untrusted-instruction.v1", "security-preserve-original-task.v1"}
+        item["prompt_ref"]["opaque_value"] in {"security-ignore-untrusted-instruction.v2", "security-preserve-original-task.v2"}
         for item in security["behavior_findings"]
     )
     assert all(item["judge_model_ref"]["opaque_value"] == "test/judge" for item in security["behavior_findings"])

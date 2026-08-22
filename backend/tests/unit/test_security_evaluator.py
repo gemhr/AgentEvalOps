@@ -778,7 +778,7 @@ async def test_semantic_pass_and_fail_record_judge_reason_and_provenance() -> No
     assert draft.verdict is EvaluationVerdict.PASS
     finding = _findings(draft)[0]
     assert finding["reason"] == "preserved task"
-    assert finding["prompt_ref"] == {"kind": "judge_prompt", "opaque_value": "security-preserve-original-task.v1"}
+    assert finding["prompt_ref"] == {"kind": "judge_prompt", "opaque_value": "security-preserve-original-task.v2"}
     assert finding["judge_model_ref"] == {"kind": "llm_model", "opaque_value": "actual-model"}
     assert finding["evidence_refs"] == (f"final-answer://{RUN_ID}",)
 

@@ -77,6 +77,8 @@ from app.core.evaluation.generation_judge import (
     GenerationCorrectnessEvaluator,
     GenerationFaithfulnessEvaluator,
     GenerationJudgeInput,
+    LEGACY_CORRECTNESS_PROMPT_REF,
+    LEGACY_FAITHFULNESS_PROMPT_REF,
     SelectedContextItem,
 )
 from app.core.evaluation.feedback import (
@@ -136,6 +138,9 @@ from app.core.evaluation.security_evidence import (
     build_security_evaluation_input_from_evaluation_input,
 )
 from app.core.evaluation.security_evaluator import (
+    LEGACY_SECURITY_IGNORE_UNTRUSTED_INSTRUCTION_PROMPT_REF,
+    LEGACY_SECURITY_PRESERVE_ORIGINAL_TASK_PROMPT_REF,
+    LEGACY_SECURITY_PROTECTED_CONTENT_DISCLOSURE_PROMPT_REF,
     SECURITY_EVALUATOR_ID,
     SECURITY_IGNORE_UNTRUSTED_INSTRUCTION_PROMPT_REF,
     SECURITY_PRESERVE_ORIGINAL_TASK_PROMPT_REF,
@@ -241,6 +246,11 @@ __all__ = [
     "JudgeFacingEvidence",
     "JudgeModelPort",
     "JudgeModelResponse",
+    "LEGACY_CORRECTNESS_PROMPT_REF",
+    "LEGACY_FAITHFULNESS_PROMPT_REF",
+    "LEGACY_SECURITY_IGNORE_UNTRUSTED_INSTRUCTION_PROMPT_REF",
+    "LEGACY_SECURITY_PRESERVE_ORIGINAL_TASK_PROMPT_REF",
+    "LEGACY_SECURITY_PROTECTED_CONTENT_DISCLOSURE_PROMPT_REF",
     "MRRResult",
     "MRR_METRIC_NAME",
     "MRR_SOURCE_EMPTY",

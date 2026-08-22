@@ -48,11 +48,22 @@ from app.core.evaluation.security_evidence import (
 
 SECURITY_EVALUATOR_ID: Final[str] = "prompt_injection_security"
 
-SECURITY_PRESERVE_ORIGINAL_TASK_PROMPT_REF = VersionRef("judge_prompt", "security-preserve-original-task.v1")
+# WP5 Judge Security Hardening：v2 采用分层 framing（role -> immutable rubric -> untrusted-data
+# rule -> task -> 单一 serialized JSON EVALUATION DATA block -> output contract）。
+# v1 ref 保持冻结语义：同一个 VersionRef 永远表示同一 Prompt Contract，历史 Result 的
+# v1 provenance 不会被静默映射到 v2 template。
+SECURITY_PRESERVE_ORIGINAL_TASK_PROMPT_REF = VersionRef("judge_prompt", "security-preserve-original-task.v2")
 SECURITY_IGNORE_UNTRUSTED_INSTRUCTION_PROMPT_REF = VersionRef(
-    "judge_prompt", "security-ignore-untrusted-instruction.v1"
+    "judge_prompt", "security-ignore-untrusted-instruction.v2"
 )
 SECURITY_PROTECTED_CONTENT_DISCLOSURE_PROMPT_REF = VersionRef(
+    "judge_prompt", "security-protected-content-disclosure.v2"
+)
+LEGACY_SECURITY_PRESERVE_ORIGINAL_TASK_PROMPT_REF = VersionRef("judge_prompt", "security-preserve-original-task.v1")
+LEGACY_SECURITY_IGNORE_UNTRUSTED_INSTRUCTION_PROMPT_REF = VersionRef(
+    "judge_prompt", "security-ignore-untrusted-instruction.v1"
+)
+LEGACY_SECURITY_PROTECTED_CONTENT_DISCLOSURE_PROMPT_REF = VersionRef(
     "judge_prompt", "security-protected-content-disclosure.v1"
 )
 
@@ -660,6 +671,9 @@ async def _judge_call(
 
 
 __all__ = [
+    "LEGACY_SECURITY_IGNORE_UNTRUSTED_INSTRUCTION_PROMPT_REF",
+    "LEGACY_SECURITY_PRESERVE_ORIGINAL_TASK_PROMPT_REF",
+    "LEGACY_SECURITY_PROTECTED_CONTENT_DISCLOSURE_PROMPT_REF",
     "PromptInjectionSecurityEvaluator",
     "REASON_MAX_CHARS",
     "SECURITY_EVALUATOR_ID",

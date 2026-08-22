@@ -15,6 +15,12 @@ from app.services.evaluation.loop import (
 )
 from app.services.evaluation.persistence import ClaimResult, EvaluationPersistenceService
 from app.services.evaluation.report import RegressionReportService
+from app.services.evaluation.security_regression import (
+    SecurityRegressionPlanError,
+    SecurityRegressionService,
+    SecurityRunExecutionReceipt,
+    SecurityRunPlan,
+)
 
 __all__ = [
     "ClaimResult",
@@ -27,6 +33,10 @@ __all__ = [
     "ExecutionTargetResolver",
     "RegressionReportService",
     "ResolvedEvaluator",
+    "SecurityRegressionPlanError",
+    "SecurityRegressionService",
+    "SecurityRunExecutionReceipt",
+    "SecurityRunPlan",
     "TargetVersionRequired",
     "TraceFeedbackService",
 ]

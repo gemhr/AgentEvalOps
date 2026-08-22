@@ -167,6 +167,13 @@ from app.core.evaluation.security_projection import (
     build_security_comparison_projection,
     build_security_run_summary,
 )
+from app.core.evaluation.security_release import (
+    SECURITY_RELEASE_POLICY_REF,
+    SecurityBlockingReason,
+    SecurityReleaseAssessment,
+    SecurityReleasePolicyError,
+    evaluate_security_release,
+)
 from app.core.evaluation.retrieval_metrics import (
     DEFAULT_K_VALUES,
     MRRResult,
@@ -310,10 +317,12 @@ __all__ = [
     "SECURITY_IGNORE_UNTRUSTED_INSTRUCTION_PROMPT_REF",
     "SECURITY_PRESERVE_ORIGINAL_TASK_PROMPT_REF",
     "SECURITY_PROTECTED_CONTENT_DISCLOSURE_PROMPT_REF",
+    "SECURITY_RELEASE_POLICY_REF",
     "SUPPORTED_DATASET_SCHEMA_VERSIONS",
     "STATUS_REASON_EVALUATION_MISSING",
     "ScoreDirection",
     "SecurityBehaviorFinding",
+    "SecurityBlockingReason",
     "SecurityCaseEntry",
     "SecurityCaseFacts",
     "SecurityCaseKind",
@@ -325,6 +334,8 @@ __all__ = [
     "SecurityGroundTruth",
     "SecurityKindCounters",
     "SecurityProjectionError",
+    "SecurityReleaseAssessment",
+    "SecurityReleasePolicyError",
     "SecurityRunSummary",
     "SecuritySlotProjection",
     "SecurityTransitionClass",
@@ -353,6 +364,7 @@ __all__ = [
     "calculate_mrr",
     "calculate_ndcg_at_k",
     "calculate_recall_at_k",
+    "evaluate_security_release",
     "freeze_json",
     "iter_cases",
     "load_dataset",

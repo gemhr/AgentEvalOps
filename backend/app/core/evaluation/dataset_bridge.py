@@ -24,6 +24,12 @@ def bridge_dataset_to_catalog(
         reference_answer = None
         if item.ground_truth.generation is not None:
             reference_answer = item.ground_truth.generation.reference_answer
+        metadata: dict[str, object] = {
+            **item.metadata,
+            "generation_reference_authority": "ground_truth.generation.reference_answer",
+        }
+        if item.ground_truth.security is not None:
+            metadata["security_ground_truth"] = item.ground_truth.security.model_dump(mode="json")
         cases[ref] = TestCaseVersion(
             case_id=item.case_id,
             version=dataset.version,
@@ -31,10 +37,7 @@ def bridge_dataset_to_catalog(
             input_payload=item.input,
             expected_output=reference_answer,
             created_at=created_at,
-            metadata={
-                **item.metadata,
-                "generation_reference_authority": "ground_truth.generation.reference_answer",
-            },
+            metadata=metadata,
         )
         refs.append(ref)
     return (

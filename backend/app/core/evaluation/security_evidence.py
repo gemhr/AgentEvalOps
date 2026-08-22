@@ -21,6 +21,7 @@ runtime terminal facts），严格解析、校验 identity、投影并按四态�
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -35,6 +36,7 @@ from app.core.evaluation.dataset import (
     SecurityGroundTruth,
     Severity,
 )
+from app.core.evaluation.evaluators import EvaluationInput
 from app.core.evaluation.execution import ExecutionOutcome, OutcomeKind
 from app.core.evaluation.generation_evidence import (
     FINAL_ANSWER_EVIDENCE_KIND,
@@ -46,7 +48,7 @@ from app.core.evaluation.rag_artifact import (
     RAG_ARTIFACT_EVIDENCE_KIND,
     RagEvaluationArtifactV1,
 )
-from app.core.evaluation.references import EvidenceRef
+from app.core.evaluation.references import ArtifactRef, EvidenceRef
 
 SECURITY_EVALUATION_INPUT_SCHEMA_VERSION = "security-evaluation-input.v1"
 
@@ -331,6 +333,77 @@ def build_security_evaluation_input(
     )
 
 
+def build_security_evaluation_input_from_evaluation_input(
+    evaluation_input: EvaluationInput,
+    security_ground_truth: SecurityGroundTruth,
+) -> SecurityEvaluationInput:
+    """从 Evaluator 输入（``EvaluationInput``）投影统一 ``SecurityEvaluationInput``。
+
+    这是 ``build_security_evaluation_input`` 的 Evaluator 路径适配（WP4）：Security Ground
+    Truth 由 dataset bridge 注入的 case metadata（``security_ground_truth``）提供，真实
+    execution evidence 仍从 ``evaluation_input.evidence_refs`` 严格投影并执行 identity
+    fail-closed。二者输出同一 ``SecurityEvaluationInput`` contract，不创建第二套输入。
+
+    Args:
+        evaluation_input: 由 EvaluationLoop 构造的统一 evaluator 输入。
+        security_ground_truth: 当前 case 的 Ground Truth security（唯一 Expected Behavior 权威）。
+
+    Raises:
+        SecurityEvaluationInputError: 无 LocalAgent run artifact identity、
+            evidence 冲突 / malformed / identity mismatch 时 fail closed。
+    """
+    expected_attempt_id = _expected_run_id(evaluation_input.actual_artifact)
+    if expected_attempt_id is None:
+        raise SecurityEvaluationInputError("no localagent run artifact identity")
+    refs = evaluation_input.evidence_refs
+    actual_answer = _project_final_answer(refs, expected_attempt_id)
+    rag = _project_rag(refs, expected_attempt_id)
+    retrieval = _project_retrieval(rag)
+    citation = _project_citation(rag)
+    question = _question_from(evaluation_input.input_payload)
+    reference_answer = _reference_answer_from(evaluation_input.expected_output)
+    judge_facing = _project_judge_facing_parts(question, reference_answer, actual_answer, rag)
+    requirements = _requirements(
+        security_ground_truth,
+        actual_answer,
+        rag,
+        retrieval,
+        citation,
+        judge_facing,
+    )
+    return SecurityEvaluationInput(
+        schema_version=SECURITY_EVALUATION_INPUT_SCHEMA_VERSION,
+        case_id=evaluation_input.case_ref.case_id,
+        case_kind=security_ground_truth.case_kind,
+        attack_type=security_ground_truth.attack_type,
+        attack_source=security_ground_truth.attack_source,
+        severity=security_ground_truth.severity,
+        expected_behaviors=tuple(security_ground_truth.expected_behaviors),
+        case_input=freeze_json(evaluation_input.input_payload),
+        runtime_terminal=None,
+        actual_answer=actual_answer,
+        rag_context=RagContextEvidence(
+            availability=rag.availability,
+            items=rag.items,
+            artifact_ids=rag.artifact_ids,
+        ),
+        retrieval_evidence=retrieval,
+        citation_evidence=citation,
+        judge_facing=judge_facing,
+        attack_source_requirements=requirements,
+    )
+
+
+def _expected_run_id(artifact: ArtifactRef | None) -> str | None:
+    """从 output artifact ref 提取 expected LocalAgent run id。"""
+    if artifact is None:
+        return None
+    artifact_id = artifact.artifact_id
+    if not isinstance(artifact_id, str) or not artifact_id.startswith(_LOCALAGENT_RUN_PREFIX):
+        return None
+    return artifact_id.removeprefix(_LOCALAGENT_RUN_PREFIX)
+
+
 def attack_source_evidence_status(
     input_value: SecurityEvaluationInput,
 ) -> tuple[AttackSourceRequirement, ...]:
@@ -522,13 +595,36 @@ def _project_judge_facing(
     actual_answer: ActualAnswerEvidence,
     rag: _RagProjection,
 ) -> JudgeFacingEvidence:
-    question: str | None = None
-    query = case.input.get("query")
-    if isinstance(query, str):
-        question = query
+    question = _question_from(case.input)
     reference_answer: str | None = None
     if case.ground_truth.generation is not None:
         reference_answer = case.ground_truth.generation.reference_answer
+    return _project_judge_facing_parts(question, reference_answer, actual_answer, rag)
+
+
+def _question_from(input_payload: object) -> str | None:
+    """从 case input 投影 judge-facing question（无则 None，不重新推断）。"""
+    if not isinstance(input_payload, Mapping):
+        return None
+    query = input_payload.get("query")
+    if isinstance(query, str):
+        return query
+    return None
+
+
+def _reference_answer_from(expected_output: object) -> str | None:
+    """从 catalog expected_output 投影 reference answer（无则 None）。"""
+    if isinstance(expected_output, str) and expected_output.strip():
+        return expected_output
+    return None
+
+
+def _project_judge_facing_parts(
+    question: str | None,
+    reference_answer: str | None,
+    actual_answer: ActualAnswerEvidence,
+    rag: _RagProjection,
+) -> JudgeFacingEvidence:
     actual = (
         actual_answer.content
         if actual_answer.availability is EvidenceAvailability.AVAILABLE
@@ -597,4 +693,5 @@ __all__ = [
     "SecurityEvaluationInputError",
     "attack_source_evidence_status",
     "build_security_evaluation_input",
+    "build_security_evaluation_input_from_evaluation_input",
 ]

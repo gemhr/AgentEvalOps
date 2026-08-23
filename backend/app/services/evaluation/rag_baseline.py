@@ -108,7 +108,9 @@ def _percentile(values: list[int], percentile: float) -> float:
     return float(ordered[index])
 
 
-def _latency(values: list[int]) -> dict[str, float]:
+def _latency(values: list[int]) -> dict[str, float | None]:
+    if not values:
+        return {"mean": None, "p50": None, "p95": None}
     return {
         "mean": float(mean(values)),
         "p50": float(median(values)),
@@ -122,6 +124,10 @@ async def execute_rag_quality_baseline(
     project_id: UUID,
     dataset: EvaluationDataset,
     base_url: str,
+    baseline_ref: str = "stage5-phase3-rag-quality-baseline.v1",
+    run_metadata: Mapping[str, object] | None = None,
+    report_metadata: Mapping[str, object] | None = None,
+    worker_ref: str = "rag-baseline-v1",
 ) -> dict[str, object]:
     """通过现有 EvaluationLoop 执行并聚合一次真实 RAG Baseline."""
     created_at = _now()
@@ -135,7 +141,7 @@ async def execute_rag_quality_baseline(
         cases=cases,
         target=target_ref,
         timeout=timedelta(seconds=60),
-        metadata={"baseline_ref": "stage5-phase3-rag-quality-baseline.v1"},
+        metadata={"baseline_ref": baseline_ref, **dict(run_metadata or {})},
     )
     target = LocalAgentHttpExecutionTarget(target_ref, base_url)
     loop = EvaluationLoopService(
@@ -150,7 +156,7 @@ async def execute_rag_quality_baseline(
                 attempt.attempt_id,
                 cases[attempt.case_ref],
                 lease=timedelta(minutes=5),
-                worker_ref="rag-baseline-v1",
+                worker_ref=worker_ref,
             )
     finally:
         await target.aclose()
@@ -211,8 +217,8 @@ async def execute_rag_quality_baseline(
     metrics = {
         evaluator_id: float(mean(values)) for evaluator_id, values in sorted(result_scores.items())
     }
-    return {
-        "baseline_ref": "stage5-phase3-rag-quality-baseline.v1",
+    report = {
+        "baseline_ref": baseline_ref,
         "run_id": str(run.run_id),
         "dataset_id": dataset.dataset_id,
         "dataset_version": dataset.version,
@@ -229,6 +235,8 @@ async def execute_rag_quality_baseline(
         },
         "case_results": case_results,
     }
+    report.update(dict(report_metadata or {}))
+    return report
 
 
 __all__ = [

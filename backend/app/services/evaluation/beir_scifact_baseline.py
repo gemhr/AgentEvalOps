@@ -118,7 +118,9 @@ def _percentile(values: list[int], percentile: float) -> float:
     return float(ordered[index])
 
 
-def _latency(values: list[int]) -> dict[str, float]:
+def _latency(values: list[int]) -> dict[str, float | None]:
+    if not values:
+        return {"mean": None, "p50": None, "p95": None}
     return {
         "mean": float(mean(values)),
         "p50": float(median(values)),
@@ -141,6 +143,10 @@ async def execute_beir_scifact_baseline(
     base_url: str,
     document_projection: DocumentProjection,
     dense_index_cache: Mapping[str, object] | None = None,
+    baseline_ref: str = BASELINE_REF,
+    run_metadata: Mapping[str, object] | None = None,
+    report_metadata: Mapping[str, object] | None = None,
+    worker_ref: str = "beir-scifact-baseline-v1",
 ) -> dict[str, object]:
     """通过现有 EvaluationLoop 执行完整 BEIR SciFact test split 并聚合 document metrics."""
     dataset = build_beir_scifact_dataset(asset)
@@ -155,12 +161,13 @@ async def execute_beir_scifact_baseline(
         target=_target_ref(),
         timeout=timedelta(seconds=60),
         metadata={
-            "baseline_ref": BASELINE_REF,
+            "baseline_ref": baseline_ref,
             "benchmark_kind": BENCHMARK_KIND,
             "benchmark": "beir",
             "benchmark_dataset": "scifact",
             "benchmark_split": "test",
             "dense_index_cache": dict(dense_index_cache or {}),
+            **dict(run_metadata or {}),
         },
     )
     target = LocalAgentHttpExecutionTarget(_target_ref(), base_url)
@@ -176,7 +183,7 @@ async def execute_beir_scifact_baseline(
                 attempt.attempt_id,
                 cases[attempt.case_ref],
                 lease=timedelta(minutes=5),
-                worker_ref="beir-scifact-baseline-v1",
+                worker_ref=worker_ref,
             )
     finally:
         await target.aclose()
@@ -299,8 +306,8 @@ async def execute_beir_scifact_baseline(
     metrics = {
         evaluator_id: float(mean(values)) for evaluator_id, values in sorted(result_scores.items())
     }
-    return {
-        "baseline_ref": BASELINE_REF,
+    report = {
+        "baseline_ref": baseline_ref,
         "benchmark_kind": BENCHMARK_KIND,
         "run_id": str(run.run_id),
         "dataset_id": BEIR_SCIFACT_DATASET_ID,
@@ -333,6 +340,8 @@ async def execute_beir_scifact_baseline(
         },
         "case_results": case_results,
     }
+    report.update(dict(report_metadata or {}))
+    return report
 
 
 def _projected_ranked_documents(

@@ -368,4 +368,4 @@ def test_v2_dataset_allows_security_plus_generation() -> None:
 
 def test_v2_dataset_rejects_unsupported_schema_version() -> None:
     with pytest.raises(ValidationError, match="unsupported dataset_schema_version"):
-        validate_dataset(_dataset_with_version("evaluation-dataset.v3", _security_case()))
+        validate_dataset(_dataset_with_version("evaluation-dataset.v4", _security_case()))

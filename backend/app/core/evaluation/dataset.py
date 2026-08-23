@@ -25,11 +25,14 @@ from app.core.evaluation.immutable import freeze_json
 
 EVALUATION_DATASET_SCHEMA_VERSION = "evaluation-dataset.v1"
 EVALUATION_DATASET_SECURITY_SCHEMA_VERSION = "evaluation-dataset.v2"
+EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION = "evaluation-dataset.v3"
 
-# 受支持 document contract 版本：v1（retrieval/ranking/generation）与 v2（v1 + security）。
+# 受支持 document contract 版本：v1（retrieval/ranking/generation）、v2（v1 + security）
+# 与 v3（v1 + document_retrieval，面向 document-level public benchmark ground truth）。
 SUPPORTED_DATASET_SCHEMA_VERSIONS = (
     EVALUATION_DATASET_SCHEMA_VERSION,
     EVALUATION_DATASET_SECURITY_SCHEMA_VERSION,
+    EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION,
 )
 
 
@@ -180,6 +183,44 @@ class RankingGroundTruth(BaseModel):
         return self
 
 
+class DocumentRelevance(BaseModel):
+    """Document-level Ground Truth 中一个 relevant document 的分级相关性。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: StrictStr
+    relevance: int = Field(ge=0)
+
+    @field_validator("document_id")
+    @classmethod
+    def _document_id(cls, value: str) -> str:
+        return _require_wire_id(value, "document_id")
+
+
+class DocumentRetrievalGroundTruth(BaseModel):
+    """Document-level Recall@K / MRR / NDCG 输入：relevant document 的分级相关性。
+
+    面向 document-level public benchmark（如 BEIR qrels）：ground truth 权威是
+    benchmark 自身的 document id，而不是任何 chunk identity。relevance 允许分级；
+    binary relevance dataset（如 SciFact）全部为 1。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    relevant_documents: list[DocumentRelevance] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _unique_documents(self) -> "DocumentRetrievalGroundTruth":
+        document_ids = [item.document_id for item in self.relevant_documents]
+        if len(document_ids) != len(set(document_ids)):
+            raise ValueError("duplicate relevant document identity is not allowed")
+        return self
+
+    def relevance_map(self) -> dict[str, int]:
+        """返回 document_id -> relevance 的映射。"""
+        return {item.document_id: item.relevance for item in self.relevant_documents}
+
+
 class GenerationGroundTruth(BaseModel):
     """LLM Judge / 参考答案输入。"""
 
@@ -229,6 +270,7 @@ class GroundTruth(BaseModel):
     ranking: RankingGroundTruth | None = None
     generation: GenerationGroundTruth | None = None
     security: SecurityGroundTruth | None = None
+    document_retrieval: DocumentRetrievalGroundTruth | None = None
 
     @model_validator(mode="after")
     def _require_section(self) -> "GroundTruth":
@@ -237,9 +279,11 @@ class GroundTruth(BaseModel):
             and self.ranking is None
             and self.generation is None
             and self.security is None
+            and self.document_retrieval is None
         ):
             raise ValueError(
-                "ground_truth must provide at least one of retrieval/ranking/generation/security"
+                "ground_truth must provide at least one of "
+                "retrieval/ranking/generation/security/document_retrieval"
             )
         return self
 
@@ -311,6 +355,27 @@ class EvaluationDataset(BaseModel):
                         f"{EVALUATION_DATASET_SCHEMA_VERSION} must not declare security ground truth; "
                         f"use {EVALUATION_DATASET_SECURITY_SCHEMA_VERSION} for security cases"
                     )
+                if case.ground_truth.document_retrieval is not None:
+                    raise ValueError(
+                        f"{EVALUATION_DATASET_SCHEMA_VERSION} must not declare document ground truth; "
+                        f"use {EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION} for document-level cases"
+                    )
+        if self.dataset_schema_version == EVALUATION_DATASET_SECURITY_SCHEMA_VERSION:
+            for case in self.cases:
+                if case.ground_truth.document_retrieval is not None:
+                    raise ValueError(
+                        f"{EVALUATION_DATASET_SECURITY_SCHEMA_VERSION} must not declare document "
+                        f"ground truth; use {EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION} "
+                        f"for document-level cases"
+                    )
+        if self.dataset_schema_version == EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION:
+            for case in self.cases:
+                if case.ground_truth.security is not None:
+                    raise ValueError(
+                        f"{EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION} must not declare security "
+                        f"ground truth; use {EVALUATION_DATASET_SECURITY_SCHEMA_VERSION} "
+                        f"for security cases"
+                    )
         return self
 
     @model_validator(mode="after")
@@ -372,6 +437,7 @@ __all__ = [
     "AttackType",
     "EVALUATION_DATASET_SCHEMA_VERSION",
     "EVALUATION_DATASET_SECURITY_SCHEMA_VERSION",
+    "EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION",
     "EvaluationCase",
     "EvaluationDataset",
     "EvaluationDatasetLoadError",
@@ -380,6 +446,8 @@ __all__ = [
     "GradedRelevance",
     "GroundTruth",
     "GroundTruthChunk",
+    "DocumentRelevance",
+    "DocumentRetrievalGroundTruth",
     "RankingGroundTruth",
     "RetrievalGroundTruth",
     "SUPPORTED_DATASET_SCHEMA_VERSIONS",

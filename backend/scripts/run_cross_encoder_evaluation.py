@@ -130,6 +130,24 @@ def _synthetic_report_view(synthetic_report: Mapping[str, Any]) -> dict[str, obj
     return {"case_results": cases}
 
 
+def _synthetic_document_metrics(synthetic_metrics: Mapping[str, float]) -> Mapping[str, float]:
+    """把 synthetic chunk-level metric keys 对齐到冻结 gate 的 document 命名空间.
+
+    冻结 gate ``RRF_SYNTHETIC_BASELINE`` 使用 ``document_*`` keys；synthetic pipeline
+    （chunk-level evaluators）产出 ``recall_at_*``/``mrr``/``ndcg_at_*``。此处只做 key
+    命名空间映射，不改变任何 frozen value/threshold.
+    """
+    mapping = {
+        "document_recall_at_1": "recall_at_1",
+        "document_recall_at_3": "recall_at_3",
+        "document_recall_at_5": "recall_at_5",
+        "document_mrr": "mrr",
+        "document_ndcg_at_3": "ndcg_at_3",
+        "document_ndcg_at_5": "ndcg_at_5",
+    }
+    return {target: float(synthetic_metrics[source]) for target, source in mapping.items()}
+
+
 async def _run(args) -> tuple[dict, dict, dict, dict, dict, dict, dict]:
     projection = DocumentProjection.from_manifest(
         json.loads(args.dense_manifest.read_text(encoding="utf-8"))
@@ -172,7 +190,7 @@ async def _run(args) -> tuple[dict, dict, dict, dict, dict, dict, dict]:
     total_queries = len(ce_report["case_results"]) + len(failure_rows)
     gate = evaluate_ce_acceptance_gate(
         scifact_metrics=ce_report.get("metrics"),
-        synthetic_metrics=synthetic_report.get("metrics"),
+        synthetic_metrics=_synthetic_document_metrics(synthetic_report.get("metrics") or {}),
         technical_failure_count=len(failure_rows),
         total_queries=total_queries,
         case_guardrails_ok=analysis["case_guardrails_ok"],

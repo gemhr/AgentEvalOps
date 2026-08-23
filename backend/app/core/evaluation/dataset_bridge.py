@@ -28,6 +28,13 @@ def bridge_dataset_to_catalog(
             **item.metadata,
             "generation_reference_authority": "ground_truth.generation.reference_answer",
         }
+        rag_ground_truth: dict[str, object] = {}
+        if item.ground_truth.retrieval is not None:
+            rag_ground_truth["retrieval"] = item.ground_truth.retrieval.model_dump(mode="json")
+        if item.ground_truth.ranking is not None:
+            rag_ground_truth["ranking"] = item.ground_truth.ranking.model_dump(mode="json")
+        if rag_ground_truth:
+            metadata["rag_ground_truth"] = rag_ground_truth
         if item.ground_truth.security is not None:
             metadata["security_ground_truth"] = item.ground_truth.security.model_dump(mode="json")
         cases[ref] = TestCaseVersion(

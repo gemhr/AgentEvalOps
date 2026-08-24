@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.evaluation.dataset import (
+    EVALUATION_DATASET_ANSWERABILITY_SCHEMA_VERSION,
     EVALUATION_DATASET_SCHEMA_VERSION,
     EvaluationDatasetLoadError,
     GroundTruth,
@@ -282,3 +283,122 @@ def test_loaded_dataset_supports_all_evaluator_input_families() -> None:
     assert case.ground_truth.retrieval is not None
     assert case.ground_truth.ranking is not None
     assert case.ground_truth.generation is not None
+
+
+def _v4_case(case_id: str = "v4-answer", **truth_changes: object) -> dict[str, object]:
+    truth: dict[str, object] = {
+        "answerable": True,
+        "case_type": "ANSWERABLE",
+        "expected_decision": "ANSWER",
+        "split": "CALIBRATION",
+        "corpus_ref": "rag-evaluation-corpus.v1",
+        "expected_support_fact_ids": ["fact-1"],
+        "annotation_reason_code": "EXPLICIT_CORPUS_SUPPORT",
+    }
+    truth.update(truth_changes)
+    return {
+        "case_id": case_id,
+        "name": case_id,
+        "input": {"query": "controlled query"},
+        "ground_truth": {"answerability": truth},
+        "metadata": {"tags": ["wp4"], "leakage_group": f"group-{case_id}"},
+    }
+
+
+def _v4_dataset(cases: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "dataset_schema_version": EVALUATION_DATASET_ANSWERABILITY_SCHEMA_VERSION,
+        "dataset_id": "no-answer-threshold-dataset",
+        "name": "No Answer",
+        "version": "v1",
+        "cases": cases,
+    }
+
+
+def test_v4_accepts_typed_answerability_ground_truth() -> None:
+    dataset = validate_dataset(_v4_dataset([_v4_case()]))
+    assert dataset.cases[0].ground_truth.answerability.answerable is True
+
+
+def test_v4_keeps_prior_ground_truth_sections_optional_and_composable() -> None:
+    prior = _case_payload()
+    retrieval_only = _case_payload(
+        case_id="v4-retrieval",
+        ground_truth=_ground_truth_payload(ranking=None, generation=None),
+    )
+    generation_only = _case_payload(
+        case_id="v4-generation",
+        ground_truth=_ground_truth_payload(retrieval=None, ranking=None),
+    )
+    answerability_with_prior = _v4_case("v4-composed")
+    answerability_with_prior["ground_truth"] = {
+        **_ground_truth_payload(),
+        **answerability_with_prior["ground_truth"],
+    }
+    dataset = validate_dataset(
+        _v4_dataset([prior, retrieval_only, generation_only, answerability_with_prior])
+    )
+    assert dataset.cases[0].ground_truth.answerability is None
+    assert dataset.cases[1].ground_truth.retrieval is not None
+    assert dataset.cases[2].ground_truth.generation is not None
+    assert dataset.cases[3].ground_truth.answerability is not None
+    assert dataset.cases[3].ground_truth.retrieval is not None
+
+
+@pytest.mark.parametrize(
+    "changes,match",
+    [
+        ({"answerable": False}, "ANSWERABLE"),
+        ({"expected_decision": "ABSTAIN"}, "ANSWERABLE"),
+        ({"expected_support_fact_ids": []}, "support"),
+        (
+            {
+                "answerable": False,
+                "case_type": "CONFLICT",
+                "expected_decision": "DIAGNOSTIC_ONLY",
+                "split": "EVALUATION",
+                "expected_support_fact_ids": [],
+                "annotation_reason_code": "CONFLICTING_REFERENCE_FACTS",
+            },
+            "diagnostic",
+        ),
+        ({"expected_decision": "DIAGNOSTIC_ONLY"}, "ANSWERABLE"),
+    ],
+)
+def test_v4_rejects_inconsistent_answerability(changes: dict[str, object], match: str) -> None:
+    with pytest.raises(ValidationError, match=match):
+        validate_dataset(_v4_dataset([_v4_case(**changes)]))
+
+
+def test_v4_rejects_missing_leakage_group() -> None:
+    case = _v4_case()
+    case["metadata"] = {"tags": ["wp4"]}
+    with pytest.raises(ValidationError, match="leakage_group"):
+        validate_dataset(_v4_dataset([case]))
+
+
+def test_v4_rejects_cross_split_leakage_and_duplicate_case_id() -> None:
+    first = _v4_case("one")
+    second = _v4_case("two", split="EVALUATION")
+    second["metadata"] = {"tags": ["wp4"], "leakage_group": "group-one"}
+    with pytest.raises(ValidationError, match="cross dataset splits"):
+        validate_dataset(_v4_dataset([first, second]))
+    with pytest.raises(ValidationError, match="duplicate case_id"):
+        validate_dataset(_v4_dataset([first, first]))
+
+
+def test_v4_rejects_negative_case_with_support_facts() -> None:
+    with pytest.raises(ValidationError, match="must not declare"):
+        validate_dataset(
+            _v4_dataset(
+                [
+                    _v4_case(
+                        answerable=False,
+                        case_type="WEAK",
+                        expected_decision="ABSTAIN",
+                        expected_support_fact_ids=["fact-1"],
+                        annotation_reason_code="INSUFFICIENT_SUPPORT",
+                    )
+                ]
+            )
+        )

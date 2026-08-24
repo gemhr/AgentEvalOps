@@ -26,6 +26,7 @@ from app.core.evaluation.immutable import freeze_json
 EVALUATION_DATASET_SCHEMA_VERSION = "evaluation-dataset.v1"
 EVALUATION_DATASET_SECURITY_SCHEMA_VERSION = "evaluation-dataset.v2"
 EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION = "evaluation-dataset.v3"
+EVALUATION_DATASET_ANSWERABILITY_SCHEMA_VERSION = "evaluation-dataset.v4"
 
 # 受支持 document contract 版本：v1（retrieval/ranking/generation）、v2（v1 + security）
 # 与 v3（v1 + document_retrieval，面向 document-level public benchmark ground truth）。
@@ -33,7 +34,44 @@ SUPPORTED_DATASET_SCHEMA_VERSIONS = (
     EVALUATION_DATASET_SCHEMA_VERSION,
     EVALUATION_DATASET_SECURITY_SCHEMA_VERSION,
     EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION,
+    EVALUATION_DATASET_ANSWERABILITY_SCHEMA_VERSION,
 )
+
+
+class AnswerabilityCaseType(StrEnum):
+    """No-Answer Dataset 的人工标注 case 类别。"""
+
+    ANSWERABLE = "ANSWERABLE"
+    EMPTY = "EMPTY"
+    WEAK = "WEAK"
+    MISLEADING = "MISLEADING"
+    CONFLICT = "CONFLICT"
+
+
+class AnswerabilityExpectedDecision(StrEnum):
+    """Ground Truth 期望的 evaluation-side decision。"""
+
+    ANSWER = "ANSWER"
+    ABSTAIN = "ABSTAIN"
+    DIAGNOSTIC_ONLY = "DIAGNOSTIC_ONLY"
+
+
+class AnswerabilitySplit(StrEnum):
+    """静态 Dataset split；runner 不执行随机切分。"""
+
+    CALIBRATION = "CALIBRATION"
+    EVALUATION = "EVALUATION"
+    DIAGNOSTIC = "DIAGNOSTIC"
+
+
+class AnswerabilityReasonCode(StrEnum):
+    """人工标注依据的封闭 reason code。"""
+
+    EXPLICIT_CORPUS_SUPPORT = "EXPLICIT_CORPUS_SUPPORT"
+    FACT_ABSENT_FROM_CORPUS = "FACT_ABSENT_FROM_CORPUS"
+    INSUFFICIENT_SUPPORT = "INSUFFICIENT_SUPPORT"
+    OVERLAP_WITHOUT_SUPPORT = "OVERLAP_WITHOUT_SUPPORT"
+    CONFLICTING_REFERENCE_FACTS = "CONFLICTING_REFERENCE_FACTS"
 
 
 class SecurityCaseKind(StrEnum):
@@ -261,6 +299,66 @@ class SecurityGroundTruth(BaseModel):
         return self
 
 
+class AnswerabilityGroundTruth(BaseModel):
+    """No-Answer threshold 的人工 Ground Truth；不得从 retrieval outcome 派生。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answerable: bool
+    case_type: AnswerabilityCaseType
+    expected_decision: AnswerabilityExpectedDecision
+    split: AnswerabilitySplit
+    corpus_ref: StrictStr
+    expected_support_fact_ids: list[StrictStr]
+    annotation_reason_code: AnswerabilityReasonCode
+
+    @field_validator("corpus_ref")
+    @classmethod
+    def _corpus_ref(cls, value: str) -> str:
+        return _require_wire_id(value, "corpus_ref")
+
+    @field_validator("expected_support_fact_ids")
+    @classmethod
+    def _support_fact_ids(cls, values: list[str]) -> list[str]:
+        checked = [_require_wire_id(value, "expected_support_fact_ids") for value in values]
+        if len(checked) != len(set(checked)):
+            raise ValueError("duplicate expected_support_fact_ids are not allowed")
+        return checked
+
+    @model_validator(mode="after")
+    def _semantics(self) -> "AnswerabilityGroundTruth":
+        if self.case_type == AnswerabilityCaseType.ANSWERABLE:
+            if not self.answerable or self.expected_decision != AnswerabilityExpectedDecision.ANSWER:
+                raise ValueError("ANSWERABLE requires answerable=true and expected_decision=ANSWER")
+            if not self.expected_support_fact_ids:
+                raise ValueError("ANSWERABLE requires expected_support_fact_ids")
+            if self.annotation_reason_code != AnswerabilityReasonCode.EXPLICIT_CORPUS_SUPPORT:
+                raise ValueError("ANSWERABLE requires EXPLICIT_CORPUS_SUPPORT")
+        elif self.case_type == AnswerabilityCaseType.CONFLICT:
+            if self.answerable or self.expected_decision != AnswerabilityExpectedDecision.DIAGNOSTIC_ONLY:
+                raise ValueError("CONFLICT requires answerable=false and expected_decision=DIAGNOSTIC_ONLY")
+            if self.split != AnswerabilitySplit.DIAGNOSTIC:
+                raise ValueError("CONFLICT is diagnostic-only")
+            if self.annotation_reason_code != AnswerabilityReasonCode.CONFLICTING_REFERENCE_FACTS:
+                raise ValueError("CONFLICT requires CONFLICTING_REFERENCE_FACTS")
+        else:
+            reason_by_type = {
+                AnswerabilityCaseType.EMPTY: AnswerabilityReasonCode.FACT_ABSENT_FROM_CORPUS,
+                AnswerabilityCaseType.WEAK: AnswerabilityReasonCode.INSUFFICIENT_SUPPORT,
+                AnswerabilityCaseType.MISLEADING: AnswerabilityReasonCode.OVERLAP_WITHOUT_SUPPORT,
+            }
+            if self.answerable or self.expected_decision != AnswerabilityExpectedDecision.ABSTAIN:
+                raise ValueError(f"{self.case_type} requires answerable=false and expected_decision=ABSTAIN")
+            if self.expected_support_fact_ids:
+                raise ValueError(f"{self.case_type} must not declare expected_support_fact_ids")
+            if self.annotation_reason_code != reason_by_type[self.case_type]:
+                raise ValueError(f"{self.case_type} has mismatched annotation_reason_code")
+        if self.split in {AnswerabilitySplit.CALIBRATION, AnswerabilitySplit.EVALUATION}:
+            if self.expected_decision == AnswerabilityExpectedDecision.DIAGNOSTIC_ONLY:
+                raise ValueError("calibration/evaluation split must not contain DIAGNOSTIC_ONLY")
+        return self
+
+
 class GroundTruth(BaseModel):
     """按 evaluator 族分段的 Ground Truth；至少提供一段。"""
 
@@ -271,6 +369,7 @@ class GroundTruth(BaseModel):
     generation: GenerationGroundTruth | None = None
     security: SecurityGroundTruth | None = None
     document_retrieval: DocumentRetrievalGroundTruth | None = None
+    answerability: AnswerabilityGroundTruth | None = None
 
     @model_validator(mode="after")
     def _require_section(self) -> "GroundTruth":
@@ -280,10 +379,11 @@ class GroundTruth(BaseModel):
             and self.generation is None
             and self.security is None
             and self.document_retrieval is None
+            and self.answerability is None
         ):
             raise ValueError(
                 "ground_truth must provide at least one of "
-                "retrieval/ranking/generation/security/document_retrieval"
+                "retrieval/ranking/generation/security/document_retrieval/answerability"
             )
         return self
 
@@ -321,6 +421,21 @@ class EvaluationCase(BaseModel):
             raise ValueError(f"metadata must be JSON-compatible: {exc}") from exc
         return value
 
+    @model_validator(mode="after")
+    def _answerability_metadata(self) -> "EvaluationCase":
+        if self.ground_truth.answerability is None:
+            return self
+        if set(self.metadata) != {"tags", "leakage_group"}:
+            raise ValueError("answerability case metadata requires exactly tags and leakage_group")
+        tags = self.metadata["tags"]
+        leakage_group = self.metadata["leakage_group"]
+        if not isinstance(tags, list) or any(not isinstance(tag, str) or not tag.strip() for tag in tags):
+            raise ValueError("answerability metadata.tags must be non-empty strings")
+        if not isinstance(leakage_group, str) or not leakage_group.strip():
+            raise ValueError("answerability metadata.leakage_group is required")
+        _require_wire_id(leakage_group, "leakage_group")
+        return self
+
 
 class EvaluationDataset(BaseModel):
     """一组 Case 的版本化集合（测试资产，非业务数据）。"""
@@ -348,8 +463,21 @@ class EvaluationDataset(BaseModel):
 
     @model_validator(mode="after")
     def _validate_security_version_contract(self) -> "EvaluationDataset":
+        if self.dataset_schema_version == EVALUATION_DATASET_ANSWERABILITY_SCHEMA_VERSION:
+            leakage_splits: dict[str, AnswerabilitySplit] = {}
+            for case in self.cases:
+                truth = case.ground_truth.answerability
+                if truth is None:
+                    continue
+                leakage_group = str(case.metadata["leakage_group"])
+                previous = leakage_splits.setdefault(leakage_group, truth.split)
+                if previous != truth.split:
+                    raise ValueError("leakage_group must not cross dataset splits")
+            return self
         if self.dataset_schema_version == EVALUATION_DATASET_SCHEMA_VERSION:
             for case in self.cases:
+                if case.ground_truth.answerability is not None:
+                    raise ValueError("evaluation-dataset.v1 must not declare answerability ground truth")
                 if case.ground_truth.security is not None:
                     raise ValueError(
                         f"{EVALUATION_DATASET_SCHEMA_VERSION} must not declare security ground truth; "
@@ -362,6 +490,8 @@ class EvaluationDataset(BaseModel):
                     )
         if self.dataset_schema_version == EVALUATION_DATASET_SECURITY_SCHEMA_VERSION:
             for case in self.cases:
+                if case.ground_truth.answerability is not None:
+                    raise ValueError("evaluation-dataset.v2 must not declare answerability ground truth")
                 if case.ground_truth.document_retrieval is not None:
                     raise ValueError(
                         f"{EVALUATION_DATASET_SECURITY_SCHEMA_VERSION} must not declare document "
@@ -370,6 +500,8 @@ class EvaluationDataset(BaseModel):
                     )
         if self.dataset_schema_version == EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION:
             for case in self.cases:
+                if case.ground_truth.answerability is not None:
+                    raise ValueError("evaluation-dataset.v3 must not declare answerability ground truth")
                 if case.ground_truth.security is not None:
                     raise ValueError(
                         f"{EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION} must not declare security "
@@ -433,11 +565,17 @@ def iter_cases(dataset: EvaluationDataset) -> Iterator[EvaluationCase]:
 
 
 __all__ = [
+    "AnswerabilityCaseType",
+    "AnswerabilityExpectedDecision",
+    "AnswerabilityGroundTruth",
+    "AnswerabilityReasonCode",
+    "AnswerabilitySplit",
     "AttackSource",
     "AttackType",
     "EVALUATION_DATASET_SCHEMA_VERSION",
     "EVALUATION_DATASET_SECURITY_SCHEMA_VERSION",
     "EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION",
+    "EVALUATION_DATASET_ANSWERABILITY_SCHEMA_VERSION",
     "EvaluationCase",
     "EvaluationDataset",
     "EvaluationDatasetLoadError",

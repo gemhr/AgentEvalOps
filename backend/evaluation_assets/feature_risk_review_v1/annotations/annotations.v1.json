@@ -1,0 +1,60 @@
+{
+  "schema_version": "feature-risk-review-annotations.v1",
+  "annotations": [
+    {
+      "case_id": "k8s_541",
+      "annotation_status": "PENDING",
+      "expected_change_points": [],
+      "expected_components": [],
+      "expected_risk_areas": [],
+      "expected_historical_issue_ids": [],
+      "expected_coverage_gaps": [],
+      "expected_risk_level": null,
+      "annotation_source": "human_curated"
+    },
+    {
+      "case_id": "k8s_753",
+      "annotation_status": "PENDING",
+      "expected_change_points": [],
+      "expected_components": [],
+      "expected_risk_areas": [],
+      "expected_historical_issue_ids": [],
+      "expected_coverage_gaps": [],
+      "expected_risk_level": null,
+      "annotation_source": "human_curated"
+    },
+    {
+      "case_id": "k8s_1287",
+      "annotation_status": "PENDING",
+      "expected_change_points": [],
+      "expected_components": [],
+      "expected_risk_areas": [],
+      "expected_historical_issue_ids": [],
+      "expected_coverage_gaps": [],
+      "expected_risk_level": null,
+      "annotation_source": "human_curated"
+    },
+    {
+      "case_id": "k8s_1472",
+      "annotation_status": "PENDING",
+      "expected_change_points": [],
+      "expected_components": [],
+      "expected_risk_areas": [],
+      "expected_historical_issue_ids": [],
+      "expected_coverage_gaps": [],
+      "expected_risk_level": null,
+      "annotation_source": "human_curated"
+    },
+    {
+      "case_id": "k8s_1602",
+      "annotation_status": "PENDING",
+      "expected_change_points": [],
+      "expected_components": [],
+      "expected_risk_areas": [],
+      "expected_historical_issue_ids": [],
+      "expected_coverage_gaps": [],
+      "expected_risk_level": null,
+      "annotation_source": "human_curated"
+    }
+  ]
+}

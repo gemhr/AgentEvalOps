@@ -1,0 +1,5 @@
+{
+  "mapping_status": "PARTIAL",
+  "records": [],
+  "note": "仅冻结真实 KEP Test Plan；未将测试计划伪装为真实测试函数映射。"
+}

@@ -1,0 +1,37 @@
+title: Storage Capacity Constraints for Pod Scheduling
+kep-number: 1472
+authors:
+  - "@pohly"
+  - "@cofyc"
+owning-sig: sig-storage
+participating-sigs:
+  - sig-scheduling
+status: implemented
+creation-date: 2019-09-19
+reviewers:
+  - "@saad-ali"
+  - "@xing-yang"
+  - "@msau42"
+approvers:
+  - "@saad-ali"
+  - "@msau42"
+stage: stable
+see-also:
+  - "https://docs.google.com/document/d/1WtX2lRJjZ03RBdzQIZY3IOvmoYiF5JxDX35-SsCIAfg"
+latest-milestone: "v1.24"
+milestone:
+  alpha: "v1.19"
+  beta: "v1.21"
+  stable: "v1.24"
+feature-gates:
+  - name: CSIStorageCapacity
+    components:
+      - kube-apiserver
+      - kube-scheduler
+disable-supported: false
+
+metrics:
+  - csistoragecapacities_desired_goal
+  - csistoragecapacities_desired_current
+  - csistoragecapacities_obsolete
+  - csistoragecapacity work queue

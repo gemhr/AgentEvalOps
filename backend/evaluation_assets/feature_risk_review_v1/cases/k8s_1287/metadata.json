@@ -1,0 +1,17 @@
+{
+  "case_id": "k8s_1287",
+  "kep_id": "1287",
+  "title": "In-place Update of Pod Resources",
+  "owning_sig": "sig-node",
+  "risk_domain": "lifecycle / state",
+  "source_project": "kubernetes/enhancements",
+  "source_repository": "https://github.com/kubernetes/enhancements",
+  "source_commit": "c4f439c2dd4acb928094660be0ea771bf63f2b76",
+  "source_path": "keps/sig-node/1287-in-place-update-pod-resources/README.md",
+  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/1287-in-place-update-pod-resources/README.md",
+  "retrieved_at": "2026-08-25T00:00:00+00:00",
+  "source_type": "kubernetes_enhancement_proposal",
+  "agent_visible_boundary": "Summary, Motivation, Proposal, Design Details only",
+  "evaluation_reference_boundary": "Risk, test, readiness, upgrade/version-skew, graduation and implementation-history sections",
+  "human_review_required": true
+}

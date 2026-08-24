@@ -1,0 +1,72 @@
+[
+  {
+    "source_id": "kep-541",
+    "case_id": "k8s_541",
+    "source_type": "kubernetes_enhancement_proposal",
+    "path": "raw/kubernetes_enhancements/k8s_541/README.md",
+    "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md"
+  },
+  {
+    "source_id": "issue-541",
+    "case_id": "k8s_541",
+    "source_type": "github_enhancement_tracking_issue",
+    "path": "raw/github_issues/enhancements_541.json",
+    "source_url": "https://github.com/kubernetes/enhancements/issues/541"
+  },
+  {
+    "source_id": "kep-753",
+    "case_id": "k8s_753",
+    "source_type": "kubernetes_enhancement_proposal",
+    "path": "raw/kubernetes_enhancements/k8s_753/README.md",
+    "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md"
+  },
+  {
+    "source_id": "issue-753",
+    "case_id": "k8s_753",
+    "source_type": "github_enhancement_tracking_issue",
+    "path": "raw/github_issues/enhancements_753.json",
+    "source_url": "https://github.com/kubernetes/enhancements/issues/753"
+  },
+  {
+    "source_id": "kep-1287",
+    "case_id": "k8s_1287",
+    "source_type": "kubernetes_enhancement_proposal",
+    "path": "raw/kubernetes_enhancements/k8s_1287/README.md",
+    "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/1287-in-place-update-pod-resources/README.md"
+  },
+  {
+    "source_id": "issue-1287",
+    "case_id": "k8s_1287",
+    "source_type": "github_enhancement_tracking_issue",
+    "path": "raw/github_issues/enhancements_1287.json",
+    "source_url": "https://github.com/kubernetes/enhancements/issues/1287"
+  },
+  {
+    "source_id": "kep-1472",
+    "case_id": "k8s_1472",
+    "source_type": "kubernetes_enhancement_proposal",
+    "path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+    "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md"
+  },
+  {
+    "source_id": "issue-1472",
+    "case_id": "k8s_1472",
+    "source_type": "github_enhancement_tracking_issue",
+    "path": "raw/github_issues/enhancements_1472.json",
+    "source_url": "https://github.com/kubernetes/enhancements/issues/1472"
+  },
+  {
+    "source_id": "kep-1602",
+    "case_id": "k8s_1602",
+    "source_type": "kubernetes_enhancement_proposal",
+    "path": "raw/kubernetes_enhancements/k8s_1602/README.md",
+    "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-instrumentation/1602-structured-logging/README.md"
+  },
+  {
+    "source_id": "issue-1602",
+    "case_id": "k8s_1602",
+    "source_type": "github_enhancement_tracking_issue",
+    "path": "raw/github_issues/enhancements_1602.json",
+    "source_url": "https://github.com/kubernetes/enhancements/issues/1602"
+  }
+]

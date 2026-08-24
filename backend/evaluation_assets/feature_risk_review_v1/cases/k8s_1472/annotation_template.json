@@ -1,0 +1,11 @@
+{
+  "case_id": "k8s_1472",
+  "expected_change_points": [],
+  "expected_components": [],
+  "expected_risk_areas": [],
+  "expected_historical_issue_ids": [],
+  "expected_coverage_gaps": [],
+  "expected_risk_level": null,
+  "annotation_source": "human_curated",
+  "human_review_required": true
+}

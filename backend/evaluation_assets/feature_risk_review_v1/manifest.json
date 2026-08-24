@@ -1,0 +1,49 @@
+{
+  "dataset_id": "kubernetes-feature-risk-review.v1",
+  "dataset_type": "real_source_offline_snapshot",
+  "source_project": "kubernetes/enhancements",
+  "source_repository": "https://github.com/kubernetes/enhancements",
+  "source_commit": "c4f439c2dd4acb928094660be0ea771bf63f2b76",
+  "retrieved_at": "2026-08-25T00:00:00+00:00",
+  "case_count": 5,
+  "cases": [
+    {
+      "case_id": "k8s_541",
+      "kep_id": "541",
+      "title": "External credential providers",
+      "source_path": "keps/sig-auth/541-external-credential-providers/README.md"
+    },
+    {
+      "case_id": "k8s_753",
+      "kep_id": "753",
+      "title": "Sidecar Containers",
+      "source_path": "keps/sig-node/753-sidecar-containers/README.md"
+    },
+    {
+      "case_id": "k8s_1287",
+      "kep_id": "1287",
+      "title": "In-place Update of Pod Resources",
+      "source_path": "keps/sig-node/1287-in-place-update-pod-resources/README.md"
+    },
+    {
+      "case_id": "k8s_1472",
+      "kep_id": "1472",
+      "title": "Storage Capacity Constraints for Pod Scheduling",
+      "source_path": "keps/sig-storage/1472-storage-capacity-tracking/README.md"
+    },
+    {
+      "case_id": "k8s_1602",
+      "kep_id": "1602",
+      "title": "Structured Logging",
+      "source_path": "keps/sig-instrumentation/1602-structured-logging/README.md"
+    }
+  ],
+  "truth_boundary": {
+    "kubernetes_feature_documents": "REAL",
+    "historical_issue_source": "REAL",
+    "test_plan_source": "REAL",
+    "ground_truth": "PENDING",
+    "rag_index_built": "NO",
+    "real_agent_execution": "NO"
+  }
+}

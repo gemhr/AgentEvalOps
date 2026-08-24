@@ -1,0 +1,54 @@
+title: In-place Update of Pod Resources
+kep-number: 1287
+authors:
+  - "@kgolab"
+  - "@bskiba"
+  - "@schylek"
+  - "@vinaykul"
+  - "@tallclair"
+  - "@natasha41575"
+owning-sig: sig-node
+participating-sigs:
+  - sig-autoscaling
+  - sig-scheduling
+status: implemented
+creation-date: 2018-11-06
+reviewers:
+  - "@bsalamat"
+  - "@dashpole"
+  - "@derekwaynecarr"
+  - "@dchen1107"
+  - "@ahg-g"
+  - "@k82cn"
+  - "@Random-Liu"
+  - "@yujuhong"
+  - "@PatrickLang"
+approvers:
+  - "@dchen1107"
+  - "@derekwaynecarr"
+  - "@ahg-g"
+  - "@mwielgus"
+  - "@thockin"
+see-also:
+replaces:
+
+stage: "stable"
+
+latest-milestone: "v1.35"
+
+milestone:
+  alpha: "v1.27"
+  beta: "v1.33"
+  stable: "v1.35"
+
+feature-gates:
+  - name: InPlacePodVerticalScaling
+    components:
+      - kube-apiserver
+      - kube-scheduler
+      - kubelet
+  - name: InPlacePodVerticalScalingAllocatedStatus
+    components:
+      - kube-apiserver
+      - kubelet
+disable-supported: false

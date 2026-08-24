@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+from collections.abc import Sequence
 from enum import StrEnum
 from typing import Literal
 
@@ -15,8 +16,15 @@ NO_ANSWER_DECISION_SCHEMA_VERSION = "no-answer-decision.v1"
 NO_ANSWER_SIGNAL_KIND = "rrf-top1-margin.v1"
 RRF_BASELINE_REF = "rrf.v1"
 RRF_EVIDENCE_SCHEMA_VERSION = "no-answer-rrf-evidence.v1"
+RRF_EVIDENCE_SCHEMA_VERSION_V2 = "no-answer-rrf-evidence.v2"
 WP2_DENSE_CACHE_IDENTITY = "b63c0bbd115150da766b84a80331b332010812bbb757a6782df9ae2224ca8f46"
 WP2_BM25_CACHE_IDENTITY = "594c9c95a3b6f29bcd2fcd738e23ee345427d06b49a70ac3149544a1a4f8f84b"
+# Phase A 冻结的 synthetic WP4 substrate（rag-evaluation-corpus.v1 / 15 docs / 60 chunks）。
+WP4_RRF_SUBSTRATE_REF = "wp4-no-answer-rrf-substrate.v2"
+WP4_DENSE_CACHE_IDENTITY = "92c4743c308e914e311345c22cb09f633a8bb89a6dd73e3820f45cb167046616"
+WP4_BM25_CACHE_IDENTITY = "33040278c1995934df185be2c625fb2e45f0950436e0d748f03e80950e65c4f9"
+WP4_SOURCE_MANIFEST_DIGEST = "4da8c504a8ad77ae6c8dd9ec004c7178f26fe5ee7be1a4cf94b822bce9b427f6"
+WP4_CHUNK_MANIFEST_DIGEST = "149a39a7d6b45fb7484f934288037f787b6322dd13d135fd721b4a1d5117cc91"
 CURRENT_CHANNEL_REF = "current-dense-led-ranked.v1"
 BM25_CHANNEL_REF = "bm25-lucene-idf.v1"
 RRF_K = 60
@@ -74,7 +82,7 @@ def _sha256(value: str, field_name: str) -> str:
 
 
 class RrfRankedCandidateEvidence(BaseModel):
-    """一个 frozen RRF ranked candidate 的 privacy-safe provenance。"""
+    """historical v1 的一个 frozen RRF ranked candidate（字段集合与 Phase B 前 contract exact 一致）。"""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -106,8 +114,64 @@ class RrfRankedCandidateEvidence(BaseModel):
         return self
 
 
+class RrfRankedCandidateEvidenceV2(RrfRankedCandidateEvidence):
+    """synthetic substrate v2 candidate：在 v1 字段集合之上新增 RRF 输入 channel rank Authority。
+
+    `current_rank` / `bm25_rank` 只属于 v2 wire；v1 字段集合保持不变（extra=forbid）。
+    """
+
+    current_rank: int | None = Field(default=None, ge=1, le=PER_CHANNEL_CANDIDATE_LIMIT)
+    bm25_rank: int | None = Field(default=None, ge=1, le=PER_CHANNEL_CANDIDATE_LIMIT)
+
+    @model_validator(mode="after")
+    def _channel_ranks(self) -> "RrfRankedCandidateEvidenceV2":
+        provided = {
+            name
+            for name, rank in (
+                (CURRENT_CHANNEL_REF, self.current_rank),
+                (BM25_CHANNEL_REF, self.bm25_rank),
+            )
+            if rank is not None
+        }
+        if provided and provided != set(self.source_channels):
+            raise ValueError("candidate channel rank presence must match source channels")
+        return self
+
+
+def _check_case_invariants(
+    *,
+    ranked_candidates: Sequence["object"],
+    ranked_candidate_count: int,
+    retrieved_candidate_count: int,
+    retrieval_status: RetrievalStatus,
+) -> None:
+    """v1/v2 case 共享的 strict candidate/count/status invariants。"""
+    if ranked_candidate_count != len(ranked_candidates):
+        raise ValueError("ranked_candidate_count must equal ranked candidate item count")
+    if ranked_candidate_count > retrieved_candidate_count:
+        raise ValueError("ranked candidate count must not exceed retrieved candidate count")
+    expected_ranks = tuple(range(1, len(ranked_candidates) + 1))
+    if tuple(item.rank for item in ranked_candidates) != expected_ranks:
+        raise ValueError("candidate ranks must be exact 1..N")
+    identities = [(item.document_id, item.chunk_id) for item in ranked_candidates]
+    if len(identities) != len(set(identities)):
+        raise ValueError("duplicate candidate identity is not allowed")
+    scores = tuple(item.rrf_score for item in ranked_candidates)
+    if any(left < right for left, right in zip(scores, scores[1:], strict=False)):
+        raise ValueError("RRF candidates must be ordered by descending score")
+    technical = {RetrievalStatus.FAILED, RetrievalStatus.TIMED_OUT, RetrievalStatus.CANCELLED}
+    if retrieval_status in technical:
+        if retrieved_candidate_count or ranked_candidate_count:
+            raise ValueError("technical retrieval status must carry zero candidate counts")
+    elif retrieval_status == RetrievalStatus.EMPTY:
+        if ranked_candidate_count:
+            raise ValueError("EMPTY retrieval status must not carry ranked candidates")
+    elif ranked_candidate_count < 1:
+        raise ValueError("SUCCEEDED/DEGRADED requires ranked candidates")
+
+
 class RrfCaseEvidence(BaseModel):
-    """一个 WP4 case 的 strict RRF evidence。"""
+    """一个 WP4 v1 case 的 strict RRF evidence。"""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -131,28 +195,46 @@ class RrfCaseEvidence(BaseModel):
 
     @model_validator(mode="after")
     def _case_invariants(self) -> "RrfCaseEvidence":
-        if self.ranked_candidate_count != len(self.ranked_candidates):
-            raise ValueError("ranked_candidate_count must equal ranked candidate item count")
-        if self.ranked_candidate_count > self.retrieved_candidate_count:
-            raise ValueError("ranked candidate count must not exceed retrieved candidate count")
-        expected_ranks = tuple(range(1, len(self.ranked_candidates) + 1))
-        if tuple(item.rank for item in self.ranked_candidates) != expected_ranks:
-            raise ValueError("candidate ranks must be exact 1..N")
-        identities = [(item.document_id, item.chunk_id) for item in self.ranked_candidates]
-        if len(identities) != len(set(identities)):
-            raise ValueError("duplicate candidate identity is not allowed")
-        scores = tuple(item.rrf_score for item in self.ranked_candidates)
-        if any(left < right for left, right in zip(scores, scores[1:], strict=False)):
-            raise ValueError("RRF candidates must be ordered by descending score")
-        technical = {RetrievalStatus.FAILED, RetrievalStatus.TIMED_OUT, RetrievalStatus.CANCELLED}
-        if self.retrieval_status in technical:
-            if self.retrieved_candidate_count or self.ranked_candidate_count:
-                raise ValueError("technical retrieval status must carry zero candidate counts")
-        elif self.retrieval_status == RetrievalStatus.EMPTY:
-            if self.ranked_candidate_count:
-                raise ValueError("EMPTY retrieval status must not carry ranked candidates")
-        elif self.ranked_candidate_count < 1:
-            raise ValueError("SUCCEEDED/DEGRADED requires ranked candidates")
+        _check_case_invariants(
+            ranked_candidates=self.ranked_candidates,
+            ranked_candidate_count=self.ranked_candidate_count,
+            retrieved_candidate_count=self.retrieved_candidate_count,
+            retrieval_status=self.retrieval_status,
+        )
+        return self
+
+
+class RrfCaseEvidenceV2(BaseModel):
+    """一个 WP4 v2 case 的 strict RRF evidence（candidate 使用 v2 channel-rank Authority）。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    case_id: StrictStr
+    query_sha256: StrictStr
+    retrieval_artifact_id: StrictStr
+    retrieval_status: RetrievalStatus
+    retrieved_candidate_count: int = Field(ge=0, le=PRE_FUSION_UNION_LIMIT)
+    ranked_candidate_count: int = Field(ge=0, le=FINAL_CANDIDATE_LIMIT)
+    ranked_candidates: tuple[RrfRankedCandidateEvidenceV2, ...] = Field(max_length=FINAL_CANDIDATE_LIMIT)
+
+    @field_validator("case_id", "retrieval_artifact_id")
+    @classmethod
+    def _identifiers(cls, value: str, info: object) -> str:
+        return _safe_identifier(value, getattr(info, "field_name", "evidence_identity"))
+
+    @field_validator("query_sha256")
+    @classmethod
+    def _query_digest(cls, value: str) -> str:
+        return _sha256(value, "query_sha256")
+
+    @model_validator(mode="after")
+    def _case_invariants(self) -> "RrfCaseEvidenceV2":
+        _check_case_invariants(
+            ranked_candidates=self.ranked_candidates,
+            ranked_candidate_count=self.ranked_candidate_count,
+            retrieved_candidate_count=self.retrieved_candidate_count,
+            retrieval_status=self.retrieval_status,
+        )
         return self
 
 
@@ -205,6 +287,94 @@ class RrfEvidenceEnvelope(BaseModel):
             raise ValueError("duplicate retrieval artifact identity is not allowed")
         if len(query_digests) != len(set(query_digests)):
             raise ValueError("duplicate query digest is not allowed")
+        return self
+
+
+class RrfEvidenceEnvelopeV2(BaseModel):
+    """WP4 synthetic substrate v2 唯一接受的 strict RRF evidence envelope。
+
+    与 v1 的唯一合同差异是：schema version、显式 substrate_ref、Phase A 冻结的
+    synthetic Dense/BM25 cache identities 与 source/chunk manifest digests。
+    其余 case/artifact/candidate/rank/score/privacy strict invariants 与 v1 完全一致。
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["no-answer-rrf-evidence.v2"]
+    substrate_ref: Literal["wp4-no-answer-rrf-substrate.v2"]
+    dataset_id: StrictStr
+    dataset_version: StrictStr
+    dataset_digest: StrictStr
+    corpus_ref: Literal["rag-evaluation-corpus.v1"]
+    source_manifest_digest: Literal[
+        "4da8c504a8ad77ae6c8dd9ec004c7178f26fe5ee7be1a4cf94b822bce9b427f6"
+    ]
+    chunk_manifest_digest: Literal[
+        "149a39a7d6b45fb7484f934288037f787b6322dd13d135fd721b4a1d5117cc91"
+    ]
+    dense_cache_identity: Literal[
+        "92c4743c308e914e311345c22cb09f633a8bb89a6dd73e3820f45cb167046616"
+    ]
+    bm25_cache_identity: Literal[
+        "33040278c1995934df185be2c625fb2e45f0950436e0d748f03e80950e65c4f9"
+    ]
+    algorithm_ref: Literal["rrf.v1"]
+    rrf_k: Literal[60]
+    dense_channel_ref: Literal["current-dense-led-ranked.v1"]
+    bm25_channel_ref: Literal["bm25-lucene-idf.v1"]
+    per_channel_candidate_limit: Literal[8]
+    pre_fusion_union_limit: Literal[16]
+    final_candidate_limit: Literal[8]
+    ce_used: Literal[False]
+    new_model_used: Literal[False]
+    runtime_read_only: Literal[True]
+    cases: tuple[RrfCaseEvidenceV2, ...] = Field(min_length=1)
+
+    @field_validator("dataset_id", "dataset_version")
+    @classmethod
+    def _dataset_identity(cls, value: str, info: object) -> str:
+        return _safe_identifier(value, getattr(info, "field_name", "dataset_identity"))
+
+    @field_validator("dataset_digest")
+    @classmethod
+    def _dataset_digest(cls, value: str) -> str:
+        return _sha256(value, "dataset_digest")
+
+    @model_validator(mode="after")
+    def _unique_evidence(self) -> "RrfEvidenceEnvelopeV2":
+        case_ids = [case.case_id for case in self.cases]
+        artifact_ids = [case.retrieval_artifact_id for case in self.cases]
+        query_digests = [case.query_sha256 for case in self.cases]
+        if len(case_ids) != len(set(case_ids)):
+            raise ValueError("duplicate evidence case identity is not allowed")
+        if len(artifact_ids) != len(set(artifact_ids)):
+            raise ValueError("duplicate retrieval artifact identity is not allowed")
+        if len(query_digests) != len(set(query_digests)):
+            raise ValueError("duplicate query digest is not allowed")
+        return self
+
+    @model_validator(mode="after")
+    def _channel_rank_authority(self) -> "RrfEvidenceEnvelopeV2":
+        """v2 要求每个 candidate 携带 RRF 输入 channel rank Authority 且与 frozen RRF 一致。
+
+        RRF score 必须能由 frozen rrf_k=60 与 channel ranks 按 Σ1/(60+rank) exact 复算，
+        使 Gate 可机械验证 RRF score 的来源。v1（无 channel ranks）不受影响。
+        """
+        for case in self.cases:
+            for candidate in case.ranked_candidates:
+                has_current = CURRENT_CHANNEL_REF in candidate.source_channels
+                has_bm25 = BM25_CHANNEL_REF in candidate.source_channels
+                if (candidate.current_rank is not None) != has_current:
+                    raise ValueError("candidate current channel rank presence must match source channels")
+                if (candidate.bm25_rank is not None) != has_bm25:
+                    raise ValueError("candidate bm25 channel rank presence must match source channels")
+                expected_score = sum(
+                    1.0 / (RRF_K + rank)
+                    for rank in (candidate.current_rank, candidate.bm25_rank)
+                    if rank is not None
+                )
+                if not math.isclose(candidate.rrf_score, expected_score, rel_tol=0.0, abs_tol=1e-12):
+                    raise ValueError("candidate RRF score must match frozen channel ranks")
         return self
 
 
@@ -524,11 +694,19 @@ __all__ = [
     "NoAnswerReasonCode",
     "NoAnswerSignal",
     "RrfCaseEvidence",
+    "RrfCaseEvidenceV2",
     "RrfEvidenceEnvelope",
+    "RrfEvidenceEnvelopeV2",
     "RrfRankedCandidateEvidence",
+    "RrfRankedCandidateEvidenceV2",
     "RetrievalStatus",
     "WP2_BM25_CACHE_IDENTITY",
     "WP2_DENSE_CACHE_IDENTITY",
+    "WP4_BM25_CACHE_IDENTITY",
+    "WP4_CHUNK_MANIFEST_DIGEST",
+    "WP4_DENSE_CACHE_IDENTITY",
+    "WP4_RRF_SUBSTRATE_REF",
+    "WP4_SOURCE_MANIFEST_DIGEST",
     "calculate_confusion",
     "derive_empty_origin",
 ]

@@ -36,20 +36,21 @@ def main(argv: list[str] | None = None) -> int:
 
     # argparse --help 在此之前退出；避免 CLI help 导入 retrieval/model provider dependency。
     from app.core.evaluation.dataset import AnswerabilitySplit, load_dataset
-    from app.core.evaluation.no_answer import RrfEvidenceEnvelope
+    from app.core.evaluation.no_answer import RrfEvidenceEnvelopeV2
     from app.services.evaluation.no_answer_threshold import (
-        acceptance_gate_v2,
-        build_evaluation_context,
-        calibrate,
+        acceptance_gate_v3,
+        build_evaluation_context_v2,
+        build_no_answer_report_v3,
+        calibrate_v2,
         evaluate,
         privacy_safe_serialization,
         signals_for_split,
-        validate_experiment_evidence,
+        validate_experiment_evidence_v2,
     )
 
     dataset = load_dataset(args.dataset)
-    evidence = RrfEvidenceEnvelope.model_validate(_load_object(args.rrf_evidence))
-    validated = validate_experiment_evidence(dataset, evidence)
+    evidence = RrfEvidenceEnvelopeV2.model_validate(_load_object(args.rrf_evidence))
+    validated = validate_experiment_evidence_v2(dataset, evidence)
     if not privacy_safe_serialization(evidence, ()):
         raise ValueError("RRF evidence privacy validation failed")
 
@@ -62,54 +63,38 @@ def main(argv: list[str] | None = None) -> int:
         ]
         for split in AnswerabilitySplit
     }
-    calibration = calibrate(
+    calibration = calibrate_v2(
         calibration_cases=by_split[AnswerabilitySplit.CALIBRATION],
         calibration_signals=signals_for_split(validated, AnswerabilitySplit.CALIBRATION),
         validated_experiment=validated,
     )
-    evaluation_context = build_evaluation_context(validated)
+    evaluation_context = build_evaluation_context_v2(validated)
     evaluation = evaluate(
         locked_policy=calibration.locked_policy,
         evaluation_context=evaluation_context,
         evaluation_cases=by_split[AnswerabilitySplit.EVALUATION],
         evaluation_signals=signals_for_split(validated, AnswerabilitySplit.EVALUATION),
     )
-    gate = acceptance_gate_v2(
+    gate = acceptance_gate_v3(
         evaluation=evaluation,
         dataset=dataset,
         evidence=evidence,
         locked_policy=calibration.locked_policy,
         evaluation_context=evaluation_context,
     )
-    report = {
-        "report_schema_version": "no-answer-threshold-report.v2",
-        "capability": "REAL_CALIBRATION_EVALUATION",
-        "dataset": {
-            "dataset_id": validated.dataset_id,
-            "version": validated.dataset_version,
-            "digest": validated.dataset_digest,
-            "coverage": validated.coverage,
-        },
-        "rrf_evidence": {
-            "schema_version": evidence.schema_version,
-            "digest": validated.evidence_digest,
-            "config": validated.rrf_config.model_dump(mode="json"),
-            "ce_used": evidence.ce_used,
-            "new_model_used": evidence.new_model_used,
-            "runtime_read_only": evidence.runtime_read_only,
-        },
-        "calibration": calibration.model_dump(mode="json"),
-        "evaluation_context": evaluation_context.model_dump(mode="json"),
-        "evaluation": evaluation.model_dump(mode="json"),
-        "diagnostic": {
-            "CONFLICT": validated.coverage.get("DIAGNOSTIC", {}).get("CONFLICT", 0)
-        },
-        "gate": gate.model_dump(mode="json"),
-    }
+    report = build_no_answer_report_v3(
+        dataset=dataset,
+        evidence=evidence,
+        validated=validated,
+        calibration=calibration,
+        evaluation_context=evaluation_context,
+        evaluation=evaluation,
+        gate=gate,
+    )
     if not privacy_safe_serialization(report, ()):
         raise ValueError("No-Answer report privacy validation failed")
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    (args.output_dir / "no_answer_threshold_report.v2.json").write_text(
+    (args.output_dir / "no_answer_threshold_report.v3.json").write_text(
         json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )

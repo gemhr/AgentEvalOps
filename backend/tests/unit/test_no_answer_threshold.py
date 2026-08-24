@@ -22,6 +22,11 @@ from app.core.evaluation.dataset import (
 from app.core.evaluation.no_answer import (
     WP2_BM25_CACHE_IDENTITY,
     WP2_DENSE_CACHE_IDENTITY,
+    WP4_BM25_CACHE_IDENTITY,
+    WP4_CHUNK_MANIFEST_DIGEST,
+    WP4_DENSE_CACHE_IDENTITY,
+    WP4_RRF_SUBSTRATE_REF,
+    WP4_SOURCE_MANIFEST_DIGEST,
     EmptyOrigin,
     NoAnswerDecisionValue,
     NoAnswerPolicy,
@@ -30,25 +35,36 @@ from app.core.evaluation.no_answer import (
     NoAnswerSignal,
     RetrievalStatus,
     RrfEvidenceEnvelope,
+    RrfEvidenceEnvelopeV2,
     calculate_confusion,
     derive_empty_origin,
 )
 from app.services.evaluation.no_answer_threshold import (
+    CalibrationResultV2,
     EvaluationContextIdentity,
+    EvaluationContextIdentityV2,
     EvaluationResult,
     GateInvariants,
     GateOutcome,
+    LockedPolicyV2,
+    REPORT_SCHEMA_V3,
     ValidatedExperimentInvariants,
+    ValidatedExperimentInvariantsV2,
     acceptance_gate_v1,
     acceptance_gate_v2,
+    acceptance_gate_v3,
     build_candidate_grid,
     build_evaluation_context,
+    build_evaluation_context_v2,
+    build_no_answer_report_v3,
     calibrate,
+    calibrate_v2,
     canonical_digest,
     evaluate,
     privacy_safe_serialization,
     signals_for_split,
     validate_experiment_evidence,
+    validate_experiment_evidence_v2,
     validate_no_answer_dataset,
 )
 
@@ -172,12 +188,39 @@ def _ranked_candidates(case_id: str, scores: tuple[float, ...]) -> list[dict[str
     ]
 
 
+def _rrf_score(*, current_rank: int | None = None, bm25_rank: int | None = None) -> float:
+    return sum(1.0 / (60 + rank) for rank in (current_rank, bm25_rank) if rank is not None)
+
+
+def _v2_ranked_candidates(case_id: str, top_channels: tuple[str, ...]) -> list[dict[str, object]]:
+    """v2 fixture：channel rank Authority 与 RRF score 必须与 frozen rrf_k=60 exact 一致。"""
+    candidates = []
+    for rank in range(1, 3):
+        channels = top_channels if rank == 1 else ("bm25-lucene-idf.v1",)
+        current_rank = rank if "current-dense-led-ranked.v1" in channels else None
+        bm25_rank = rank if "bm25-lucene-idf.v1" in channels else None
+        candidates.append(
+            {
+                "document_id": f"doc-{case_id}-{rank}",
+                "chunk_id": f"chunk-{case_id}-{rank}",
+                "rank": rank,
+                "rrf_score": _rrf_score(current_rank=current_rank, bm25_rank=bm25_rank),
+                "source_channels": list(channels),
+                "contributing_channel_count": len(channels),
+                "current_rank": current_rank,
+                "bm25_rank": bm25_rank,
+            }
+        )
+    return candidates
+
+
 def _evidence_payload(
     dataset: EvaluationDataset,
     *,
     identical: bool = False,
     evaluation_negative_answer: int = 0,
     evaluation_answerable_abstain: int = 0,
+    v2: bool = False,
 ) -> dict[str, object]:
     cases = []
     negative_seen = 0
@@ -187,26 +230,50 @@ def _evidence_payload(
         assert truth is not None
         if truth.split == AnswerabilitySplit.DIAGNOSTIC:
             continue
-        if identical:
-            scores = (0.04, 0.02)
-        elif truth.case_type == AnswerabilityCaseType.ANSWERABLE:
-            if truth.split == AnswerabilitySplit.EVALUATION:
-                answerable_seen += 1
-            scores = (
-                (0.02, 0.019)
-                if truth.split == AnswerabilitySplit.EVALUATION
-                and answerable_seen <= evaluation_answerable_abstain
-                else (0.04, 0.02)
-            )
+        if v2:
+            if identical:
+                top_channels = ("current-dense-led-ranked.v1", "bm25-lucene-idf.v1")
+            elif truth.case_type == AnswerabilityCaseType.ANSWERABLE:
+                if truth.split == AnswerabilitySplit.EVALUATION:
+                    answerable_seen += 1
+                top_channels = (
+                    ("bm25-lucene-idf.v1",)
+                    if truth.split == AnswerabilitySplit.EVALUATION
+                    and answerable_seen <= evaluation_answerable_abstain
+                    else ("current-dense-led-ranked.v1", "bm25-lucene-idf.v1")
+                )
+            else:
+                if truth.split == AnswerabilitySplit.EVALUATION:
+                    negative_seen += 1
+                top_channels = (
+                    ("current-dense-led-ranked.v1", "bm25-lucene-idf.v1")
+                    if truth.split == AnswerabilitySplit.EVALUATION
+                    and negative_seen <= evaluation_negative_answer
+                    else ("bm25-lucene-idf.v1",)
+                )
+            ranked_candidates = _v2_ranked_candidates(case.case_id, top_channels)
         else:
-            if truth.split == AnswerabilitySplit.EVALUATION:
-                negative_seen += 1
-            scores = (
-                (0.04, 0.02)
-                if truth.split == AnswerabilitySplit.EVALUATION
-                and negative_seen <= evaluation_negative_answer
-                else (0.02, 0.019)
-            )
+            if identical:
+                scores = (0.04, 0.02)
+            elif truth.case_type == AnswerabilityCaseType.ANSWERABLE:
+                if truth.split == AnswerabilitySplit.EVALUATION:
+                    answerable_seen += 1
+                scores = (
+                    (0.02, 0.019)
+                    if truth.split == AnswerabilitySplit.EVALUATION
+                    and answerable_seen <= evaluation_answerable_abstain
+                    else (0.04, 0.02)
+                )
+            else:
+                if truth.split == AnswerabilitySplit.EVALUATION:
+                    negative_seen += 1
+                scores = (
+                    (0.04, 0.02)
+                    if truth.split == AnswerabilitySplit.EVALUATION
+                    and negative_seen <= evaluation_negative_answer
+                    else (0.02, 0.019)
+                )
+            ranked_candidates = _ranked_candidates(case.case_id, scores)
         cases.append(
             {
                 "case_id": case.case_id,
@@ -215,9 +282,33 @@ def _evidence_payload(
                 "retrieval_status": "SUCCEEDED",
                 "retrieved_candidate_count": 2,
                 "ranked_candidate_count": 2,
-                "ranked_candidates": _ranked_candidates(case.case_id, scores),
+                "ranked_candidates": ranked_candidates,
             }
         )
+    if v2:
+        return {
+            "schema_version": "no-answer-rrf-evidence.v2",
+            "substrate_ref": WP4_RRF_SUBSTRATE_REF,
+            "dataset_id": dataset.dataset_id,
+            "dataset_version": dataset.version,
+            "dataset_digest": canonical_digest(dataset.model_dump(mode="json")),
+            "corpus_ref": "rag-evaluation-corpus.v1",
+            "source_manifest_digest": WP4_SOURCE_MANIFEST_DIGEST,
+            "chunk_manifest_digest": WP4_CHUNK_MANIFEST_DIGEST,
+            "dense_cache_identity": WP4_DENSE_CACHE_IDENTITY,
+            "bm25_cache_identity": WP4_BM25_CACHE_IDENTITY,
+            "algorithm_ref": "rrf.v1",
+            "rrf_k": 60,
+            "dense_channel_ref": "current-dense-led-ranked.v1",
+            "bm25_channel_ref": "bm25-lucene-idf.v1",
+            "per_channel_candidate_limit": 8,
+            "pre_fusion_union_limit": 16,
+            "final_candidate_limit": 8,
+            "ce_used": False,
+            "new_model_used": False,
+            "runtime_read_only": True,
+            "cases": cases,
+        }
     return {
         "schema_version": "no-answer-rrf-evidence.v1",
         "dataset_id": dataset.dataset_id,
@@ -264,6 +355,42 @@ def _validated_chain(**evidence_changes: object):
         evaluation_signals=signals_for_split(validated, AnswerabilitySplit.EVALUATION),
     )
     return dataset, evidence, validated, calibration, context, result
+
+
+def _validated_chain_v2(**evidence_changes: object):
+    dataset = _dataset()
+    payload = _evidence_payload(dataset, v2=True, **evidence_changes)
+    evidence = RrfEvidenceEnvelopeV2.model_validate(payload)
+    validated = validate_experiment_evidence_v2(dataset, evidence)
+    calibration_cases = [
+        case for case in dataset.cases if case.ground_truth.answerability.split == AnswerabilitySplit.CALIBRATION
+    ]
+    evaluation_cases = [
+        case for case in dataset.cases if case.ground_truth.answerability.split == AnswerabilitySplit.EVALUATION
+    ]
+    calibration = calibrate_v2(
+        calibration_cases=calibration_cases,
+        calibration_signals=signals_for_split(validated, AnswerabilitySplit.CALIBRATION),
+        validated_experiment=validated,
+    )
+    context = build_evaluation_context_v2(validated)
+    result = evaluate(
+        locked_policy=calibration.locked_policy,
+        evaluation_context=context,
+        evaluation_cases=evaluation_cases,
+        evaluation_signals=signals_for_split(validated, AnswerabilitySplit.EVALUATION),
+    )
+    return dataset, evidence, validated, calibration, context, result
+
+
+def _gate_v3(result, dataset, evidence, calibration, context):
+    return acceptance_gate_v3(
+        evaluation=result,
+        dataset=dataset,
+        evidence=evidence,
+        locked_policy=calibration.locked_policy,
+        evaluation_context=context,
+    )
 
 
 def test_v2_asset_coverage_annotation_and_semantic_leakage() -> None:
@@ -703,3 +830,374 @@ def test_runner_help_does_not_attempt_network(monkeypatch, capsys) -> None:
     assert exc.value.code == 0
     assert attempts == []
     assert "--rrf-evidence" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Phase B：synthetic substrate v2 / evidence v2 / Gate v3 / Report v3
+# ---------------------------------------------------------------------------
+
+
+def test_evidence_v1_and_v2_isolation() -> None:
+    """v1 保持旧 SciFact semantics；v2 只接受 synthetic substrate；两者互相 reject。"""
+    dataset = _dataset()
+    v1_payload = _evidence_payload(dataset)
+    v2_payload = _evidence_payload(dataset, v2=True)
+
+    # v1 + old SciFact identities -> 按 historical v1 semantics 接受。
+    v1 = RrfEvidenceEnvelope.model_validate(v1_payload)
+    assert v1.schema_version == "no-answer-rrf-evidence.v1"
+    assert v1.dense_cache_identity == WP2_DENSE_CACHE_IDENTITY
+
+    # v1 + new synthetic identities -> reject。
+    synthetic_in_v1 = {**v1_payload, "dense_cache_identity": WP4_DENSE_CACHE_IDENTITY}
+    with pytest.raises(ValidationError):
+        RrfEvidenceEnvelope.model_validate(synthetic_in_v1)
+
+    # v2 + new synthetic identities -> accept。
+    v2 = RrfEvidenceEnvelopeV2.model_validate(v2_payload)
+    assert v2.schema_version == "no-answer-rrf-evidence.v2"
+    assert v2.substrate_ref == WP4_RRF_SUBSTRATE_REF
+    assert v2.dense_cache_identity == WP4_DENSE_CACHE_IDENTITY
+    assert v2.bm25_cache_identity == WP4_BM25_CACHE_IDENTITY
+
+    # v2 + old SciFact identities -> reject。
+    scifact_in_v2 = {
+        **v2_payload,
+        "dense_cache_identity": WP2_DENSE_CACHE_IDENTITY,
+        "bm25_cache_identity": WP2_BM25_CACHE_IDENTITY,
+    }
+    with pytest.raises(ValidationError):
+        RrfEvidenceEnvelopeV2.model_validate(scifact_in_v2)
+
+    # v1 wire cannot be re-parsed as v2 and vice versa。
+    with pytest.raises(ValidationError):
+        RrfEvidenceEnvelopeV2.model_validate(v1_payload)
+    with pytest.raises(ValidationError):
+        RrfEvidenceEnvelope.model_validate(v2_payload)
+
+
+@pytest.mark.parametrize(
+    "rank_mutation",
+    [
+        {"current_rank": 1},
+        {"bm25_rank": 1},
+        {"current_rank": 1, "bm25_rank": 1},
+    ],
+)
+def test_evidence_v1_rejects_channel_rank_fields(rank_mutation: dict) -> None:
+    """v1 历史 wire 不得接受 v2 专属 channel rank 字段（V1_NEW_CHANNEL_RANK_FIELDS_ACCEPTED = false）。"""
+    dataset = _dataset()
+    v1_payload = _evidence_payload(dataset)
+    candidate = v1_payload["cases"][0]["ranked_candidates"][0]
+    candidate.update(rank_mutation)
+    with pytest.raises(ValidationError):
+        RrfEvidenceEnvelope.model_validate(v1_payload)
+
+
+def test_evidence_v1_historical_wire_semantics_unchanged() -> None:
+    """v1 历史 normal candidate（无 channel ranks）继续按历史语义解析，wire 字段集合不变。"""
+    dataset = _dataset()
+    v1 = RrfEvidenceEnvelope.model_validate(_evidence_payload(dataset))
+    assert v1.schema_version == "no-answer-rrf-evidence.v1"
+    for case in v1.cases:
+        for candidate in case.ranked_candidates:
+            dumped = candidate.model_dump(mode="json")
+            assert "current_rank" not in dumped and "bm25_rank" not in dumped
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("substrate_ref", "other-substrate"),
+        ("dense_cache_identity", "arbitrary"),
+        ("bm25_cache_identity", "arbitrary"),
+        ("dense_cache_identity", WP2_DENSE_CACHE_IDENTITY),
+        ("bm25_cache_identity", WP2_BM25_CACHE_IDENTITY),
+        ("corpus_ref", "other-corpus"),
+        ("source_manifest_digest", "0" * 64),
+        ("chunk_manifest_digest", "0" * 64),
+        ("algorithm_ref", "other"),
+        ("rrf_k", 61),
+        ("dense_channel_ref", "other-channel"),
+        ("bm25_channel_ref", "other-channel"),
+        ("per_channel_candidate_limit", 7),
+        ("pre_fusion_union_limit", 15),
+        ("final_candidate_limit", 7),
+        ("ce_used", True),
+        ("new_model_used", True),
+        ("runtime_read_only", False),
+    ],
+)
+def test_evidence_v2_rejects_wrong_substrate_identity(field: str, value: object) -> None:
+    payload = _evidence_payload(_dataset(), v2=True)
+    payload[field] = value
+    with pytest.raises(ValidationError):
+        RrfEvidenceEnvelopeV2.model_validate(payload)
+
+
+@pytest.mark.parametrize("field", ["unknown", "query_plaintext", "chunk_text", "local_path", "credential"])
+def test_evidence_v2_rejects_unknown_or_plaintext_fields(field: str) -> None:
+    payload = _evidence_payload(_dataset(), v2=True)
+    payload[field] = "SECRET_QUERY_WP4"
+    with pytest.raises(ValidationError):
+        RrfEvidenceEnvelopeV2.model_validate(payload)
+
+
+def test_evidence_v2_rejects_duplicate_case_artifact_and_candidate() -> None:
+    payload = _evidence_payload(_dataset(), v2=True)
+    duplicate_case = deepcopy(payload)
+    duplicate_case["cases"].append(deepcopy(duplicate_case["cases"][0]))
+    with pytest.raises(ValidationError, match="duplicate evidence case"):
+        RrfEvidenceEnvelopeV2.model_validate(duplicate_case)
+
+    duplicate_artifact = deepcopy(payload)
+    duplicate_artifact["cases"][1]["retrieval_artifact_id"] = duplicate_artifact["cases"][0]["retrieval_artifact_id"]
+    with pytest.raises(ValidationError, match="duplicate retrieval artifact"):
+        RrfEvidenceEnvelopeV2.model_validate(duplicate_artifact)
+
+    duplicate_candidate = deepcopy(payload)
+    duplicate_candidate["cases"][0]["ranked_candidates"][1]["document_id"] = duplicate_candidate["cases"][0]["ranked_candidates"][0]["document_id"]
+    duplicate_candidate["cases"][0]["ranked_candidates"][1]["chunk_id"] = duplicate_candidate["cases"][0]["ranked_candidates"][0]["chunk_id"]
+    with pytest.raises(ValidationError, match="duplicate candidate"):
+        RrfEvidenceEnvelopeV2.model_validate(duplicate_candidate)
+
+
+@pytest.mark.parametrize("mutation", ["rank", "nan", "inf", "count"])
+def test_evidence_v2_rejects_rank_score_and_count_mismatch(mutation: str) -> None:
+    payload = _evidence_payload(_dataset(), v2=True)
+    case = payload["cases"][0]
+    if mutation == "rank":
+        case["ranked_candidates"][1]["rank"] = 3
+    elif mutation == "nan":
+        case["ranked_candidates"][0]["rrf_score"] = float("nan")
+    elif mutation == "inf":
+        case["ranked_candidates"][0]["rrf_score"] = float("inf")
+    else:
+        case["ranked_candidate_count"] = 1
+    with pytest.raises(ValidationError):
+        RrfEvidenceEnvelopeV2.model_validate(payload)
+
+
+def test_evidence_v2_query_digest_and_status_count_combinations() -> None:
+    dataset = _dataset()
+    payload = _evidence_payload(dataset, v2=True)
+
+    wrong_digest = deepcopy(payload)
+    wrong_digest["cases"][0]["query_sha256"] = hashlib.sha256(b"other-query").hexdigest()
+    evidence = RrfEvidenceEnvelopeV2.model_validate(wrong_digest)
+    with pytest.raises(NoAnswerProtocolError, match="QUERY_DIGEST_MISMATCH"):
+        validate_experiment_evidence_v2(dataset, evidence)
+
+    empty_emits_candidates = deepcopy(payload)
+    empty_emits_candidates["cases"][0]["retrieval_status"] = "EMPTY"
+    with pytest.raises(ValidationError):
+        RrfEvidenceEnvelopeV2.model_validate(empty_emits_candidates)
+
+
+def _gate_v2_from_v2_evidence(result, dataset, evidence_v2, calibration, context):
+    # 把 v2 DTO 直接交给 v1 Gate 不应改变 v2 语义；v2 wire 本身无法被 v1 消费。
+    return acceptance_gate_v2(
+        evaluation=result,
+        dataset=dataset,
+        evidence=evidence_v2,
+        locked_policy=calibration.locked_policy,
+        evaluation_context=context,
+    )
+
+
+def test_gate_v2_vs_gate_v3_evidence_version_regression() -> None:
+    dataset, evidence, _, calibration, context, result = _validated_chain()
+    gate_v2 = _gate_v2(result, dataset, evidence, calibration, context)
+    assert gate_v2.outcome == GateOutcome.ACCEPT and gate_v2.gate_ref.endswith(".v2")
+
+    # v1 evidence 交给 Gate v3 -> strict_evidence_validation_failure（不得当 synthetic v2 接受）。
+    gate_v3_from_v1 = acceptance_gate_v3(
+        evaluation=result,
+        dataset=dataset,
+        evidence=evidence,
+        locked_policy=calibration.locked_policy,
+        evaluation_context=context,
+    )
+    assert gate_v3_from_v1.outcome == GateOutcome.NOT_EVALUATED_BLOCKED
+    assert gate_v3_from_v1.reason_codes == ("strict_evidence_validation_failure",)
+
+    dataset_v2, evidence_v2, _, calibration_v2, context_v2, result_v2 = _validated_chain_v2()
+    gate_v3 = _gate_v3(result_v2, dataset_v2, evidence_v2, calibration_v2, context_v2)
+    assert gate_v3.outcome == GateOutcome.ACCEPT and gate_v3.gate_ref.endswith(".v3")
+
+    # v2 evidence 交给 Gate v2 -> strict_evidence_validation_failure（历史 Gate v2 不接受 synthetic）。
+    gate_v2_from_v2 = _gate_v2_from_v2_evidence(
+        result_v2, dataset_v2, evidence_v2, calibration_v2, context_v2
+    )
+    assert gate_v2_from_v2.outcome == GateOutcome.NOT_EVALUATED_BLOCKED
+    assert gate_v2_from_v2.reason_codes == ("strict_evidence_validation_failure",)
+
+
+def test_gate_v3_accept_reject_and_historical_gate_v2_compat() -> None:
+    dataset, evidence, _, calibration, context, result = _validated_chain_v2()
+    gate = _gate_v3(result, dataset, evidence, calibration, context)
+    assert gate.outcome == GateOutcome.ACCEPT and gate.gate_ref == "WP4_NO_ANSWER_ACCEPTANCE_GATE.v3"
+
+    rejected_dataset, rejected_evidence, _, rejected_calibration, rejected_context, rejected = (
+        _validated_chain_v2(evaluation_negative_answer=1)
+    )
+    assert (
+        _gate_v3(rejected, rejected_dataset, rejected_evidence, rejected_calibration, rejected_context).outcome
+        == GateOutcome.REJECT
+    )
+
+    # historical Gate v2 继续消费 v1 evidence，并保持 v1 语义。
+    _, v1_evidence, _, v1_calibration, v1_context, v1_result = _validated_chain()
+    assert (
+        _gate_v2(v1_result, dataset, v1_evidence, v1_calibration, v1_context).outcome
+        == GateOutcome.ACCEPT
+    )
+
+
+def test_gate_v3_blocks_policy_calibrated_from_forged_signals() -> None:
+    """Caller forged calibration signals/lock 不能通过 Gate v3。"""
+    dataset, evidence, validated, calibration, context, _ = _validated_chain_v2()
+    calibration_cases = {
+        case.case_id: case
+        for case in dataset.cases
+        if case.ground_truth.answerability.split == AnswerabilitySplit.CALIBRATION
+    }
+    forged_signals = []
+    for signal in validated.signals:
+        case = calibration_cases.get(signal.case_id)
+        if case is not None and case.ground_truth.answerability.case_type == AnswerabilityCaseType.ANSWERABLE:
+            signal = signal.model_copy(update={"rrf_scores": (0.039, 0.019)})
+        forged_signals.append(signal)
+    forged_by_id = {signal.case_id: signal for signal in forged_signals}
+    forged_calibration_digest = canonical_digest(
+        [
+            {
+                "case": calibration_cases[case_id].model_dump(mode="json"),
+                "signal": forged_by_id[case_id].model_dump(mode="json"),
+            }
+            for case_id in sorted(calibration_cases)
+        ]
+    )
+    forged_payload = validated.model_dump(mode="json", exclude={"proof_digest"})
+    forged_payload["signals"] = tuple(signal.model_dump(mode="json") for signal in forged_signals)
+    forged_payload["calibration_evidence_digest"] = forged_calibration_digest
+    forged = ValidatedExperimentInvariantsV2(
+        **forged_payload,
+        proof_digest=canonical_digest(forged_payload),
+    )
+    assert forged.verify()
+
+    forged_calibration = calibrate_v2(
+        calibration_cases=tuple(calibration_cases.values()),
+        calibration_signals=signals_for_split(forged, AnswerabilitySplit.CALIBRATION),
+        validated_experiment=forged,
+    )
+    assert calibration.locked_policy.policy_config.min_top1_score == 2 / 61
+    assert forged_calibration.locked_policy.policy_config.min_top1_score == 0.039
+    assert isinstance(forged_calibration, CalibrationResultV2)
+    assert isinstance(forged_calibration.locked_policy, LockedPolicyV2)
+
+    evaluation_cases = [
+        case
+        for case in dataset.cases
+        if case.ground_truth.answerability.split == AnswerabilitySplit.EVALUATION
+    ]
+    forged_result = evaluate(
+        locked_policy=forged_calibration.locked_policy,
+        evaluation_context=context,
+        evaluation_cases=evaluation_cases,
+        evaluation_signals=signals_for_split(validated, AnswerabilitySplit.EVALUATION),
+    )
+    gate = _gate_v3(forged_result, dataset, evidence, forged_calibration, context)
+    assert gate.outcome == GateOutcome.NOT_EVALUATED_BLOCKED
+    assert "calibration_policy_lock_mismatch" in gate.reason_codes
+
+
+def test_gate_v3_substrate_ref_context_binding_cannot_be_bypassed() -> None:
+    """Substrate A 校准 / substrate B context 的 combination 必须 BLOCKED。"""
+    dataset, evidence, _, calibration, context, result = _validated_chain_v2()
+
+    forged_context_payload = context.model_dump(mode="json", exclude={"context_digest"})
+    forged_context_payload["substrate_ref"] = "other-substrate"
+    forged_context = EvaluationContextIdentityV2.model_construct(**forged_context_payload)
+    object.__setattr__(
+        forged_context,
+        "context_digest",
+        canonical_digest({**forged_context_payload, "substrate_ref": "other-substrate"}),
+    )
+    assert forged_context.verify()
+
+    with pytest.raises(NoAnswerProtocolError, match="CONTEXT_LOCK_MISMATCH"):
+        evaluate(
+            locked_policy=calibration.locked_policy,
+            evaluation_context=forged_context,
+            evaluation_cases=[
+                case
+                for case in dataset.cases
+                if case.ground_truth.answerability.split == AnswerabilitySplit.EVALUATION
+            ],
+            evaluation_signals=signals_for_split(
+                validate_experiment_evidence_v2(dataset, evidence), AnswerabilitySplit.EVALUATION
+            ),
+        )
+    gate = _gate_v3(result, dataset, evidence, calibration, forged_context)
+    assert gate.outcome == GateOutcome.NOT_EVALUATED_BLOCKED
+    assert "evaluation_context_lock_mismatch" in gate.reason_codes
+
+
+def test_gate_v3_rejects_summary_and_per_case_contradictions() -> None:
+    dataset, evidence, _, calibration, context, result = _validated_chain_v2()
+
+    subtype_mismatch = result.model_dump(mode="json")
+    subtype_mismatch["subtype_results"]["WEAK"]["count"] = 3
+    assert _gate_v3(
+        EvaluationResult.model_validate(subtype_mismatch), dataset, evidence, calibration, context
+    ).outcome == GateOutcome.NOT_EVALUATED_BLOCKED
+
+    fact_mismatch = result.model_dump(mode="json")
+    negative = next(fact for fact in fact_mismatch["case_facts"] if not fact["answerable"])
+    negative["decision"] = "ANSWER"
+    blocked = _gate_v3(EvaluationResult.model_validate(fact_mismatch), dataset, evidence, calibration, context)
+    assert blocked.outcome == GateOutcome.NOT_EVALUATED_BLOCKED
+    assert "evaluation_summary_contradiction" in blocked.reason_codes
+
+
+def test_gate_v3_blocks_unchecked_evidence_bypass() -> None:
+    dataset, evidence, _, calibration, context, result = _validated_chain_v2()
+    for field, value in (("ce_used", True), ("new_model_used", True), ("runtime_read_only", False)):
+        bypassed = evidence.model_copy(update={field: value})
+        gate = _gate_v3(result, dataset, bypassed, calibration, context)
+        assert gate.outcome == GateOutcome.NOT_EVALUATED_BLOCKED
+        assert gate.reason_codes == ("strict_evidence_validation_failure",)
+
+
+def test_report_v3_includes_substrate_identity_and_privacy() -> None:
+    dataset, evidence, validated, calibration, context, result = _validated_chain_v2()
+    gate = _gate_v3(result, dataset, evidence, calibration, context)
+    report = build_no_answer_report_v3(
+        dataset=dataset,
+        evidence=evidence,
+        validated=validated,
+        calibration=calibration,
+        evaluation_context=context,
+        evaluation=result,
+        gate=gate,
+    )
+    assert report["report_schema_version"] == REPORT_SCHEMA_V3
+    assert report["real_retrieval"] is False
+    assert report["substrate"]["substrate_ref"] == WP4_RRF_SUBSTRATE_REF
+    assert report["substrate"]["dense_cache_identity"] == WP4_DENSE_CACHE_IDENTITY
+    assert report["substrate"]["bm25_cache_identity"] == WP4_BM25_CACHE_IDENTITY
+    assert report["substrate"]["source_manifest_digest"] == WP4_SOURCE_MANIFEST_DIGEST
+    assert report["substrate"]["chunk_manifest_digest"] == WP4_CHUNK_MANIFEST_DIGEST
+    assert report["substrate"]["algorithm_ref"] == "rrf.v1"
+    assert report["substrate"]["rrf_k"] == 60
+    assert report["substrate"]["ce_used"] is False
+    assert report["substrate"]["new_model_used"] is False
+    assert report["substrate"]["runtime_read_only"] is True
+    assert report["rrf_evidence"]["schema_version"] == "no-answer-rrf-evidence.v2"
+    assert report["gate_ref"] == "WP4_NO_ANSWER_ACCEPTANCE_GATE.v3"
+    assert report["locked_policy"]["substrate_ref"] == WP4_RRF_SUBSTRATE_REF
+    assert report["evaluation_context"]["substrate_ref"] == WP4_RRF_SUBSTRATE_REF
+    assert report["final_outcome"] == GateOutcome.ACCEPT.value
+    assert privacy_safe_serialization(report, ("SECRET_QUERY_WP4", r"C:\secret\model"))

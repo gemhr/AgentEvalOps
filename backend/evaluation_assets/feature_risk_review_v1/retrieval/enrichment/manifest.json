@@ -1,0 +1,87 @@
+{
+  "schema_version": "feature-risk-review-enrichment.v1",
+  "note": "WP2 scoped enrichment: real kubernetes/kubernetes issue snapshots to give RiskRetrievalAgent genuine historical risk value beyond each case's own KEP and enhancement tracking issue. Source = public GitHub API, READ ONLY. Snapshot JSON kept source-preserving. Each issue is a real historical bug report; it is NOT the case's enhancement tracking issue and NOT a production incident classification.",
+  "source_repository": "https://github.com/kubernetes/kubernetes",
+  "cases": {
+    "k8s_541": [
+      {
+        "repo": "kubernetes/kubernetes",
+        "issue_number": 108849,
+        "url": "https://github.com/kubernetes/kubernetes/issues/108849",
+        "path": "retrieval/enrichment/kubernetes_kubernetes_issue_541_108849.json",
+        "reason": "exec credential plugin call lacks request context propagation (cancellation/timeout risk)"
+      },
+      {
+        "repo": "kubernetes/kubernetes",
+        "issue_number": 91217,
+        "url": "https://github.com/kubernetes/kubernetes/issues/91217",
+        "path": "retrieval/enrichment/kubernetes_kubernetes_issue_541_91217.json",
+        "reason": "exec credential provider usability/install-hint gap (onboarding risk)"
+      }
+    ],
+    "k8s_753": [
+      {
+        "repo": "kubernetes/kubernetes",
+        "issue_number": 132826,
+        "url": "https://github.com/kubernetes/kubernetes/issues/132826",
+        "path": "retrieval/enrichment/kubernetes_kubernetes_issue_753_132826.json",
+        "reason": "sidecar startupProbe racing condition prevents main container start (lifecycle risk)"
+      },
+      {
+        "repo": "kubernetes/kubernetes",
+        "issue_number": 127701,
+        "url": "https://github.com/kubernetes/kubernetes/issues/127701",
+        "path": "retrieval/enrichment/kubernetes_kubernetes_issue_753_127701.json",
+        "reason": "sidecar containers can be misinterpreted as init containers (semantics/API risk)"
+      }
+    ],
+    "k8s_1287": [
+      {
+        "repo": "kubernetes/kubernetes",
+        "issue_number": 122760,
+        "url": "https://github.com/kubernetes/kubernetes/issues/122760",
+        "path": "retrieval/enrichment/kubernetes_kubernetes_issue_1287_122760.json",
+        "reason": "in-place pod resize still restarts pod despite restartPolicy (state consistency risk)"
+      },
+      {
+        "repo": "kubernetes/kubernetes",
+        "issue_number": 116415,
+        "url": "https://github.com/kubernetes/kubernetes/issues/116415",
+        "path": "retrieval/enrichment/kubernetes_kubernetes_issue_1287_116415.json",
+        "reason": "scheduler in-place resize test flaky / negative resource values (validation risk)"
+      }
+    ],
+    "k8s_1472": [
+      {
+        "repo": "kubernetes/kubernetes",
+        "issue_number": 104250,
+        "url": "https://github.com/kubernetes/kubernetes/issues/104250",
+        "path": "retrieval/enrichment/kubernetes_kubernetes_issue_1472_104250.json",
+        "reason": "scheduler does not re-trigger scheduling when CSIStorageCapacity changes (staleness risk)"
+      },
+      {
+        "repo": "kubernetes/kubernetes",
+        "issue_number": 135985,
+        "url": "https://github.com/kubernetes/kubernetes/issues/135985",
+        "path": "retrieval/enrichment/kubernetes_kubernetes_issue_1472_135985.json",
+        "reason": "already-bound PVCs not considered against CSIStorageCapacity (scheduling completeness risk)"
+      }
+    ],
+    "k8s_1602": [
+      {
+        "repo": "kubernetes/kubernetes",
+        "issue_number": 100155,
+        "url": "https://github.com/kubernetes/kubernetes/issues/100155",
+        "path": "retrieval/enrichment/kubernetes_kubernetes_issue_1602_100155.json",
+        "reason": "structured logging klog.KObj panics on nil ref (robustness risk)"
+      },
+      {
+        "repo": "kubernetes/kubernetes",
+        "issue_number": 110737,
+        "url": "https://github.com/kubernetes/kubernetes/issues/110737",
+        "path": "retrieval/enrichment/kubernetes_kubernetes_issue_1602_110737.json",
+        "reason": "structured logging API switch KObjs -> KObjSlice (API evolution risk)"
+      }
+    ]
+  }
+}

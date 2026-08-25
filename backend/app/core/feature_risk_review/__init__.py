@@ -1,7 +1,21 @@
-"""Stage5 Phase4 Feature Risk Review 的离线数据契约与加载器。"""
+"""Stage5 Phase4 Feature Risk Review 的离线数据契约、加载器与 WP2 workflow。"""
 
 # ruff: noqa: D415
 
+from app.core.feature_risk_review.agents import (
+    CoverageState,
+    DocumentAnalysisAgent,
+    DocumentAnalysisModelOutput,
+    DocumentAnalysisResult,
+    RiskFindingModelOutput,
+    RiskRetrievalAgent,
+    RiskRetrievalModelOutput,
+    RiskRetrievalResult,
+    TestReviewAgent,
+    TestReviewModelOutput,
+    TestReviewResult,
+    compute_coverage_state,
+)
 from app.core.feature_risk_review.contracts import (
     AnnotationStatus,
     EvaluationAnnotation,
@@ -16,26 +30,76 @@ from app.core.feature_risk_review.contracts import (
     TestCase,
     TestPlan,
 )
+from app.core.feature_risk_review.errors import (
+    FeatureRiskReviewDataError,
+    FeatureRiskReviewError,
+    FeatureRiskReviewEvidenceError,
+    FeatureRiskReviewModelOutputError,
+)
 from app.core.feature_risk_review.loader import (
     FeatureRiskDatasetLoadError,
     load_evaluation_annotations,
     load_feature_risk_review_cases,
 )
+from app.core.feature_risk_review.ports import (
+    FeatureRiskReviewDataProvider,
+    FeatureRiskReviewModelPort,
+    HistoricalKnowledgeRetriever,
+    RetrievedKnowledgeFragment,
+    RiskRetrievalQuery,
+    TestEvidence,
+)
+from app.core.feature_risk_review.workflow import (
+    BranchFailure,
+    BranchResult,
+    BranchStatus,
+    FeatureRiskReviewWorkflow,
+    FeatureRiskReviewWorkflowResult,
+    WorkflowStatus,
+)
 
 __all__ = [
     "AnnotationStatus",
+    "BranchFailure",
+    "BranchResult",
+    "BranchStatus",
+    "CoverageState",
+    "DocumentAnalysisAgent",
+    "DocumentAnalysisModelOutput",
+    "DocumentAnalysisResult",
     "EvaluationAnnotation",
     "EvidenceRef",
     "FeatureChangePoint",
     "FeatureDocument",
     "FeatureRiskDatasetLoadError",
     "FeatureRiskReviewCase",
+    "FeatureRiskReviewDataError",
+    "FeatureRiskReviewDataProvider",
+    "FeatureRiskReviewError",
+    "FeatureRiskReviewEvidenceError",
+    "FeatureRiskReviewModelOutputError",
+    "FeatureRiskReviewModelPort",
     "FeatureRiskReviewReport",
+    "FeatureRiskReviewWorkflow",
+    "FeatureRiskReviewWorkflowResult",
     "HistoricalIssue",
+    "HistoricalKnowledgeRetriever",
     "RiskFinding",
+    "RiskFindingModelOutput",
     "RiskLevel",
+    "RiskRetrievalAgent",
+    "RiskRetrievalModelOutput",
+    "RiskRetrievalQuery",
+    "RiskRetrievalResult",
+    "RetrievedKnowledgeFragment",
     "TestCase",
+    "TestEvidence",
     "TestPlan",
+    "TestReviewAgent",
+    "TestReviewModelOutput",
+    "TestReviewResult",
+    "WorkflowStatus",
+    "compute_coverage_state",
     "load_evaluation_annotations",
     "load_feature_risk_review_cases",
 ]

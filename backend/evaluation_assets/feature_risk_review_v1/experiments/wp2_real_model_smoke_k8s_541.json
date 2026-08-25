@@ -1,0 +1,33 @@
+{
+  "case_id": "k8s_541",
+  "model_ref": "deepseek/deepseek-chat",
+  "started_at": "2026-08-25T04:58:39.491083+00:00",
+  "finished_at": "2026-08-25T04:58:39.686863+00:00",
+  "result": {
+    "case_id": "k8s_541",
+    "workflow_status": "FAILED",
+    "document_analysis": {
+      "branch": "document_analysis",
+      "status": "FAILED",
+      "value": null,
+      "failure": {
+        "branch": "document_analysis",
+        "error_type": "FeatureRiskReviewModelOutputError",
+        "message": "model call failed: BadRequestError",
+        "recoverable": false
+      }
+    },
+    "risk_retrieval": {
+      "branch": "risk_retrieval",
+      "status": "NOT_STARTED",
+      "value": null,
+      "failure": null
+    },
+    "test_review": {
+      "branch": "test_review",
+      "status": "NOT_STARTED",
+      "value": null,
+      "failure": null
+    }
+  }
+}

@@ -7,5 +7,7 @@ Stage5 Phase4 的离线 Kubernetes Feature Risk Review 数据集。源冻结为 
 - `normalized/cases.v1.json` 是 WP1 Typed Contract 的正常 demo path 投影，不包含 annotation。
 - `annotations/annotations.v1.json` 是 evaluation-only annotation；所有 case 均为 `PENDING`。
 - `issues/` 与 `tests/` 分别保存真实 tracking issue 和 KEP Test Plan；真实 test-function mapping 为 `PARTIAL`。
+- `retrieval/` 是 WP2 专用、source-preserving 的 Phase4 retrieval corpus 与 scoped enrichment
+  （`phase4_retrieval_corpus.v1.json`、`enrichment/` 下 10 个真实 kubernetes/kubernetes issue snapshot）。
 
-Ground Truth 仍为 `PENDING`。未构建 RAG index，未执行真实 Agent，未发生 production change。
+Ground Truth 仍为 `PENDING`。未执行真实 Agent，未发生 production change。

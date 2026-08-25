@@ -19,6 +19,39 @@ class RiskLevel(StrEnum):
     HIGH = "HIGH"
 
 
+class CoverageState(StrEnum):
+    """测试覆盖状态；空 TestCase[] 不等于零覆盖。"""
+
+    NO_TEST_DATA = "NO_TEST_DATA"
+    PLAN_ONLY = "PLAN_ONLY"
+    PARTIAL_COVERAGE = "PARTIAL_COVERAGE"
+    COVERED = "COVERED"
+
+
+class Priority(StrEnum):
+    """报告处理次序；不是 P0/P1/P2 bug severity 映射。"""
+
+    COMPLETE_REVIEW = "COMPLETE_REVIEW"
+    ACT_NOW = "ACT_NOW"
+    SCHEDULE_REVIEW = "SCHEDULE_REVIEW"
+    MONITOR = "MONITOR"
+
+
+class ReportCompleteness(StrEnum):
+    """报告完整性；PARTIAL_* 表示有分支缺失，不表示风险已覆盖。"""
+
+    FULL = "FULL"
+    PARTIAL_RISK_UNAVAILABLE = "PARTIAL_RISK_UNAVAILABLE"
+    PARTIAL_TEST_UNAVAILABLE = "PARTIAL_TEST_UNAVAILABLE"
+
+
+class ReportUncertainty(_Contract):
+    """带来源标签的确定性 uncertainty 条目；不含 numeric confidence。"""
+
+    branch: StrictStr = Field(min_length=1)
+    message: StrictStr = Field(min_length=1)
+
+
 class AnnotationStatus(StrEnum):
     PENDING = "PENDING"
     HUMAN_REVIEWED = "HUMAN_REVIEWED"
@@ -94,14 +127,22 @@ class RiskFinding(_Contract):
 
 
 class FeatureRiskReviewReport(_Contract):
+    case_id: StrictStr = Field(min_length=1)
     feature_summary: StrictStr = Field(min_length=1)
     change_points: list[FeatureChangePoint] = Field(default_factory=list)
     high_risk_scenarios: list[RiskFinding] = Field(default_factory=list)
     historical_issues: list[HistoricalIssue] = Field(default_factory=list)
     existing_coverage: list[TestPlan] = Field(default_factory=list)
+    existing_test_cases: list[TestCase] = Field(default_factory=list)
+    coverage_state: CoverageState | None = None
+    coverage_assessment: StrictStr | None = None
+    potential_gaps: list[StrictStr] = Field(default_factory=list)
     missing_cases: list[StrictStr] = Field(default_factory=list)
     risk_level: RiskLevel | None = None
-    priority: StrictStr | None = None
+    priority: Priority | None = None
+    completeness: ReportCompleteness = ReportCompleteness.FULL
+    unavailable_sections: list[StrictStr] = Field(default_factory=list)
+    uncertainties: list[ReportUncertainty] = Field(default_factory=list)
     evidence_refs: list[EvidenceRef] = Field(default_factory=list)
     uncertainty: StrictStr | None = None
 

@@ -3,7 +3,6 @@
 # ruff: noqa: D415
 
 from app.core.feature_risk_review.agents import (
-    CoverageState,
     DocumentAnalysisAgent,
     DocumentAnalysisModelOutput,
     DocumentAnalysisResult,
@@ -16,8 +15,14 @@ from app.core.feature_risk_review.agents import (
     TestReviewResult,
     compute_coverage_state,
 )
+from app.core.feature_risk_review.aggregation import (
+    FeatureRiskReviewAggregator,
+    FeatureRiskReviewAggregationFailure,
+    render_feature_risk_review_markdown,
+)
 from app.core.feature_risk_review.contracts import (
     AnnotationStatus,
+    CoverageState,
     EvaluationAnnotation,
     EvidenceRef,
     FeatureChangePoint,
@@ -25,6 +30,9 @@ from app.core.feature_risk_review.contracts import (
     FeatureRiskReviewCase,
     FeatureRiskReviewReport,
     HistoricalIssue,
+    Priority,
+    ReportCompleteness,
+    ReportUncertainty,
     RiskFinding,
     RiskLevel,
     TestCase,
@@ -72,6 +80,8 @@ __all__ = [
     "FeatureChangePoint",
     "FeatureDocument",
     "FeatureRiskDatasetLoadError",
+    "FeatureRiskReviewAggregationFailure",
+    "FeatureRiskReviewAggregator",
     "FeatureRiskReviewCase",
     "FeatureRiskReviewDataError",
     "FeatureRiskReviewDataProvider",
@@ -84,6 +94,9 @@ __all__ = [
     "FeatureRiskReviewWorkflowResult",
     "HistoricalIssue",
     "HistoricalKnowledgeRetriever",
+    "Priority",
+    "ReportCompleteness",
+    "ReportUncertainty",
     "RiskFinding",
     "RiskFindingModelOutput",
     "RiskLevel",
@@ -102,4 +115,5 @@ __all__ = [
     "compute_coverage_state",
     "load_evaluation_annotations",
     "load_feature_risk_review_cases",
+    "render_feature_risk_review_markdown",
 ]

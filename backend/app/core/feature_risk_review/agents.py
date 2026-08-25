@@ -21,11 +21,10 @@ provider/retriever 创建；LLM 不允许制造它们。
 
 from __future__ import annotations
 
-from enum import StrEnum
-
 from pydantic import Field, StrictStr
 
 from app.core.feature_risk_review.contracts import (
+    CoverageState,
     EvidenceRef,
     FeatureChangePoint,
     FeatureDocument,
@@ -43,15 +42,6 @@ from app.core.feature_risk_review.ports import (
     RiskRetrievalQuery,
     TestEvidence,
 )
-
-
-class CoverageState(StrEnum):
-    """测试覆盖状态；空 TestCase[] 不等于零覆盖。"""
-
-    NO_TEST_DATA = "NO_TEST_DATA"
-    PLAN_ONLY = "PLAN_ONLY"
-    PARTIAL_COVERAGE = "PARTIAL_COVERAGE"
-    COVERED = "COVERED"
 
 
 class DocumentAnalysisModelOutput(_Contract):

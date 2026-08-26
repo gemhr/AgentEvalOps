@@ -3,58 +3,132 @@
   "annotations": [
     {
       "case_id": "k8s_541",
-      "annotation_status": "PENDING",
-      "expected_change_points": [],
-      "expected_components": [],
-      "expected_risk_areas": [],
-      "expected_historical_issue_ids": [],
-      "expected_coverage_gaps": [],
-      "expected_risk_level": null,
-      "annotation_source": "human_curated"
+      "annotation_status": "HUMAN_REVIEWED",
+      "expected_change_points": [
+        "Add an exec-based kubeconfig authentication flow that invokes an external provider and accepts bearer-token or mTLS credentials.",
+        "Define versioned ExecCredential input and output contracts with API-version validation, optional cluster information, and interactive-mode handling.",
+        "Cache credentials in memory, rotate them on expiration or HTTP 401, single-flight equivalent executions, and bound provider calls with timeout behavior.",
+        "Configure command, arguments, environment, per-cluster data, install hints, and exec-plugin health metrics."
+      ],
+      "expected_components": ["client-go", "kubeconfig", "exec credential plugin"],
+      "expected_risk_areas": [
+        "Trust and local access control for the external credential-provider binary and returned credentials.",
+        "Authentication outages caused by stale credentials, provider failures, or incorrect rotation.",
+        "Hung provider processes and missing request-cancellation propagation.",
+        "ExecCredential version skew, interactive stdin contention, static-auth interoperability, and missing-binary usability."
+      ],
+      "expected_historical_issue_ids": ["541", "108849", "91217"],
+      "expected_coverage_gaps": [
+        "Upgrade and rollback testing is recorded as N/A, with no executed upgrade-downgrade-upgrade evidence.",
+        "Issue 108849 requires unit and integration coverage for propagating request cancellation to the credential-plugin process; that coverage is not demonstrated.",
+        "The KEP lists integration or CLI checks for rotation, retries, static-auth interaction, and interactive TTY behavior without linking source-backed executions."
+      ],
+      "expected_risk_level": "MEDIUM",
+      "annotation_source": "Human review of raw KEP 541 (Summary, Proposal, Risks, Test Plan, upgrade/version-skew and PRR), enhancement issue 541, enrichment issues 108849 and 91217, test_plans.json, metadata/source manifest and evaluation_reference.md. The opt-in client-side exec path can cause authentication failure or a hung client and introduces a trusted external binary at the credential boundary. Version checks, 401 re-execution, caching, metrics, and kubeconfig rollback limit exposure and recovery, so HIGH is not source-supported; incomplete cancellation and integration evidence prevents LOW."
     },
     {
       "case_id": "k8s_753",
-      "annotation_status": "PENDING",
-      "expected_change_points": [],
-      "expected_components": [],
-      "expected_risk_areas": [],
-      "expected_historical_issue_ids": [],
-      "expected_coverage_gaps": [],
-      "expected_risk_level": null,
-      "annotation_source": "human_curated"
+      "annotation_status": "HUMAN_REVIEWED",
+      "expected_change_points": [
+        "Represent a native sidecar as an init container whose per-container restartPolicy is Always.",
+        "Advance initialization after sidecar startupProbe success or postStart completion instead of waiting for sidecar termination.",
+        "Keep sidecars alive while regular containers run, restart them independently of Pod restart policy, and terminate them after regular containers complete.",
+        "Enable lifecycle handlers and probes and include sidecars in readiness, admission, scheduling, resource, QoS, OOM, and version-skew behavior."
+      ],
+      "expected_components": ["kubelet", "kube-apiserver", "kube-scheduler", "kube-controller-manager"],
+      "expected_risk_areas": [
+        "Pod startup deadlock or workload unavailability from incorrect sidecar startup and probe state.",
+        "Termination ordering, TGPS exhaustion, CrashLoopBackOff, and Jobs that never complete.",
+        "Feature-gate, downgrade, old-client, or webhook field stripping that reinterprets a sidecar as a blocking init container.",
+        "Scheduler and kubelet resource-accounting, QoS, readiness, and endpoint divergence."
+      ],
+      "expected_historical_issue_ids": ["753", "127701", "132826"],
+      "expected_coverage_gaps": [
+        "No integration tests are planned; the KEP relies on e2e_node coverage for coordinated control-plane and kubelet behavior.",
+        "API-server unavailability during sidecar initialization is called important and historically problematic, but the source does not establish it is fixed and covered.",
+        "Issue 132826 demonstrates a missing regression path for a sidecar startupProbe that fails before restart when Pod restartPolicy is Never and another probe exists.",
+        "Old clients or mutating webhooks can strip restartPolicy; automated compatibility coverage is not demonstrated."
+      ],
+      "expected_risk_level": "HIGH",
+      "annotation_source": "Human review of raw KEP 753 (Proposal, lifecycle/resource design, Risks, Test Plan, downgrade/version-skew and PRR), enhancement issue 753, enrichment issues 127701 and 132826, test_plans.json, metadata/source manifest and evaluation_reference.md. A directly related accepted bug shows a kubelet probe race can leave the main container permanently in PodInitializing; downgrade and field-stripping paths can also make Pods unusable. Exposure is configuration-specific, but mitigation and cross-component coverage are incomplete and the failure reaches workload availability, satisfying HIGH."
     },
     {
       "case_id": "k8s_1287",
-      "annotation_status": "PENDING",
-      "expected_change_points": [],
-      "expected_components": [],
-      "expected_risk_areas": [],
-      "expected_historical_issue_ids": [],
-      "expected_coverage_gaps": [],
-      "expected_risk_level": null,
-      "annotation_source": "human_curated"
+      "annotation_status": "HUMAN_REVIEWED",
+      "expected_change_points": [
+        "Make Pod CPU and memory requests and limits mutable through in-place resize and the resize subresource.",
+        "Treat PodSpec as desired state while exposing allocated and actuated resources plus pending and in-progress resize conditions in Pod status.",
+        "Add per-resource ResizePolicy semantics controlling whether CPU or memory changes may restart a container.",
+        "Coordinate admission, quota, scheduler allocation, kubelet actuation, deferred or infeasible retries, and idempotent CRI resource updates."
+      ],
+      "expected_components": ["Pod v1 core API", "LimitRanger", "ResourceQuota", "kubelet", "kube-scheduler", "Container Runtime Interface"],
+      "expected_risk_areas": [
+        "Desired, allocated, and actuated resources diverging and misleading API clients.",
+        "Scheduler and resize races that over-subscribe a node or cause OutOfCPU or OutOfMemory rejection.",
+        "Unexpected restart, OOM, or indefinitely in-progress resize during resource changes.",
+        "Version skew, partial multi-container actuation, checkpoint failure, and unsupported runtime or policy interactions."
+      ],
+      "expected_historical_issue_ids": ["1287", "116415", "122760"],
+      "expected_coverage_gaps": [
+        "The scheduler-versus-resize over-subscription race is explicitly out of scope and remains unverified.",
+        "Upgrade-downgrade-upgrade is presented as a testing plan rather than completed evidence, including skew before containers are running.",
+        "Issue 122760 records an unintended restart despite NotRequired, and issue 116415 records a flaky scheduler e2e path producing invalid negative resources.",
+        "READ and REPLACE resize endpoint coverage is described as still needing a basic test."
+      ],
+      "expected_risk_level": "HIGH",
+      "annotation_source": "Human review of raw KEP 1287 (API/CRI changes, Affected Components, Risks, Test Plan, version-skew and PRR), enhancement issue 1287, enrichment issues 116415 and 122760, test_plans.json, metadata/source manifest and evaluation_reference.md. The KEP says restart seriously disrupts stateful and batch workloads and documents over-subscription, unknown state, indefinite resize, and OOM paths. Issue 122760 directly demonstrates unintended restart; accepted race and skew gaps remain. These reach workload and core resource availability and can require coordinated drain or retry, satisfying HIGH despite extensive existing tests."
     },
     {
       "case_id": "k8s_1472",
-      "annotation_status": "PENDING",
-      "expected_change_points": [],
-      "expected_components": [],
-      "expected_risk_areas": [],
-      "expected_historical_issue_ids": [],
-      "expected_coverage_gaps": [],
-      "expected_risk_level": null,
-      "annotation_source": "human_curated"
+      "annotation_status": "HUMAN_REVIEWED",
+      "expected_change_points": [
+        "Introduce the namespaced CSIStorageCapacity API for capacity by storage class and topology segment.",
+        "Add CSIDriver.spec.storageCapacity as the driver opt-in for capacity-aware scheduling.",
+        "Extend external-provisioner to gather CSI GetCapacity data and manage CSIStorageCapacity objects.",
+        "Make kube-scheduler watch capacity and filter nodes that cannot satisfy pending late-binding volume requests while preserving legacy behavior for non-opted-in drivers."
+      ],
+      "expected_components": ["kube-apiserver", "kube-scheduler", "external-provisioner", "CSI driver"],
+      "expected_risk_areas": [
+        "Stale or missing capacity data leaving Pods pending or causing volume creation on an unsuitable node.",
+        "Missing scheduler requeue when capacity or driver support changes.",
+        "API-server and scheduler load from capacity object cardinality and update rate.",
+        "Rollback, version skew, driver degradation, and incomplete coverage of bound PVCs or storage changes outside Kubernetes."
+      ],
+      "expected_historical_issue_ids": ["1472", "104250", "135985"],
+      "expected_coverage_gaps": [
+        "The Test Plan says full end-to-end RBAC and capacity-aware scheduling coverage is needed and describes tests to be written.",
+        "Automated upgrade, downgrade, and scalability tests are graduation work; only a manual rollback and re-enable experiment is documented.",
+        "Issue 104250 exposes missing scheduler requeue coverage when capacity changes.",
+        "Capacity-aware placement for already-bound PVCs is outside the primary late-binding path, as demonstrated by issue 135985."
+      ],
+      "expected_risk_level": "MEDIUM",
+      "annotation_source": "Human review of raw KEP 1472 (Summary, Proposal/API, Test Plan, PRR and limitations), enhancement issue 1472, enrichment issues 104250 and 135985, test_plans.json, metadata/source manifest and evaluation_reference.md. Stale capacity and missing requeue can leave volume-backed Pods pending or make provisioning fail, while object volume can load the apiserver. The path is CSI-driver opt-in, running workloads are normally unaffected, publication can be disabled, and stale objects recover, so HIGH is not supported; direct scheduling gaps and incomplete automated E2E/upgrade/scalability evidence prevent LOW."
     },
     {
       "case_id": "k8s_1602",
-      "annotation_status": "PENDING",
-      "expected_change_points": [],
-      "expected_components": [],
-      "expected_risk_areas": [],
-      "expected_historical_issue_ids": [],
-      "expected_coverage_gaps": [],
-      "expected_risk_level": null,
-      "annotation_source": "human_curated"
+      "annotation_status": "HUMAN_REVIEWED",
+      "expected_change_points": [
+        "Standardize log messages as a message plus key-value pairs and add klog InfoS and ErrorS.",
+        "Add canonical Kubernetes object-reference helpers such as KObj and KRef.",
+        "Upgrade to klog v2 and add configurable JSON output with reserved keys and deterministic serialization.",
+        "Migrate high-volume component logs incrementally, prevent regression in migrated directories, and benchmark performance and log volume."
+      ],
+      "expected_components": ["klog", "component-base", "kube-apiserver", "kube-controller-manager", "kube-scheduler", "kubelet"],
+      "expected_risk_areas": [
+        "Nil or malformed object references causing a panic inside core components while logging.",
+        "Mixed or changed schemas breaking ingestion, alerting, and diagnostics during migration or rollback.",
+        "Increased log volume, disk or pipeline pressure, and logger CPU overhead.",
+        "Partial migration and logging API evolution causing compatibility or performance regressions."
+      ],
+      "expected_historical_issue_ids": ["1602", "100155", "110737"],
+      "expected_coverage_gaps": [
+        "The KEP Test Plan is a one-sentence proposal and does not enumerate or link completed failure-path coverage.",
+        "Feature enablement and disablement tests are N/A, with no explicit automated mixed-schema rollback evidence.",
+        "Issue 100155 requires a direct regression for KObj(nil) panicking kubelet.",
+        "Issue 110737 replaces linear KObjs with KObjSlice without frozen performance or compatibility regression evidence for the repository-wide migration."
+      ],
+      "expected_risk_level": "HIGH",
+      "annotation_source": "Human review of raw KEP 1602 (logging API, object-reference, JSON, performance, Risks, Test Plan and PRR), enhancement issue 1602, enrichment issues 100155 and 110737, test_plans.json, metadata/source manifest and evaluation_reference.md. JSON selection is explicit and ordinary mixed-format rollout should not affect workloads, but issue 100155 is a directly related critical-urgent bug where KObj(nil) panicked kubelet. That is a concrete path to core node-component availability while regression evidence is weak, satisfying HIGH; log-volume and schema risks alone would otherwise be MEDIUM."
     }
   ]
 }

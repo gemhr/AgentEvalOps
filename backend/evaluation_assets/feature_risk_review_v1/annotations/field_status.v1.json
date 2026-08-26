@@ -1,0 +1,61 @@
+{
+  "schema_version": "feature-risk-review-field-status.v1",
+  "note": "WP4 evaluation-only sidecar；不进入 runtime，不作为 prediction 输入。5 个冻结 Case 已在明确授权下依据 source-only 材料完成人工审核。",
+  "cases": [
+    {
+      "case_id": "k8s_541",
+      "field_statuses": [
+        {"field": "expected_change_points", "status": "EVALUATED", "reason": "Reviewed against KEP Summary, Proposal, and Design Details."},
+        {"field": "expected_components", "status": "EVALUATED", "reason": "Canonical component names are stated in the KEP and PRR."},
+        {"field": "expected_risk_areas", "status": "EVALUATED", "reason": "Reviewed against KEP risks, PRR failure modes, and frozen issue snapshots."},
+        {"field": "expected_historical_issue_ids", "status": "EVALUATED", "reason": "Stable IDs verified against the frozen tracking issue and enrichment snapshots."},
+        {"field": "expected_coverage_gaps", "status": "EVALUATED", "reason": "Reviewed against the frozen Test Plan, PRR, and issue-requested tests."},
+        {"field": "expected_risk_level", "status": "EVALUATED", "reason": "MEDIUM: realistic opt-in authentication availability risk with partial mitigation and incomplete tests, without a source-backed broad core outage."}
+      ]
+    },
+    {
+      "case_id": "k8s_753",
+      "field_statuses": [
+        {"field": "expected_change_points", "status": "EVALUATED", "reason": "Reviewed against KEP Proposal and lifecycle/resource Design Details."},
+        {"field": "expected_components", "status": "EVALUATED", "reason": "Feature-gate and rollout sections identify the coordinated components."},
+        {"field": "expected_risk_areas", "status": "EVALUATED", "reason": "Reviewed against KEP risks, downgrade/version-skew, PRR, and issue snapshots."},
+        {"field": "expected_historical_issue_ids", "status": "EVALUATED", "reason": "Stable IDs verified against the frozen tracking issue and enrichment snapshots."},
+        {"field": "expected_coverage_gaps", "status": "EVALUATED", "reason": "Reviewed against the Test Plan and startupProbe and field-stripping issues."},
+        {"field": "expected_risk_level", "status": "EVALUATED", "reason": "HIGH: a directly related kubelet probe race can permanently block main-container startup, with incomplete cross-component mitigation evidence."}
+      ]
+    },
+    {
+      "case_id": "k8s_1287",
+      "field_statuses": [
+        {"field": "expected_change_points", "status": "EVALUATED", "reason": "Reviewed against KEP API, resource-state, policy, and CRI sections."},
+        {"field": "expected_components", "status": "EVALUATED", "reason": "Canonical names come from the KEP Affected Components section."},
+        {"field": "expected_risk_areas", "status": "EVALUATED", "reason": "Reviewed against KEP risks, version-skew, troubleshooting, and issue snapshots."},
+        {"field": "expected_historical_issue_ids", "status": "EVALUATED", "reason": "Stable IDs verified against the frozen tracking issue and enrichment snapshots."},
+        {"field": "expected_coverage_gaps", "status": "EVALUATED", "reason": "Reviewed against the Test Plan, known races, and two regression reports."},
+        {"field": "expected_risk_level", "status": "EVALUATED", "reason": "HIGH: unintended restart and unknown or over-subscribed resource state can disrupt sensitive workloads, with direct historical evidence and accepted race gaps."}
+      ]
+    },
+    {
+      "case_id": "k8s_1472",
+      "field_statuses": [
+        {"field": "expected_change_points", "status": "EVALUATED", "reason": "Reviewed against KEP Summary, Proposal, API, and capacity publication sections."},
+        {"field": "expected_components", "status": "EVALUATED", "reason": "Canonical names follow the documented capacity data flow."},
+        {"field": "expected_risk_areas", "status": "EVALUATED", "reason": "Reviewed against KEP limitations, PRR failure/scalability, and issue snapshots."},
+        {"field": "expected_historical_issue_ids", "status": "EVALUATED", "reason": "Stable IDs verified against the frozen tracking issue and enrichment snapshots."},
+        {"field": "expected_coverage_gaps", "status": "EVALUATED", "reason": "Reviewed against the Test Plan, graduation gaps, and scheduler/bound-PVC issues."},
+        {"field": "expected_risk_level", "status": "EVALUATED", "reason": "MEDIUM: realistic but opt-in and recoverable scheduling/provisioning degradation, without source-backed broad running-workload impact."}
+      ]
+    },
+    {
+      "case_id": "k8s_1602",
+      "field_statuses": [
+        {"field": "expected_change_points", "status": "EVALUATED", "reason": "Reviewed against KEP logging API, object-reference, JSON, migration, and performance sections."},
+        {"field": "expected_components", "status": "EVALUATED", "reason": "Canonical components are listed in migration and feature-enablement scope."},
+        {"field": "expected_risk_areas", "status": "EVALUATED", "reason": "Reviewed against KEP risks, PRR, and the panic and API-evolution issues."},
+        {"field": "expected_historical_issue_ids", "status": "EVALUATED", "reason": "Stable IDs verified against the frozen tracking issue and enrichment snapshots."},
+        {"field": "expected_coverage_gaps", "status": "EVALUATED", "reason": "Reviewed against the minimal Test Plan, N/A enablement tests, and direct issues."},
+        {"field": "expected_risk_level", "status": "EVALUATED", "reason": "HIGH: a directly related critical logging-helper bug panicked kubelet, reaching core node-component availability while regression evidence is weak."}
+      ]
+    }
+  ]
+}

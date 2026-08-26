@@ -9,12 +9,12 @@
     "k8s_1472",
     "k8s_1602"
   ],
-  "git_commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+  "git_commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
   "dataset_digest": "467c4aef80102bd69f88ef6834bfff6f5fb8ff645c4389768721f670c98ce3c3",
   "annotation_digest": "156f3490d65e47256b30d7069fcd28a057e1214c3f301238c576f98b26cf668c",
   "risk_level_rubric_authority": {
     "path": "evaluation_assets/feature_risk_review_v1/annotations/RISK_LEVEL_RUBRIC.v1.md",
-    "commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+    "commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
     "sha256": "663776e405d02baef3fe3edd664ab277e57ebe6ff77767d763feef6f044901a9"
   },
   "model_ref": "deepseek/deepseek-chat",
@@ -24,48 +24,48 @@
   "retrieval_corpus_digest": "de09a5c14a92a25af44d24545329f196e828eb6a566793e2310918ee9bb57190",
   "agents_authority": {
     "path": "app/core/feature_risk_review/agents.py",
-    "commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+    "commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
     "sha256": "ab33193b4b150f1fd97f2f493093c84638e96669ad29470ee5f9f8fa96b0302f"
   },
   "workflow_authority": {
     "path": "app/core/feature_risk_review/workflow.py",
-    "commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+    "commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
     "sha256": "3b2727b29bffb156900ae0bdc2eac5c399a27911fbfa59475a0a45fc526a7456"
   },
   "aggregator_authority": {
     "path": "app/core/feature_risk_review/aggregation.py",
-    "commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+    "commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
     "sha256": "d8dd12b5d9406fc14ee8f20972977fc4c02dbd1133c6a550b30f4ef4b7f2456e"
   },
   "renderer_authority": {
     "path": "app/core/feature_risk_review/aggregation.py",
-    "commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+    "commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
     "sha256": "d8dd12b5d9406fc14ee8f20972977fc4c02dbd1133c6a550b30f4ef4b7f2456e"
   },
   "risk_policy_authority": {
     "path": "app/core/feature_risk_review/aggregation.py",
-    "commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+    "commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
     "sha256": "d8dd12b5d9406fc14ee8f20972977fc4c02dbd1133c6a550b30f4ef4b7f2456e"
   },
   "priority_policy_authority": {
     "path": "app/core/feature_risk_review/aggregation.py",
-    "commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+    "commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
     "sha256": "d8dd12b5d9406fc14ee8f20972977fc4c02dbd1133c6a550b30f4ef4b7f2456e"
   },
   "lexical_scoring_authority": {
     "path": "app/adapters/feature_risk_review/retrieval.py",
-    "commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+    "commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
     "sha256": "9a287aa9b811fdd2b16b57fbf26f11f1b9e60d766c9d43979f0bb9d721f00a5d"
   },
   "source_boost_authority": {
     "path": "app/adapters/feature_risk_review/retrieval.py",
-    "commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+    "commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
     "sha256": "9a287aa9b811fdd2b16b57fbf26f11f1b9e60d766c9d43979f0bb9d721f00a5d"
   },
   "query_construction_authority": {
     "path": "app/core/feature_risk_review/agents.py",
-    "commit": "0b84a3daf0f42d5aaaa88c4fa8c5de0c3740c4f0",
+    "commit": "96e5a0d61fec832f40bfe67c3bbdb3e5873c99da",
     "sha256": "ab33193b4b150f1fd97f2f493093c84638e96669ad29470ee5f9f8fa96b0302f"
   },
-  "built_at": "2026-08-26T13:29:58.246508Z"
+  "built_at": "2026-08-26T13:38:44.408353Z"
 }

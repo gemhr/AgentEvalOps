@@ -1,0 +1,179 @@
+{
+  "prediction": {
+    "schema_version": "feature-risk-review-prediction.v1",
+    "case_id": "k8s_1287",
+    "attempt": 1,
+    "execution_classification": "BUSINESS_RESULT",
+    "model_ref": "deepseek/deepseek-chat",
+    "started_at": "2026-08-26T13:49:25.721708Z",
+    "finished_at": "2026-08-26T13:50:10.527779Z",
+    "workflow": {
+      "case_id": "k8s_1287",
+      "workflow_status": "FAILED",
+      "document_analysis": {
+        "branch": "document_analysis",
+        "status": "SUCCESS",
+        "value": {
+          "case_id": "k8s_1287",
+          "feature_summary": "This feature enables in-place updates of Pod resource requests and limits without restarting containers. It introduces a new /resize subresource for mutating resources, extends PodStatus with allocated and actual resources, adds resize policies and conditions, and updates the CRI API to support cross-platform resource updates and querying. The Kubelet manages resource allocation, actuation, and status reporting, while the scheduler and quota controllers account for pending resizes.",
+          "change_points": [
+            {
+              "description": "Introduces a new /resize subresource for Pods, allowing updates to container resources and resizePolicy. This changes the API surface and validation rules, making resources mutable only through this subresource.",
+              "affected_components": [
+                "API Server",
+                "Pod API",
+                "Admission Controllers"
+              ],
+              "change_type": "API change",
+              "potential_risk_areas": [
+                "Validation logic",
+                "API compatibility",
+                "Authorization and admission control"
+              ]
+            },
+            {
+              "description": "Extends PodStatus with new fields: ContainerStatuses[i].Resources (actual resources), ContainerStatuses[i].AllocatedResources (allocated requests), and new Pod conditions PodResizePending and PodResizeInProgress. This changes status reporting and may affect clients that consume pod status.",
+              "affected_components": [
+                "API Server",
+                "Kubelet",
+                "Scheduler",
+                "Resource Quota Controller"
+              ],
+              "change_type": "API change",
+              "potential_risk_areas": [
+                "Status consistency",
+                "Client compatibility",
+                "Resource accounting"
+              ]
+            },
+            {
+              "description": "Adds a new ResizePolicy field to PodSpec.Containers, allowing per-resource-type restart policies (NotRequired or RestartContainer). This affects validation and Kubelet behavior during resize.",
+              "affected_components": [
+                "API Server",
+                "Kubelet"
+              ],
+              "change_type": "API change",
+              "potential_risk_areas": [
+                "Validation rules",
+                "Kubelet resize decision logic"
+              ]
+            },
+            {
+              "description": "Modifies the CRI UpdateContainerResources API to be cross-platform (Windows and non-Linux) and adds a new UpdatePodSandboxResources API. Also extends ContainerStatus to report current resource configuration. This changes the contract between Kubelet and container runtimes.",
+              "affected_components": [
+                "Kubelet",
+                "Container Runtime Interface (CRI)",
+                "Container Runtimes (containerd, CRI-O, etc.)"
+              ],
+              "change_type": "API change",
+              "potential_risk_areas": [
+                "Runtime compatibility",
+                "Idempotency",
+                "Error handling"
+              ]
+            },
+            {
+              "description": "Kubelet now tracks four resource states (desired, allocated, actuated, actual) and manages resize admission, actuation, and status updates. This includes new logic for prioritizing resize requests, handling deferred/infeasible resizes, and managing memory limit decreases.",
+              "affected_components": [
+                "Kubelet"
+              ],
+              "change_type": "Behavioral change",
+              "potential_risk_areas": [
+                "Resource accounting",
+                "Race conditions",
+                "Kubelet restart recovery",
+                "Memory limit decrease handling"
+              ]
+            },
+            {
+              "description": "Scheduler and Resource Quota controller now consider pending resizes by using the maximum of desired, actual, and allocated resources. This changes how node fit and quota usage are computed.",
+              "affected_components": [
+                "Scheduler",
+                "Resource Quota Controller"
+              ],
+              "change_type": "Behavioral change",
+              "potential_risk_areas": [
+                "Scheduling decisions",
+                "Quota enforcement",
+                "Race conditions with concurrent pod additions"
+              ]
+            },
+            {
+              "description": "Adds new kubelet metrics for tracking resize attempts, durations, infeasible resizes, pending/in-progress counts, and deferred resize acceptances. This is an observability change.",
+              "affected_components": [
+                "Kubelet",
+                "Monitoring systems"
+              ],
+              "change_type": "Observability change",
+              "potential_risk_areas": [
+                "Metric cardinality",
+                "Metric accuracy"
+              ]
+            },
+            {
+              "description": "Imposes limitations on resizing for certain pod types: static pods, pods with swap enabled, guaranteed pods with static CPU/memory manager policies, and non-restartable init containers. These are explicitly non-goals or restrictions.",
+              "affected_components": [
+                "Kubelet",
+                "API Server"
+              ],
+              "change_type": "Behavioral change",
+              "potential_risk_areas": [
+                "User expectations",
+                "Feature completeness"
+              ]
+            }
+          ],
+          "affected_components": [
+            "API Server",
+            "Kubelet",
+            "Scheduler",
+            "Container Runtime Interface (CRI)",
+            "Container Runtimes",
+            "Admission Controllers",
+            "Resource Quota Controller",
+            "Monitoring systems"
+          ],
+          "potential_risk_areas": [
+            "API compatibility",
+            "Validation logic",
+            "Resource accounting",
+            "Race conditions",
+            "Kubelet restart recovery",
+            "Runtime compatibility",
+            "Memory limit decrease handling",
+            "Scheduling decisions",
+            "Quota enforcement",
+            "Metric cardinality"
+          ],
+          "uncertainty": "The document references external proposals and links that are not analyzed. The exact implementation details of the CRI changes and the behavior of runtimes are not fully specified. The impact on existing clients and controllers is not fully detailed. The document mentions future enhancements that are out of scope, which may introduce ambiguity."
+        },
+        "failure": null
+      },
+      "risk_retrieval": {
+        "branch": "risk_retrieval",
+        "status": "FAILED",
+        "value": null,
+        "failure": {
+          "branch": "risk_retrieval",
+          "error_type": "FeatureRiskReviewModelOutputError",
+          "message": "model output failed schema validation: risk_findings, risk_findings",
+          "recoverable": false
+        }
+      },
+      "test_review": {
+        "branch": "test_review",
+        "status": "FAILED",
+        "value": null,
+        "failure": {
+          "branch": "test_review",
+          "error_type": "FeatureRiskReviewModelOutputError",
+          "message": "model output is not valid JSON",
+          "recoverable": false
+        }
+      }
+    },
+    "report": null,
+    "report_markdown": null,
+    "runtime_manifest_digest": "798ac7114e3eef95b7c50758195b3231af7ffdbc495644761d0edf79d733d776"
+  }
+}

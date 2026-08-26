@@ -1,0 +1,771 @@
+{
+  "prediction": {
+    "schema_version": "feature-risk-review-prediction.v1",
+    "case_id": "k8s_1472",
+    "attempt": 1,
+    "execution_classification": "BUSINESS_RESULT",
+    "model_ref": "deepseek/deepseek-chat",
+    "started_at": "2026-08-26T13:50:10.528459Z",
+    "finished_at": "2026-08-26T13:50:24.071321Z",
+    "workflow": {
+      "case_id": "k8s_1472",
+      "workflow_status": "SUCCESS",
+      "document_analysis": {
+        "branch": "document_analysis",
+        "status": "SUCCESS",
+        "value": {
+          "case_id": "k8s_1472",
+          "feature_summary": "This feature introduces a new Kubernetes API type, CSIStorageCapacity, to expose storage capacity information from CSI drivers, and enhances the scheduler to use this information when making pod scheduling decisions for volumes with delayed binding or ephemeral inline volumes. The goal is to reduce the risk of scheduling pods onto nodes where volume creation will fail due to insufficient storage capacity. The feature includes a new field in CSIDriver.spec to opt-in, and extends the external-provisioner sidecar to gather and manage capacity data.",
+          "change_points": [
+            {
+              "description": "New API type CSIStorageCapacity is introduced to store capacity information per storage class and topology segment.",
+              "affected_components": [
+                "API server",
+                "etcd",
+                "kube-apiserver",
+                "CSIStorageCapacity resource"
+              ],
+              "change_type": "new API",
+              "potential_risk_areas": [
+                "API compatibility",
+                "etcd storage overhead",
+                "object lifecycle management"
+              ]
+            },
+            {
+              "description": "New boolean field 'storageCapacity' added to CSIDriver.spec to indicate driver support for capacity-aware scheduling.",
+              "affected_components": [
+                "CSIDriver API",
+                "kube-scheduler",
+                "CSI driver deployments"
+              ],
+              "change_type": "API extension",
+              "potential_risk_areas": [
+                "API compatibility",
+                "migration from immutable to mutable field",
+                "scheduler behavior changes"
+              ]
+            },
+            {
+              "description": "External-provisioner sidecar extended to gather capacity information from CSI drivers and create/update/delete CSIStorageCapacity objects.",
+              "affected_components": [
+                "external-provisioner",
+                "CSI driver",
+                "API server"
+              ],
+              "change_type": "new functionality",
+              "potential_risk_areas": [
+                "resource usage",
+                "object lifecycle",
+                "orphaned objects",
+                "performance"
+              ]
+            },
+            {
+              "description": "Kubernetes scheduler's CheckVolumeBinding function extended to filter nodes based on reported storage capacity.",
+              "affected_components": [
+                "kube-scheduler",
+                "volume scheduling library"
+              ],
+              "change_type": "behavior change",
+              "potential_risk_areas": [
+                "scheduling correctness",
+                "performance",
+                "false negatives/positives"
+              ]
+            }
+          ],
+          "affected_components": [
+            "kube-scheduler",
+            "external-provisioner",
+            "CSI driver",
+            "API server",
+            "etcd",
+            "CSIStorageCapacity API",
+            "CSIDriver API"
+          ],
+          "potential_risk_areas": [
+            "API compatibility",
+            "scheduler performance",
+            "object lifecycle management",
+            "orphaned objects",
+            "false scheduling decisions",
+            "etcd storage overhead",
+            "migration complexity"
+          ],
+          "uncertainty": "The document mentions that the CSIStorageCapacity API is in v1alpha1 and may change. The exact behavior of the scheduler when capacity information is missing or inconsistent is not fully specified. The document also notes that the feature does not model pending volume operations, which could lead to inaccurate capacity estimates."
+        },
+        "failure": null
+      },
+      "risk_retrieval": {
+        "branch": "risk_retrieval",
+        "status": "SUCCESS",
+        "value": {
+          "case_id": "k8s_1472",
+          "retrieved_historical_issues": [
+            {
+              "issue_id": "1472",
+              "title": "Storage Capacity Tracking",
+              "description": "- One-line enhancement description (can be used as a release note): Supports exposing currently available storage capacity via CSIStorageCapacity objects and enhances scheduling of pods that use CSI volumes with late binding\r\n- Kubernetes Enhancement Proposal PRs: https://github.com/kubernetes/enhancements/pull/1353 and https://github.com/kubernetes/enhancements/pull/1409\r\n- KEP: https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1472-storage-capacity-tracking\r\n- Primary contact (assignee): @pohly \r\n- Responsible SIGs: sig-storage\r\n- Enhancement target (which target equals to which milestone):\r\n  - Alpha release target (x.y): 1.19\r\n  - Beta release target (x.y): 1.21\r\n  - Stable release target (x.y): 1.24\r\n- [ ] Stable\r\n  - [x] KEP (`k/enhancements`) update PR(s): https://github.com/kubernetes/enhancements/pull/3229\r\n  - [x] Code (`k/k`) update PR(s): https://github.com/kubernetes/kubernetes/pull/108445\r\n  - [ ] Docs (`k/website`) update(s): https://github.com/kubernetes/website/pull/32008\r\n",
+              "component": "sig-storage",
+              "labels": [
+                "sig/storage",
+                "stage/stable",
+                "lifecycle/rotten"
+              ],
+              "state": "closed",
+              "severity": null,
+              "curated_severity": null,
+              "annotation_source": null,
+              "evidence_ref": {
+                "evidence_id": "k8s_1472:issue:1472",
+                "source_type": "github_enhancement_tracking_issue",
+                "source_id": "1472",
+                "source_path": "raw/github_issues/enhancements_1472.json",
+                "source_url": "https://github.com/kubernetes/enhancements/issues/1472",
+                "section": null
+              }
+            }
+          ],
+          "retrieved_evidence": [
+            {
+              "source_fragment": "TITLE: scheduler: trigger pod scheduling when CSIStorageCapacity or CSIDriver.Spec.StorageCapacity change\n\nBODY: #### What would you like to be added:\r\n\r\nWhen CSIStorageCapacity changes or `CSIDriver.Spec.StorageCapacity` is reset from `true` to `false`, pods that were blocked by a lack of storage capacity might become scheduable. `kube-scheduler` could watch those objects and selectively (?) add affected pods to the work queue.\r\n\r\nSee https://github.com/kubernetes/kubernetes/pull/101789#discussion_r643593390.\r\n\r\n#### Why is this needed:\r\n\r\nFaster scheduling of pods.",
+              "evidence_ref": {
+                "evidence_id": "k8s_1472:historical:k8s-k8s:104250",
+                "source_type": "kubernetes_issue_snapshot",
+                "source_id": "104250",
+                "source_path": "retrieval/enrichment/kubernetes_kubernetes_issue_1472_104250.json",
+                "source_url": "https://github.com/kubernetes/kubernetes/issues/104250",
+                "section": "issue_body"
+              },
+              "relevance_score": 2.541241
+            },
+            {
+              "source_fragment": "A new field `storageCapacity` of type `boolean` with default `false`\nin\n[CSIDriver.spec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#csidriverspec-v1-storage-k8s-io)\nindicates whether a driver deployment will create `CSIStorageCapacity`\nobjects with capacity information and wants the Kubernetes scheduler\nto rely on that information when making scheduling decisions that\ninvolve volumes that need to be created by the driver.\n\nIf not set or false, the scheduler makes such decisions without considering\nwhether the driver really can create the volumes (the current situation).\n\nThis field was initially immutable for the sake of consistency with\nthe other fields. Deployments of a CSI driver had to delete and\nrecreate the object to switch from \"feature disabled\" to \"feature\nenabled\". This turned out to be problematic:\n- Seamless upgrades from a driver version without support of the feature\n  to a version with support is harder (`kubectl apply` fails, operators\n  need special cases to handle `CSIDriver`).\n- Rolling out a driver without delaying pod scheduling and later\n  enabling the check when the driver had published\n  `CSIStorageCapacity` objects had to be done such that the driver was\n  temporarily active without a `CSIDriver` object, which may have\n  affected other aspects like skipping attach.\n\nStarting with Kubernetes 1.23, the field can be modified. Clients\nthat assume that it is immutable work as before. The only consumer\nis the Kubernetes scheduler. It supports mutability because it always\nuses the current `CSIDriver` object from the informer cache.",
+              "evidence_ref": {
+                "evidence_id": "k8s_1472:kep-design-details-api-p3",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "1472",
+                "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+                "section": "Design Details / API"
+              },
+              "relevance_score": 2.464752
+            },
+            {
+              "source_fragment": "TITLE: Consider CSIStorageCapacity when scheduling pods with already-bound PVCs\n\nBODY: Is it possible to extend `CSIStorageCapacity` tracking so that the scheduler also considers it when scheduling pods whose PVCs are already bound?\n\nWhen a node hosting a pod is drained (for example, during maintenance or upgrades), the pod needs to be rescheduled. Currently, the scheduler does not use `CSIStorageCapacity` information for pods with bound PVCs. For storage backends that support volume rebuild or migration, it would be useful if the scheduler could prefer nodes with sufficient available storage capacity, so that the new node can accommodate the original volume and keep the pod and volume co-located for better I/O performance. At the moment, this is not supported, and pods can occasionally be scheduled onto nodes where volumes cannot be rebuilt.\n\nDo you think this should be addressed on the Kubernetes side, or does it need to be handled by the storage backend? If on the Kubernetes side, this could potentially be implemented by adding a new field to StorageClass.\n\n/sig storage\n/sig scheduling",
+              "evidence_ref": {
+                "evidence_id": "k8s_1472:historical:k8s-k8s:135985",
+                "source_type": "kubernetes_issue_snapshot",
+                "source_id": "135985",
+                "source_path": "retrieval/enrichment/kubernetes_kubernetes_issue_1472_135985.json",
+                "source_url": "https://github.com/kubernetes/kubernetes/issues/135985",
+                "section": "issue_body"
+              },
+              "relevance_score": 2.256228
+            },
+            {
+              "source_fragment": "A sidecar, external-provisioner in this proposal, will be extended to\nhandle the management of the new objects. This follows the normal\napproach that integration into Kubernetes is managed as part of the\nCSI driver deployment, ideally without having to modify the CSI driver\nitself.",
+              "evidence_ref": {
+                "evidence_id": "k8s_1472:kep-proposal-gathering-capacity-information",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "1472",
+                "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+                "section": "Proposal / Gathering capacity information"
+              },
+              "relevance_score": 2.19089
+            },
+            {
+              "source_fragment": "The Kubernetes scheduler already has a component, the [volume\nscheduling\nlibrary](https://github.com/kubernetes/kubernetes/tree/master/pkg/controller/volume/scheduling),\nwhich implements [topology-aware\nscheduling](https://github.com/kubernetes/design-proposals-archive/blob/master/storage/volume-topology-scheduling.md).\n\nThe\n[CheckVolumeBinding](https://github.com/kubernetes/design-proposals-archive/blob/master/storage/volume-topology-scheduling.md#integrating-volume-binding-with-pod-scheduling)\nfunction gets extended to not only check for a compatible topology of\na node (as it does now), but also to verify whether the node falls\ninto a topology segment that has enough capacity left. This check is\nonly necessary for PVCs that have not been bound yet.\n\nThe lookup sequence will be:\n- find the `CSIDriver` object for the driver\n- check whether it has `CSIDriver.spec.storageCapacity` enabled\n- find all `CSIStorageCapacity` objects that have the right spec\n  (driver, accessible by node, storage class) and sufficient capacity.\n\nThe specified volume size is compared against `Capacity` if\navailable. A topology segment which has no reported capacity or a\ncapacity that is too small is considered unusable at the moment and\nignored.\n\nEach volume gets checked separately, independently of other volumes\nthat are needed by the current pod or by volumes that are about to be\ncreated for other pods. Those scenarios remain problematic.\n\nTrying to model how different volumes affect capacity would be\ndifficult. If the capacity represents \"maximum volume size 10GiB\", it may be possible\nto create exactly one such volume or several, so rejecting the\nnode after one volume could be a false negative. With \"available\ncapacity 10GiB\" it may or may not be possible to create two volumes of\n5GiB each, so accepting the node for two such volumes could be a false\npositive.\n\nMore promising might be to add prioritization of nodes based on how\nmuch capacity they have left, thus spreading out storage usage evenly.\nThis is a likely future extension of this KEP.\n\nEither way, the problem of recovering more gracefully from running out\nof storage after a bad scheduling decision will have to be addressed\neventually. Details for that are in https://github.com/kubernetes/enhancements/pull/1703.",
+              "evidence_ref": {
+                "evidence_id": "k8s_1472:kep-design-details-using-capacity-information",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "1472",
+                "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+                "section": "Design Details / Using capacity information"
+              },
+              "relevance_score": 2.182821
+            }
+          ],
+          "agent_inferred_risk_findings": [
+            {
+              "description": "The new CSIStorageCapacity API and the storageCapacity field in CSIDriver.spec introduce API compatibility risks. The field was initially immutable and later made mutable, which can cause issues for clients that assume immutability, and upgrades from older driver versions may require special handling.",
+              "affected_components": [
+                "API server",
+                "CSIDriver API",
+                "CSI driver"
+              ],
+              "risk_area": "API compatibility",
+              "historical_issue_refs": [
+                "1472"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_1472:kep-design-details-api-p3",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "1472",
+                  "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+                  "section": "Design Details / API"
+                }
+              ],
+              "uncertainty": "The evidence indicates the field was made mutable to address upgrade issues, but the risk of clients relying on immutability remains."
+            },
+            {
+              "description": "The scheduler's CheckVolumeBinding function is extended to filter nodes based on reported storage capacity. This introduces risks of false scheduling decisions because the capacity information may be incomplete or inaccurate, and the scheduler may reject nodes that actually have sufficient capacity or accept nodes that do not.",
+              "affected_components": [
+                "kube-scheduler"
+              ],
+              "risk_area": "false scheduling decisions",
+              "historical_issue_refs": [
+                "1472"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_1472:kep-design-details-using-capacity-information",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "1472",
+                  "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+                  "section": "Design Details / Using capacity information"
+                }
+              ],
+              "uncertainty": "The evidence notes that capacity modeling is difficult and may lead to false positives or negatives, but the exact impact depends on driver reporting accuracy."
+            },
+            {
+              "description": "The external-provisioner sidecar is extended to create, update, and delete CSIStorageCapacity objects. This introduces risks of orphaned objects if the sidecar fails to clean up objects when drivers are removed or when storage classes change, leading to stale capacity information and potential scheduling errors.",
+              "affected_components": [
+                "external-provisioner",
+                "CSIStorageCapacity API",
+                "etcd"
+              ],
+              "risk_area": "object lifecycle management",
+              "historical_issue_refs": [
+                "1472"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_1472:kep-proposal-gathering-capacity-information",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "1472",
+                  "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+                  "section": "Proposal / Gathering capacity information"
+                }
+              ],
+              "uncertainty": "The evidence does not detail cleanup mechanisms, so the risk of orphaned objects is inferred from the change."
+            },
+            {
+              "description": "The scheduler does not watch CSIStorageCapacity or CSIDriver.spec.storageCapacity changes, so pods blocked by lack of capacity may not be rescheduled promptly when capacity becomes available or when the driver disables capacity tracking. This can lead to delayed scheduling and inefficient resource utilization.",
+              "affected_components": [
+                "kube-scheduler"
+              ],
+              "risk_area": "scheduler performance",
+              "historical_issue_refs": [
+                "1472"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_1472:historical:k8s-k8s:104250",
+                  "source_type": "kubernetes_issue_snapshot",
+                  "source_id": "104250",
+                  "source_path": "retrieval/enrichment/kubernetes_kubernetes_issue_1472_104250.json",
+                  "source_url": "https://github.com/kubernetes/kubernetes/issues/104250",
+                  "section": "issue_body"
+                }
+              ],
+              "uncertainty": "The evidence is a feature request for faster scheduling, indicating the current behavior may be suboptimal but not necessarily a regression."
+            },
+            {
+              "description": "The scheduler only considers CSIStorageCapacity for unbound PVCs, not for already-bound PVCs. This can lead to suboptimal scheduling decisions during pod rescheduling (e.g., node drain), potentially placing pods on nodes where volumes cannot be rebuilt, affecting availability and performance.",
+              "affected_components": [
+                "kube-scheduler"
+              ],
+              "risk_area": "false scheduling decisions",
+              "historical_issue_refs": [
+                "1472"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_1472:historical:k8s-k8s:135985",
+                  "source_type": "kubernetes_issue_snapshot",
+                  "source_id": "135985",
+                  "source_path": "retrieval/enrichment/kubernetes_kubernetes_issue_1472_135985.json",
+                  "source_url": "https://github.com/kubernetes/kubernetes/issues/135985",
+                  "section": "issue_body"
+                }
+              ],
+              "uncertainty": "The evidence is a feature request, indicating a known limitation but not a regression from the change."
+            },
+            {
+              "description": "The introduction of CSIStorageCapacity objects increases etcd storage overhead, as each object consumes storage and must be replicated. The number of objects can grow with the number of storage classes, topology segments, and drivers, potentially impacting etcd performance and cluster scalability.",
+              "affected_components": [
+                "etcd",
+                "CSIStorageCapacity API"
+              ],
+              "risk_area": "etcd storage overhead",
+              "historical_issue_refs": [
+                "1472"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_1472:kep-proposal-gathering-capacity-information",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "1472",
+                  "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+                  "section": "Proposal / Gathering capacity information"
+                }
+              ],
+              "uncertainty": "The evidence does not quantify the overhead, but the creation of new API objects inherently adds to etcd load."
+            },
+            {
+              "description": "The mutability of CSIDriver.spec.storageCapacity and the dynamic creation/update of CSIStorageCapacity objects introduce migration complexity for clusters upgrading from older Kubernetes versions or for CSI drivers transitioning to support capacity-aware scheduling. Operators may need to handle special cases during upgrades.",
+              "affected_components": [
+                "API server",
+                "CSIDriver API",
+                "CSI driver",
+                "external-provisioner"
+              ],
+              "risk_area": "migration complexity",
+              "historical_issue_refs": [
+                "1472"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_1472:kep-design-details-api-p3",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "1472",
+                  "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+                  "section": "Design Details / API"
+                }
+              ],
+              "uncertainty": "The evidence mentions that the field was made mutable to ease upgrades, but the complexity remains for clients that assumed immutability."
+            }
+          ],
+          "filtered_invalid_findings": [],
+          "uncertainty": "The evidence is based on design documents and feature requests, not on observed incidents. The actual risk impact depends on implementation details and driver behavior."
+        },
+        "failure": null
+      },
+      "test_review": {
+        "branch": "test_review",
+        "status": "SUCCESS",
+        "value": {
+          "case_id": "k8s_1472",
+          "coverage_state": "PLAN_ONLY",
+          "test_plans": [
+            {
+              "plan_id": "k8s_1472:kep-test-plan",
+              "case_id": "k8s_1472",
+              "content": "### Test Plan\n\nThe Kubernetes scheduler extension will be tested with new unit tests\nthat simulate a variety of scenarios:\n- different volume sizes and types\n- driver with and without storage capacity tracking enabled\n- capacity information for node local storage (node selector with one\n  host name), network attached storage (more complex node selector),\n  storage available in the entire cluster (no node restriction)\n- no suitable node, one suitable node, several suitable nodes\n\nProducing capacity information in external-provisioner also can be\ntested with new unit tests. This has to cover:\n- different modes\n- different storage classes\n- a driver response where storage classes matter and where they\n  don't matter\n- different topologies\n- various older capacity information, including:\n  - no entries\n  - obsolete entries\n  - entries that need to be updated\n  - entries that can be left unchanged\n\nThis needs to run with mocked CSI driver and API server interfaces to\nprovide the input and capture the output.\n\nFull end-to-end testing is needed to ensure that new RBAC rules are\nidentified and documented properly. For this, a new alpha deployment\nin csi-driver-host-path is needed because we have to make changes to\nthe deployment like setting `CSIDriver.spec.storageCapacity` which\nwill only be valid when tested with Kubernetes clusters where\nalpha features are enabled.\n\nThe CSI hostpath driver needs to be changed such that it reports the\nremaining capacity of the filesystem where it creates volumes. The\nexisting raw block volume tests then can be used to ensure that pod\nscheduling works:\n- Those volumes have a size set.\n- Late binding is enabled for the CSI hostpath driver.\n\nA new test can be written which checks for `CSIStorageCapacity` objects,\nasks for pod scheduling with a volume that is too large, and then\nchecks for events that describe the problem.\n",
+              "evidence_ref": {
+                "evidence_id": "k8s_1472:test-plan",
+                "source_type": "kep_test_plan",
+                "source_id": "1472",
+                "source_path": "tests/test_plans.json",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+                "section": "case_id=k8s_1472"
+              }
+            }
+          ],
+          "test_cases": [],
+          "coverage_assessment": "The existing test plan covers unit tests for scheduler scenarios (volume sizes/types, driver capacity tracking, topologies, node availability), external-provisioner unit tests (modes, storage classes, topologies, capacity info lifecycle), and end-to-end tests for RBAC and scheduling with CSI hostpath driver. However, it lacks explicit tests for API compatibility, etcd storage overhead, object lifecycle management (orphaned objects), and migration complexity.",
+          "potential_gaps": [
+            "No tests for API compatibility of new CSIStorageCapacity and CSIDriver fields across versions.",
+            "No tests for etcd storage overhead or performance impact of many CSIStorageCapacity objects.",
+            "No tests for orphaned CSIStorageCapacity objects when storage classes or drivers are deleted.",
+            "No tests for migration from older versions or upgrade scenarios with alpha features.",
+            "No tests for scheduler performance with large numbers of CSIStorageCapacity objects.",
+            "No tests for false scheduling decisions due to stale or incorrect capacity data.",
+            "No tests for RBAC rules beyond alpha deployment, e.g., permissions for external-provisioner to manage CSIStorageCapacity objects."
+          ],
+          "recommended_missing_cases": [
+            "Add API compatibility tests for CSIStorageCapacity and CSIDriver.spec.storageCapacity across Kubernetes versions.",
+            "Add performance tests to measure etcd storage overhead and scheduler latency with many CSIStorageCapacity objects.",
+            "Add lifecycle tests to verify cleanup of CSIStorageCapacity objects when storage classes or drivers are deleted.",
+            "Add migration tests for upgrading clusters with alpha features enabled and verifying existing capacity data.",
+            "Add scheduler tests with stale or outdated capacity information to ensure no false scheduling decisions.",
+            "Add RBAC tests for external-provisioner permissions to create/update/delete CSIStorageCapacity objects in various namespaces.",
+            "Add end-to-end tests for capacity-aware scheduling with multiple storage classes and topologies to verify correct node selection."
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_1472:test-plan",
+              "source_type": "kep_test_plan",
+              "source_id": "1472",
+              "source_path": "tests/test_plans.json",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+              "section": "case_id=k8s_1472"
+            }
+          ],
+          "uncertainty": "The existing test plan is a KEP test plan and may not reflect actual implemented tests. The source facts are untrusted and may be incomplete or outdated."
+        },
+        "failure": null
+      }
+    },
+    "report": {
+      "case_id": "k8s_1472",
+      "feature_summary": "This feature introduces a new Kubernetes API type, CSIStorageCapacity, to expose storage capacity information from CSI drivers, and enhances the scheduler to use this information when making pod scheduling decisions for volumes with delayed binding or ephemeral inline volumes. The goal is to reduce the risk of scheduling pods onto nodes where volume creation will fail due to insufficient storage capacity. The feature includes a new field in CSIDriver.spec to opt-in, and extends the external-provisioner sidecar to gather and manage capacity data.",
+      "change_points": [
+        {
+          "description": "New API type CSIStorageCapacity is introduced to store capacity information per storage class and topology segment.",
+          "affected_components": [
+            "API server",
+            "etcd",
+            "kube-apiserver",
+            "CSIStorageCapacity resource"
+          ],
+          "change_type": "new API",
+          "potential_risk_areas": [
+            "API compatibility",
+            "etcd storage overhead",
+            "object lifecycle management"
+          ]
+        },
+        {
+          "description": "New boolean field 'storageCapacity' added to CSIDriver.spec to indicate driver support for capacity-aware scheduling.",
+          "affected_components": [
+            "CSIDriver API",
+            "kube-scheduler",
+            "CSI driver deployments"
+          ],
+          "change_type": "API extension",
+          "potential_risk_areas": [
+            "API compatibility",
+            "migration from immutable to mutable field",
+            "scheduler behavior changes"
+          ]
+        },
+        {
+          "description": "External-provisioner sidecar extended to gather capacity information from CSI drivers and create/update/delete CSIStorageCapacity objects.",
+          "affected_components": [
+            "external-provisioner",
+            "CSI driver",
+            "API server"
+          ],
+          "change_type": "new functionality",
+          "potential_risk_areas": [
+            "resource usage",
+            "object lifecycle",
+            "orphaned objects",
+            "performance"
+          ]
+        },
+        {
+          "description": "Kubernetes scheduler's CheckVolumeBinding function extended to filter nodes based on reported storage capacity.",
+          "affected_components": [
+            "kube-scheduler",
+            "volume scheduling library"
+          ],
+          "change_type": "behavior change",
+          "potential_risk_areas": [
+            "scheduling correctness",
+            "performance",
+            "false negatives/positives"
+          ]
+        }
+      ],
+      "high_risk_scenarios": [
+        {
+          "description": "The external-provisioner sidecar is extended to create, update, and delete CSIStorageCapacity objects. This introduces risks of orphaned objects if the sidecar fails to clean up objects when drivers are removed or when storage classes change, leading to stale capacity information and potential scheduling errors.",
+          "affected_components": [
+            "external-provisioner",
+            "CSIStorageCapacity API",
+            "etcd"
+          ],
+          "risk_area": "object lifecycle management",
+          "historical_issue_refs": [
+            "1472"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_1472:kep-proposal-gathering-capacity-information",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "1472",
+              "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+              "section": "Proposal / Gathering capacity information"
+            }
+          ],
+          "uncertainty": "The evidence does not detail cleanup mechanisms, so the risk of orphaned objects is inferred from the change."
+        },
+        {
+          "description": "The introduction of CSIStorageCapacity objects increases etcd storage overhead, as each object consumes storage and must be replicated. The number of objects can grow with the number of storage classes, topology segments, and drivers, potentially impacting etcd performance and cluster scalability.",
+          "affected_components": [
+            "etcd",
+            "CSIStorageCapacity API"
+          ],
+          "risk_area": "etcd storage overhead",
+          "historical_issue_refs": [
+            "1472"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_1472:kep-proposal-gathering-capacity-information",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "1472",
+              "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+              "section": "Proposal / Gathering capacity information"
+            }
+          ],
+          "uncertainty": "The evidence does not quantify the overhead, but the creation of new API objects inherently adds to etcd load."
+        },
+        {
+          "description": "The mutability of CSIDriver.spec.storageCapacity and the dynamic creation/update of CSIStorageCapacity objects introduce migration complexity for clusters upgrading from older Kubernetes versions or for CSI drivers transitioning to support capacity-aware scheduling. Operators may need to handle special cases during upgrades.",
+          "affected_components": [
+            "API server",
+            "CSIDriver API",
+            "CSI driver",
+            "external-provisioner"
+          ],
+          "risk_area": "migration complexity",
+          "historical_issue_refs": [
+            "1472"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_1472:kep-design-details-api-p3",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "1472",
+              "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+              "section": "Design Details / API"
+            }
+          ],
+          "uncertainty": "The evidence mentions that the field was made mutable to ease upgrades, but the complexity remains for clients that assumed immutability."
+        },
+        {
+          "description": "The new CSIStorageCapacity API and the storageCapacity field in CSIDriver.spec introduce API compatibility risks. The field was initially immutable and later made mutable, which can cause issues for clients that assume immutability, and upgrades from older driver versions may require special handling.",
+          "affected_components": [
+            "API server",
+            "CSIDriver API",
+            "CSI driver"
+          ],
+          "risk_area": "API compatibility",
+          "historical_issue_refs": [
+            "1472"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_1472:kep-design-details-api-p3",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "1472",
+              "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+              "section": "Design Details / API"
+            }
+          ],
+          "uncertainty": "The evidence indicates the field was made mutable to address upgrade issues, but the risk of clients relying on immutability remains."
+        },
+        {
+          "description": "The scheduler does not watch CSIStorageCapacity or CSIDriver.spec.storageCapacity changes, so pods blocked by lack of capacity may not be rescheduled promptly when capacity becomes available or when the driver disables capacity tracking. This can lead to delayed scheduling and inefficient resource utilization.",
+          "affected_components": [
+            "kube-scheduler"
+          ],
+          "risk_area": "scheduler performance",
+          "historical_issue_refs": [
+            "1472"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_1472:historical:k8s-k8s:104250",
+              "source_type": "kubernetes_issue_snapshot",
+              "source_id": "104250",
+              "source_path": "retrieval/enrichment/kubernetes_kubernetes_issue_1472_104250.json",
+              "source_url": "https://github.com/kubernetes/kubernetes/issues/104250",
+              "section": "issue_body"
+            }
+          ],
+          "uncertainty": "The evidence is a feature request for faster scheduling, indicating the current behavior may be suboptimal but not necessarily a regression."
+        },
+        {
+          "description": "The scheduler only considers CSIStorageCapacity for unbound PVCs, not for already-bound PVCs. This can lead to suboptimal scheduling decisions during pod rescheduling (e.g., node drain), potentially placing pods on nodes where volumes cannot be rebuilt, affecting availability and performance.",
+          "affected_components": [
+            "kube-scheduler"
+          ],
+          "risk_area": "false scheduling decisions",
+          "historical_issue_refs": [
+            "1472"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_1472:historical:k8s-k8s:135985",
+              "source_type": "kubernetes_issue_snapshot",
+              "source_id": "135985",
+              "source_path": "retrieval/enrichment/kubernetes_kubernetes_issue_1472_135985.json",
+              "source_url": "https://github.com/kubernetes/kubernetes/issues/135985",
+              "section": "issue_body"
+            }
+          ],
+          "uncertainty": "The evidence is a feature request, indicating a known limitation but not a regression from the change."
+        },
+        {
+          "description": "The scheduler's CheckVolumeBinding function is extended to filter nodes based on reported storage capacity. This introduces risks of false scheduling decisions because the capacity information may be incomplete or inaccurate, and the scheduler may reject nodes that actually have sufficient capacity or accept nodes that do not.",
+          "affected_components": [
+            "kube-scheduler"
+          ],
+          "risk_area": "false scheduling decisions",
+          "historical_issue_refs": [
+            "1472"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_1472:kep-design-details-using-capacity-information",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "1472",
+              "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+              "section": "Design Details / Using capacity information"
+            }
+          ],
+          "uncertainty": "The evidence notes that capacity modeling is difficult and may lead to false positives or negatives, but the exact impact depends on driver reporting accuracy."
+        }
+      ],
+      "historical_issues": [
+        {
+          "issue_id": "1472",
+          "title": "Storage Capacity Tracking",
+          "description": "- One-line enhancement description (can be used as a release note): Supports exposing currently available storage capacity via CSIStorageCapacity objects and enhances scheduling of pods that use CSI volumes with late binding\r\n- Kubernetes Enhancement Proposal PRs: https://github.com/kubernetes/enhancements/pull/1353 and https://github.com/kubernetes/enhancements/pull/1409\r\n- KEP: https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1472-storage-capacity-tracking\r\n- Primary contact (assignee): @pohly \r\n- Responsible SIGs: sig-storage\r\n- Enhancement target (which target equals to which milestone):\r\n  - Alpha release target (x.y): 1.19\r\n  - Beta release target (x.y): 1.21\r\n  - Stable release target (x.y): 1.24\r\n- [ ] Stable\r\n  - [x] KEP (`k/enhancements`) update PR(s): https://github.com/kubernetes/enhancements/pull/3229\r\n  - [x] Code (`k/k`) update PR(s): https://github.com/kubernetes/kubernetes/pull/108445\r\n  - [ ] Docs (`k/website`) update(s): https://github.com/kubernetes/website/pull/32008\r\n",
+          "component": "sig-storage",
+          "labels": [
+            "sig/storage",
+            "stage/stable",
+            "lifecycle/rotten"
+          ],
+          "state": "closed",
+          "severity": null,
+          "curated_severity": null,
+          "annotation_source": null,
+          "evidence_ref": {
+            "evidence_id": "k8s_1472:issue:1472",
+            "source_type": "github_enhancement_tracking_issue",
+            "source_id": "1472",
+            "source_path": "raw/github_issues/enhancements_1472.json",
+            "source_url": "https://github.com/kubernetes/enhancements/issues/1472",
+            "section": null
+          }
+        }
+      ],
+      "existing_coverage": [
+        {
+          "plan_id": "k8s_1472:kep-test-plan",
+          "case_id": "k8s_1472",
+          "content": "### Test Plan\n\nThe Kubernetes scheduler extension will be tested with new unit tests\nthat simulate a variety of scenarios:\n- different volume sizes and types\n- driver with and without storage capacity tracking enabled\n- capacity information for node local storage (node selector with one\n  host name), network attached storage (more complex node selector),\n  storage available in the entire cluster (no node restriction)\n- no suitable node, one suitable node, several suitable nodes\n\nProducing capacity information in external-provisioner also can be\ntested with new unit tests. This has to cover:\n- different modes\n- different storage classes\n- a driver response where storage classes matter and where they\n  don't matter\n- different topologies\n- various older capacity information, including:\n  - no entries\n  - obsolete entries\n  - entries that need to be updated\n  - entries that can be left unchanged\n\nThis needs to run with mocked CSI driver and API server interfaces to\nprovide the input and capture the output.\n\nFull end-to-end testing is needed to ensure that new RBAC rules are\nidentified and documented properly. For this, a new alpha deployment\nin csi-driver-host-path is needed because we have to make changes to\nthe deployment like setting `CSIDriver.spec.storageCapacity` which\nwill only be valid when tested with Kubernetes clusters where\nalpha features are enabled.\n\nThe CSI hostpath driver needs to be changed such that it reports the\nremaining capacity of the filesystem where it creates volumes. The\nexisting raw block volume tests then can be used to ensure that pod\nscheduling works:\n- Those volumes have a size set.\n- Late binding is enabled for the CSI hostpath driver.\n\nA new test can be written which checks for `CSIStorageCapacity` objects,\nasks for pod scheduling with a volume that is too large, and then\nchecks for events that describe the problem.\n",
+          "evidence_ref": {
+            "evidence_id": "k8s_1472:test-plan",
+            "source_type": "kep_test_plan",
+            "source_id": "1472",
+            "source_path": "tests/test_plans.json",
+            "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+            "section": "case_id=k8s_1472"
+          }
+        }
+      ],
+      "existing_test_cases": [],
+      "coverage_state": "PLAN_ONLY",
+      "coverage_assessment": "The existing test plan covers unit tests for scheduler scenarios (volume sizes/types, driver capacity tracking, topologies, node availability), external-provisioner unit tests (modes, storage classes, topologies, capacity info lifecycle), and end-to-end tests for RBAC and scheduling with CSI hostpath driver. However, it lacks explicit tests for API compatibility, etcd storage overhead, object lifecycle management (orphaned objects), and migration complexity.",
+      "potential_gaps": [
+        "No tests for API compatibility of new CSIStorageCapacity and CSIDriver fields across versions.",
+        "No tests for etcd storage overhead or performance impact of many CSIStorageCapacity objects.",
+        "No tests for orphaned CSIStorageCapacity objects when storage classes or drivers are deleted.",
+        "No tests for migration from older versions or upgrade scenarios with alpha features.",
+        "No tests for scheduler performance with large numbers of CSIStorageCapacity objects.",
+        "No tests for false scheduling decisions due to stale or incorrect capacity data.",
+        "No tests for RBAC rules beyond alpha deployment, e.g., permissions for external-provisioner to manage CSIStorageCapacity objects."
+      ],
+      "missing_cases": [
+        "Add API compatibility tests for CSIStorageCapacity and CSIDriver.spec.storageCapacity across Kubernetes versions.",
+        "Add performance tests to measure etcd storage overhead and scheduler latency with many CSIStorageCapacity objects.",
+        "Add lifecycle tests to verify cleanup of CSIStorageCapacity objects when storage classes or drivers are deleted.",
+        "Add migration tests for upgrading clusters with alpha features enabled and verifying existing capacity data.",
+        "Add scheduler tests with stale or outdated capacity information to ensure no false scheduling decisions.",
+        "Add RBAC tests for external-provisioner permissions to create/update/delete CSIStorageCapacity objects in various namespaces.",
+        "Add end-to-end tests for capacity-aware scheduling with multiple storage classes and topologies to verify correct node selection."
+      ],
+      "risk_level": "HIGH",
+      "priority": "ACT_NOW",
+      "completeness": "FULL",
+      "unavailable_sections": [],
+      "uncertainties": [
+        {
+          "branch": "document_analysis",
+          "message": "The document mentions that the CSIStorageCapacity API is in v1alpha1 and may change. The exact behavior of the scheduler when capacity information is missing or inconsistent is not fully specified. The document also notes that the feature does not model pending volume operations, which could lead to inaccurate capacity estimates."
+        },
+        {
+          "branch": "risk_retrieval",
+          "message": "The evidence is based on design documents and feature requests, not on observed incidents. The actual risk impact depends on implementation details and driver behavior."
+        },
+        {
+          "branch": "test_review",
+          "message": "The existing test plan is a KEP test plan and may not reflect actual implemented tests. The source facts are untrusted and may be incomplete or outdated."
+        }
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "k8s_1472:kep-proposal-gathering-capacity-information",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "1472",
+          "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+          "section": "Proposal / Gathering capacity information"
+        },
+        {
+          "evidence_id": "k8s_1472:kep-design-details-api-p3",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "1472",
+          "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+          "section": "Design Details / API"
+        },
+        {
+          "evidence_id": "k8s_1472:historical:k8s-k8s:104250",
+          "source_type": "kubernetes_issue_snapshot",
+          "source_id": "104250",
+          "source_path": "retrieval/enrichment/kubernetes_kubernetes_issue_1472_104250.json",
+          "source_url": "https://github.com/kubernetes/kubernetes/issues/104250",
+          "section": "issue_body"
+        },
+        {
+          "evidence_id": "k8s_1472:historical:k8s-k8s:135985",
+          "source_type": "kubernetes_issue_snapshot",
+          "source_id": "135985",
+          "source_path": "retrieval/enrichment/kubernetes_kubernetes_issue_1472_135985.json",
+          "source_url": "https://github.com/kubernetes/kubernetes/issues/135985",
+          "section": "issue_body"
+        },
+        {
+          "evidence_id": "k8s_1472:kep-design-details-using-capacity-information",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "1472",
+          "source_path": "raw/kubernetes_enhancements/k8s_1472/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+          "section": "Design Details / Using capacity information"
+        },
+        {
+          "evidence_id": "k8s_1472:issue:1472",
+          "source_type": "github_enhancement_tracking_issue",
+          "source_id": "1472",
+          "source_path": "raw/github_issues/enhancements_1472.json",
+          "source_url": "https://github.com/kubernetes/enhancements/issues/1472",
+          "section": null
+        },
+        {
+          "evidence_id": "k8s_1472:test-plan",
+          "source_type": "kep_test_plan",
+          "source_id": "1472",
+          "source_path": "tests/test_plans.json",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md",
+          "section": "case_id=k8s_1472"
+        }
+      ],
+      "uncertainty": "[Document analysis] The document mentions that the CSIStorageCapacity API is in v1alpha1 and may change. The exact behavior of the scheduler when capacity information is missing or inconsistent is not fully specified. The document also notes that the feature does not model pending volume operations, which could lead to inaccurate capacity estimates. [Risk retrieval] The evidence is based on design documents and feature requests, not on observed incidents. The actual risk impact depends on implementation details and driver behavior. [Test review] The existing test plan is a KEP test plan and may not reflect actual implemented tests. The source facts are untrusted and may be incomplete or outdated."
+    },
+    "report_markdown": "# Feature Risk Review\n\n- case_id: k8s_1472\n- Report completeness: FULL\n- Risk Level: HIGH\n- Priority: ACT_NOW\n\n## Feature Summary\n\nThis feature introduces a new Kubernetes API type, CSIStorageCapacity, to expose storage capacity information from CSI drivers, and enhances the scheduler to use this information when making pod scheduling decisions for volumes with delayed binding or ephemeral inline volumes. The goal is to reduce the risk of scheduling pods onto nodes where volume creation will fail due to insufficient storage capacity. The feature includes a new field in CSIDriver.spec to opt-in, and extends the external-provisioner sidecar to gather and manage capacity data.\n\n## Change Points\n\n- New API type CSIStorageCapacity is introduced to store capacity information per storage class and topology segment.\n- New boolean field 'storageCapacity' added to CSIDriver.spec to indicate driver support for capacity-aware scheduling.\n- External-provisioner sidecar extended to gather capacity information from CSI drivers and create/update/delete CSIStorageCapacity objects.\n- Kubernetes scheduler's CheckVolumeBinding function extended to filter nodes based on reported storage capacity.\n\n## High-Risk Scenarios\n\n- The external-provisioner sidecar is extended to create, update, and delete CSIStorageCapacity objects. This introduces risks of orphaned objects if the sidecar fails to clean up objects when drivers are removed or when storage classes change, leading to stale capacity information and potential scheduling errors. [C1]\n  - Risk area: object lifecycle management\n  - Affected components: external-provisioner, CSIStorageCapacity API, etcd\n- The introduction of CSIStorageCapacity objects increases etcd storage overhead, as each object consumes storage and must be replicated. The number of objects can grow with the number of storage classes, topology segments, and drivers, potentially impacting etcd performance and cluster scalability. [C1]\n  - Risk area: etcd storage overhead\n  - Affected components: etcd, CSIStorageCapacity API\n- The mutability of CSIDriver.spec.storageCapacity and the dynamic creation/update of CSIStorageCapacity objects introduce migration complexity for clusters upgrading from older Kubernetes versions or for CSI drivers transitioning to support capacity-aware scheduling. Operators may need to handle special cases during upgrades. [C2]\n  - Risk area: migration complexity\n  - Affected components: API server, CSIDriver API, CSI driver, external-provisioner\n- The new CSIStorageCapacity API and the storageCapacity field in CSIDriver.spec introduce API compatibility risks. The field was initially immutable and later made mutable, which can cause issues for clients that assume immutability, and upgrades from older driver versions may require special handling. [C2]\n  - Risk area: API compatibility\n  - Affected components: API server, CSIDriver API, CSI driver\n- The scheduler does not watch CSIStorageCapacity or CSIDriver.spec.storageCapacity changes, so pods blocked by lack of capacity may not be rescheduled promptly when capacity becomes available or when the driver disables capacity tracking. This can lead to delayed scheduling and inefficient resource utilization. [C3]\n  - Risk area: scheduler performance\n  - Affected components: kube-scheduler\n- The scheduler only considers CSIStorageCapacity for unbound PVCs, not for already-bound PVCs. This can lead to suboptimal scheduling decisions during pod rescheduling (e.g., node drain), potentially placing pods on nodes where volumes cannot be rebuilt, affecting availability and performance. [C4]\n  - Risk area: false scheduling decisions\n  - Affected components: kube-scheduler\n- The scheduler's CheckVolumeBinding function is extended to filter nodes based on reported storage capacity. This introduces risks of false scheduling decisions because the capacity information may be incomplete or inaccurate, and the scheduler may reject nodes that actually have sufficient capacity or accept nodes that do not. [C5]\n  - Risk area: false scheduling decisions\n  - Affected components: kube-scheduler\n\n## Historical Issues\n\n- Storage Capacity Tracking (issue_id=1472) [C6]\n  - component: sig-storage\n  - severity: not provided\n  - description: - One-line enhancement description (can be used as a release note): Supports exposing currently available storage capacity via CSIStorageCapacity objects and enhances scheduling of pods that use CSI volumes with late binding\r\n- Kubernetes Enhancement Proposal PRs: https://github.com/kubernetes/enhancements/pull/1353 and https://github.com/kubernetes/enhancements/pull/1409\r\n- KEP: https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1472-storage-capacity-tracking\r\n- Primary contact (assignee): @pohly \r\n- Responsible SIGs: sig-storage\r\n- Enhancement target (which target equals to which milestone):\r\n  - Alpha release target (x.y): 1.19\r\n  - Beta release target (x.y): 1.21\r\n  - Stable release target (x.y): 1.24\r\n- [ ] Stable\r\n  - [x] KEP (`k/enhancements`) update PR(s): https://github.com/kubernetes/enhancements/pull/3229\r\n  - [x] Code (`k/k`) update PR(s): https://github.com/kubernetes/kubernetes/pull/108445\r\n  - [ ] Docs (`k/website`) update(s): https://github.com/kubernetes/website/pull/32008\r\n\n\n## Existing Coverage\n\n- coverage_state: PLAN_ONLY\n- Test Plan k8s_1472:kep-test-plan [C7]\n\n## Coverage Assessment\n\nThe existing test plan covers unit tests for scheduler scenarios (volume sizes/types, driver capacity tracking, topologies, node availability), external-provisioner unit tests (modes, storage classes, topologies, capacity info lifecycle), and end-to-end tests for RBAC and scheduling with CSI hostpath driver. However, it lacks explicit tests for API compatibility, etcd storage overhead, object lifecycle management (orphaned objects), and migration complexity.\n\n## Missing / Recommended Cases\n\nPotential gaps:\n- No tests for API compatibility of new CSIStorageCapacity and CSIDriver fields across versions.\n- No tests for etcd storage overhead or performance impact of many CSIStorageCapacity objects.\n- No tests for orphaned CSIStorageCapacity objects when storage classes or drivers are deleted.\n- No tests for migration from older versions or upgrade scenarios with alpha features.\n- No tests for scheduler performance with large numbers of CSIStorageCapacity objects.\n- No tests for false scheduling decisions due to stale or incorrect capacity data.\n- No tests for RBAC rules beyond alpha deployment, e.g., permissions for external-provisioner to manage CSIStorageCapacity objects.\n\nRecommended missing cases (RECOMMENDATION, not existing tests):\n- Add API compatibility tests for CSIStorageCapacity and CSIDriver.spec.storageCapacity across Kubernetes versions.\n- Add performance tests to measure etcd storage overhead and scheduler latency with many CSIStorageCapacity objects.\n- Add lifecycle tests to verify cleanup of CSIStorageCapacity objects when storage classes or drivers are deleted.\n- Add migration tests for upgrading clusters with alpha features enabled and verifying existing capacity data.\n- Add scheduler tests with stale or outdated capacity information to ensure no false scheduling decisions.\n- Add RBAC tests for external-provisioner permissions to create/update/delete CSIStorageCapacity objects in various namespaces.\n- Add end-to-end tests for capacity-aware scheduling with multiple storage classes and topologies to verify correct node selection.\n\n## Risk Level and Priority\n\n- Risk Level: HIGH\n- Priority: ACT_NOW\n\n## Uncertainty\n\n- [document_analysis] The document mentions that the CSIStorageCapacity API is in v1alpha1 and may change. The exact behavior of the scheduler when capacity information is missing or inconsistent is not fully specified. The document also notes that the feature does not model pending volume operations, which could lead to inaccurate capacity estimates.\n- [risk_retrieval] The evidence is based on design documents and feature requests, not on observed incidents. The actual risk impact depends on implementation details and driver behavior.\n- [test_review] The existing test plan is a KEP test plan and may not reflect actual implemented tests. The source facts are untrusted and may be incomplete or outdated.\n\n## Evidence\n\n- [k8s_1472:kep-proposal-gathering-capacity-information] [C1]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 1472\n  - section: Proposal / Gathering capacity information\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md\n- [k8s_1472:kep-design-details-api-p3] [C2]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 1472\n  - section: Design Details / API\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md\n- [k8s_1472:historical:k8s-k8s:104250] [C3]\n  - source_type: kubernetes_issue_snapshot\n  - source_id: 104250\n  - section: issue_body\n  - source_url: https://github.com/kubernetes/kubernetes/issues/104250\n- [k8s_1472:historical:k8s-k8s:135985] [C4]\n  - source_type: kubernetes_issue_snapshot\n  - source_id: 135985\n  - section: issue_body\n  - source_url: https://github.com/kubernetes/kubernetes/issues/135985\n- [k8s_1472:kep-design-details-using-capacity-information] [C5]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 1472\n  - section: Design Details / Using capacity information\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md\n- [k8s_1472:issue:1472] [C6]\n  - source_type: github_enhancement_tracking_issue\n  - source_id: 1472\n  - section: n/a\n  - source_url: https://github.com/kubernetes/enhancements/issues/1472\n- [k8s_1472:test-plan] [C7]\n  - source_type: kep_test_plan\n  - source_id: 1472\n  - section: case_id=k8s_1472\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-storage/1472-storage-capacity-tracking/README.md\n",
+    "runtime_manifest_digest": "798ac7114e3eef95b7c50758195b3231af7ffdbc495644761d0edf79d733d776"
+  }
+}

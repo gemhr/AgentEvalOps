@@ -1,0 +1,128 @@
+{
+  "case_id": "k8s_1287",
+  "execution_status": "FAILED",
+  "execution_classification": "BUSINESS_RESULT",
+  "retry_eligible": false,
+  "workflow_status": "FAILED",
+  "report_generation": {
+    "status": "EVALUATED",
+    "numerator": 0,
+    "denominator": 1,
+    "value": 0.0
+  },
+  "report_completeness": null,
+  "report_markdown_generated": false,
+  "change_point": {
+    "status": "NOT_EVALUATED",
+    "numerator": 0,
+    "denominator": 0,
+    "value": null,
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "precision": null,
+    "recall": null,
+    "f1": null
+  },
+  "component": {
+    "status": "EVALUATED",
+    "numerator": 1,
+    "denominator": 13,
+    "value": 0.14285714285714285,
+    "tp": 1,
+    "fp": 7,
+    "fn": 5,
+    "precision": 0.125,
+    "recall": 0.16666666666666666,
+    "f1": 0.14285714285714285
+  },
+  "risk_area": {
+    "status": "NOT_EVALUATED",
+    "numerator": 0,
+    "denominator": 0,
+    "value": null,
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "precision": null,
+    "recall": null,
+    "f1": null
+  },
+  "historical_evidence_at_5": {
+    "status": "EXECUTION_FAILED",
+    "numerator": 0,
+    "denominator": 0,
+    "value": null,
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "precision": null,
+    "recall": null,
+    "f1": null
+  },
+  "historical_issue_finding": {
+    "status": "EXECUTION_FAILED",
+    "numerator": 0,
+    "denominator": 0,
+    "value": null,
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "precision": null,
+    "recall": null,
+    "f1": null
+  },
+  "coverage_gap": {
+    "status": "EXECUTION_FAILED",
+    "numerator": 0,
+    "denominator": 0,
+    "value": null,
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "precision": null,
+    "recall": null,
+    "f1": null
+  },
+  "risk_level": {
+    "status": "EXECUTION_FAILED",
+    "predicted": null,
+    "expected": null,
+    "correct": null
+  },
+  "citation_correctness": {
+    "status": "EXECUTION_FAILED",
+    "numerator": 0,
+    "denominator": 0,
+    "value": null,
+    "unverifiable_count": 0,
+    "rubric_counts": {
+      "supported": 0,
+      "partially_supported": 0,
+      "unsupported": 0,
+      "unverifiable": 0
+    }
+  },
+  "priority_correctness": {
+    "status": "NOT_EVALUATED",
+    "numerator": 0,
+    "denominator": 0,
+    "value": null
+  },
+  "citation_completeness": {
+    "status": "NOT_EVALUATED",
+    "numerator": 0,
+    "denominator": 0,
+    "value": null
+  },
+  "top5_source_type_composition": {},
+  "exact_empty_match": {},
+  "bad_cases": [],
+  "provenance": {
+    "prediction_artifact": "D:\\PythonProject\\AgentEvalOps\\backend\\evaluation_assets\\feature_risk_review_v1\\experiments\\wp4\\predictions\\k8s_1287.json",
+    "attempt": 1,
+    "model_ref": "deepseek/deepseek-chat",
+    "runtime_manifest_digest": "798ac7114e3eef95b7c50758195b3231af7ffdbc495644761d0edf79d733d776",
+    "annotation_digest": null
+  }
+}

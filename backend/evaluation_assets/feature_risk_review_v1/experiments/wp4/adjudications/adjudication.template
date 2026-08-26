@@ -1,0 +1,29 @@
+{
+  "schema_version": "feature-risk-review-adjudications.v1",
+  "case_id": "k8s_<case_id>",
+  "note": "TEMPLATE ONLY. Verdicts must be filled by the human reviewer after real prediction artifacts exist. Agent does not prefill verdicts.",
+  "adjudications": [
+    {
+      "case_id": "k8s_<case_id>",
+      "metric": "change_point",
+      "prediction_id_or_index": "0",
+      "expected_id_or_index": "0",
+      "evidence_id": null,
+      "verdict": "MATCH",
+      "review_note": "placeholder review note",
+      "reviewer": "<reviewer>",
+      "reviewed_at": "2026-01-01T00:00:00Z"
+    },
+    {
+      "case_id": "k8s_<case_id>",
+      "metric": "citation",
+      "prediction_id_or_index": "0",
+      "expected_id_or_index": null,
+      "evidence_id": "<evidence_id present in the finding>",
+      "verdict": "SUPPORTED",
+      "review_note": "placeholder review note",
+      "reviewer": "<reviewer>",
+      "reviewed_at": "2026-01-01T00:00:00Z"
+    }
+  ]
+}

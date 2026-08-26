@@ -10,7 +10,6 @@ from pydantic import ValidationError
 
 from app.core.feature_risk_review import (
     AnnotationStatus,
-    EvaluationAnnotation,
     FeatureDocument,
     FeatureRiskDatasetLoadError,
     load_evaluation_annotations,
@@ -43,14 +42,38 @@ def test_feature_document_requires_typed_visible_content_and_evidence() -> None:
         )
 
 
-def test_annotations_are_explicit_and_pending_or_human_reviewed() -> None:
-    annotations = load_evaluation_annotations(ASSET_ROOT)
-    assert {annotation.case_id for annotation in annotations} == EXPECTED_CASE_IDS
-    assert {annotation.annotation_status for annotation in annotations} == {AnnotationStatus.PENDING}
-    reviewed = EvaluationAnnotation.model_validate(
-        {"case_id": "case", "annotation_status": "HUMAN_REVIEWED", "annotation_source": "human_curated"}
+def test_annotations_are_human_reviewed_and_ground_truth_ready() -> None:
+    from app.core.feature_risk_review.evaluation import (
+        GroundTruthState,
+        detect_ground_truth_state,
+        load_ground_truth_field_statuses,
+        validate_annotations,
     )
-    assert reviewed.annotation_status == AnnotationStatus.HUMAN_REVIEWED
+
+    # PENDING and HUMAN_REVIEWED are both legal enum values; only PENDING is not
+    # the current phase state any more.
+    assert AnnotationStatus.PENDING in set(AnnotationStatus)
+    assert AnnotationStatus.HUMAN_REVIEWED in set(AnnotationStatus)
+
+    annotations = load_evaluation_annotations(ASSET_ROOT)
+    # frozen case set is complete
+    assert {annotation.case_id for annotation in annotations} == EXPECTED_CASE_IDS
+    # every annotation_status is a legal enum member
+    assert all(annotation.annotation_status in set(AnnotationStatus) for annotation in annotations)
+    # the current formal fixture has advanced to HUMAN_REVIEWED (not PENDING)
+    assert all(annotation.annotation_status == AnnotationStatus.HUMAN_REVIEWED for annotation in annotations)
+    # HUMAN_REVIEWED annotation must carry a real source note, not the placeholder
+    assert all(
+        annotation.annotation_source.strip().casefold() != "human_curated" for annotation in annotations
+    )
+
+    # field status + annotation metadata validation must be clean and reach GROUND_TRUTH_READY
+    field_statuses = load_ground_truth_field_statuses(ASSET_ROOT)
+    assert validate_annotations(annotations, field_statuses) == []
+    report = detect_ground_truth_state(annotations, field_statuses)
+    assert report.state == GroundTruthState.GROUND_TRUTH_READY
+    assert report.reviewed_cases == len(EXPECTED_CASE_IDS)
+    assert report.issues == []
 
 
 def test_runtime_case_loader_does_not_need_or_return_annotations(tmp_path: Path) -> None:

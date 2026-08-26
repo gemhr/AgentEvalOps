@@ -1,0 +1,1051 @@
+{
+  "prediction": {
+    "schema_version": "feature-risk-review-prediction.v1",
+    "case_id": "k8s_753",
+    "attempt": 1,
+    "execution_classification": "BUSINESS_RESULT",
+    "model_ref": "deepseek/deepseek-chat",
+    "started_at": "2026-08-26T13:49:08.604604Z",
+    "finished_at": "2026-08-26T13:49:25.719432Z",
+    "workflow": {
+      "case_id": "k8s_753",
+      "workflow_status": "SUCCESS",
+      "document_analysis": {
+        "branch": "document_analysis",
+        "status": "SUCCESS",
+        "value": {
+          "case_id": "k8s_753",
+          "feature_summary": "Introduces sidecar containers as init containers with a restartPolicy of Always, allowing them to start in order with other init containers, run for the pod's lifetime, and not block pod termination. Includes changes to resource calculation, kubectl output, termination behavior, and OOM score adjustment.",
+          "change_points": [
+            {
+              "description": "New restartPolicy field on init containers to mark them as sidecar containers, with only 'Always' supported.",
+              "affected_components": [
+                "kube-apiserver",
+                "kubelet",
+                "Pod API"
+              ],
+              "change_type": "API addition",
+              "potential_risk_areas": [
+                "API compatibility",
+                "Validation",
+                "Downgrade compatibility"
+              ]
+            },
+            {
+              "description": "Kubelet starts sidecar containers in order with init containers, waiting for startup completion (startup probe or postStart) rather than completion.",
+              "affected_components": [
+                "kubelet"
+              ],
+              "change_type": "Behavioral change",
+              "potential_risk_areas": [
+                "Startup ordering",
+                "Container lifecycle",
+                "Probe handling"
+              ]
+            },
+            {
+              "description": "Sidecar containers do not block pod completion; they are terminated when all regular containers complete.",
+              "affected_components": [
+                "kubelet",
+                "Pod lifecycle"
+              ],
+              "change_type": "Behavioral change",
+              "potential_risk_areas": [
+                "Job completion",
+                "Graceful termination",
+                "Resource cleanup"
+              ]
+            },
+            {
+              "description": "OOM score adjustment for sidecar containers is set to match or fall below regular containers to reduce OOM kills.",
+              "affected_components": [
+                "kubelet",
+                "OOM killer"
+              ],
+              "change_type": "Behavioral change",
+              "potential_risk_areas": [
+                "Memory management",
+                "Stability"
+              ]
+            },
+            {
+              "description": "Enable lifecycle handlers (postStart, preStop) and all probes (startup, readiness, liveness) for sidecar containers; readiness probes contribute to pod readiness.",
+              "affected_components": [
+                "kubelet",
+                "Pod readiness"
+              ],
+              "change_type": "Feature enhancement",
+              "potential_risk_areas": [
+                "Probe execution",
+                "Readiness semantics",
+                "Lifecycle hook behavior"
+              ]
+            },
+            {
+              "description": "Resource calculation for scheduling and admission changes to account for sidecar containers running during init and regular phases.",
+              "affected_components": [
+                "kube-scheduler",
+                "kubelet",
+                "Resource quota"
+              ],
+              "change_type": "Algorithm change",
+              "potential_risk_areas": [
+                "Scheduling accuracy",
+                "Resource overcommitment",
+                "Admission control"
+              ]
+            },
+            {
+              "description": "kubectl get pods output extended to include sidecar container status in READY column and init status.",
+              "affected_components": [
+                "kubectl"
+              ],
+              "change_type": "User interface change",
+              "potential_risk_areas": [
+                "Output compatibility",
+                "User confusion"
+              ]
+            },
+            {
+              "description": "Termination behavior for sidecar containers: in alpha, terminated as regular containers; in beta, reverse-order termination after primary containers, with preStop hooks and SIGTERM handling.",
+              "affected_components": [
+                "kubelet",
+                "Pod termination"
+              ],
+              "change_type": "Behavioral change",
+              "potential_risk_areas": [
+                "Graceful termination",
+                "Ordering",
+                "Timeout handling"
+              ]
+            },
+            {
+              "description": "Topology and CPU managers need updates to handle sidecar container resource requests, especially for NUMA and CPU pinning.",
+              "affected_components": [
+                "kubelet",
+                "CPU manager",
+                "Memory manager",
+                "Topology manager"
+              ],
+              "change_type": "Implementation change",
+              "potential_risk_areas": [
+                "Resource allocation",
+                "NUMA awareness",
+                "Performance"
+              ]
+            }
+          ],
+          "affected_components": [
+            "kube-apiserver",
+            "kubelet",
+            "kube-scheduler",
+            "kubectl",
+            "Pod API",
+            "CPU manager",
+            "Memory manager",
+            "Topology manager",
+            "OOM killer"
+          ],
+          "potential_risk_areas": [
+            "API compatibility",
+            "Downgrade compatibility",
+            "Startup ordering",
+            "Container lifecycle",
+            "Probe handling",
+            "Job completion",
+            "Graceful termination",
+            "Resource cleanup",
+            "Memory management",
+            "Stability",
+            "Probe execution",
+            "Readiness semantics",
+            "Lifecycle hook behavior",
+            "Scheduling accuracy",
+            "Resource overcommitment",
+            "Admission control",
+            "Output compatibility",
+            "User confusion",
+            "Ordering",
+            "Timeout handling",
+            "Resource allocation",
+            "NUMA awareness",
+            "Performance"
+          ],
+          "uncertainty": "The document mentions that some behaviors are postponed to beta or GA, such as termination ordering and liveness probe during termination. The exact implementation details for resource calculation and termination may evolve. Also, the impact on third-party controllers and existing containers is noted but not fully detailed."
+        },
+        "failure": null
+      },
+      "risk_retrieval": {
+        "branch": "risk_retrieval",
+        "status": "SUCCESS",
+        "value": {
+          "case_id": "k8s_753",
+          "retrieved_historical_issues": [
+            {
+              "issue_id": "753",
+              "title": "Sidecar Containers ",
+              "description": "### Enhancement Description\n\n- One-line enhancement description (can be used as a release note): Kubernetes introduces the built-in support for sidecar containers pattern.\n- Kubernetes Enhancement Proposal: https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/753-sidecar-containers/README.md\n- Discussion Link: Sidecar [working group](https://docs.google.com/document/d/1E1guvFJ5KBQIGcjCrQqFywU9_cBQHRtHvjuqcVbCXvU/edit#heading=h.m8xoiv5t6qma) and [KEP draft](https://github.com/kubernetes/enhancements/pull/3761)\n- Primary contact (assignee): @SergeyKanzhelev\n- Responsible SIGs: node\n- Enhancement target (which target equals to which milestone):\n  - Alpha release target (x.y): 1.28\n  - Beta release target (x.y): 1.29\n  - Stable release target (x.y): 1.33\n- [x] Alpha\n  - [X] KEP (`k/enhancements`) update PR(s): \n    - https://github.com/kubernetes/enhancements/pull/3761\n    - https://github.com/kubernetes/enhancements/pull/3968\n  - [x] Code (`k/k`) update PR(s): \n    - https://github.com/kubernetes/kubernetes/pull/116429\n  - [x] Docs (`k/website`) update PR(s):\n    - https://github.com/kubernetes/website/pull/41802\n- [x] Beta\n  - [x] KEP (`k/enhancements`) update PR(s): https://github.com/kubernetes/enhancements/pull/4255\n  - [x] Code (`k/k`) update PR(s):\n    - [x] https://github.com/kubernetes/kubernetes/pull/120620\n    - [x] https://github.com/kubernetes/kubernetes/pull/121579\n    - [x] https://github.com/kubernetes/kubernetes/pull/121307\n  - [x] Docs (`k/website`) update(s): https://github.com/kubernetes/website/pull/43471\n- [x] Stable\n  - [x] KEP (`k/enhancements`) update PR(s): \n    - https://github.com/kubernetes/enhancements/pull/5081\n    - https://github.com/kubernetes/enhancements/pull/4932\n  - [x] Code (`k/k`) update PR(s): https://github.com/kubernetes/kubernetes/pull/129731\n  - [x] Docs (`k/website`) update(s): https://github.com/kubernetes/website/pull/49685\n\n/sig node\n\n_Please keep this description up to date. This will help the Enhancement Team to track the evolution of the enhancement efficiently._\n",
+              "component": "sig-node",
+              "labels": [
+                "sig/apps",
+                "sig/node",
+                "stage/stable",
+                "kind/feature",
+                "kind/api-change"
+              ],
+              "state": "closed",
+              "severity": null,
+              "curated_severity": null,
+              "annotation_source": null,
+              "evidence_ref": {
+                "evidence_id": "k8s_753:issue:753",
+                "source_type": "github_enhancement_tracking_issue",
+                "source_id": "753",
+                "source_path": "raw/github_issues/enhancements_753.json",
+                "source_url": "https://github.com/kubernetes/enhancements/issues/753",
+                "section": null
+              }
+            }
+          ],
+          "retrieved_evidence": [
+            {
+              "source_fragment": "<!--\nThis is where we get down to the specifics of what the proposal actually is.\nThis should have enough detail that reviewers can understand exactly what\nyou're proposing, but should not include things like API designs or\nimplementation. What is the desired outcome and how do we measure success?.\nThe \"Design Details\" section below is for the real\nnitty-gritty.\n-->\nThe proposal is to introduce a `restartPolicy` field to init containers and use\nit to indicate that an init container is a sidecar container. Kubelet will start\ninit containers with `restartPolicy=Always` in the order with other init\ncontainers, but instead of waiting for its completion, it will wait for the\ncontainer startup completion.\n\nThe condition for startup completion will be that the startup probe succeeded\n(or if no startup probe defined) and `postStart` handler completed. This\ncondition is represented with the field `Started` of `ContainerStatus` type. See\nthe section [\"Pod startup completed condition\"](#pod-startup-completed-condition)\nfor considerations on picking this signal.\n\nThe field `restartPolicy` will only be accepted on init\ncontainers as part of this KEP. The only supported value proposed in this KEP is `Always`. No other\nvalues will be defined as part of this KEP. Moreover, the field will be\nnullable so the default value will be \"no value\". \n\nOther values for `restartPolicy` of containers will not be accepted and\ncontainers will follow the logic is currently implemented (documented\n[here](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/#:~:text=if%20a%20pod's%20init%20container%20fails%2C%20the%20kubelet%20repeatedly%20restarts%20that%20init%20container%20until%20it%20succeeds.%20however%2C%20if%20the%20pod%20has%20a%20restartpolicy%20of%20never%2C%20and%20an%20init%20container%20fails%20during%20startup%20of%20that%20pod%2C%20kubernetes%20treats%20the%20overall%20pod%20as%20failed.)\nand more details can be found in the section\n[\"Future use of restartPolicy field\"](#future-use-of-restartpolicy-field)).\n\nSidecar containers will not block Pod completion - if all regular containers\ncomplete, sidecar containers will be terminated.\n\nThe `restartPolicy` field for individual init containers can override the\nPod-level `restartPolicy` for sidecar containers. As a result, even if the Pod's\n`restartPolicy` is set to `Never` or `OnFailure`, sidecar containers will still\nbe restarted.\n\nNote, a separate KEP https://github.com/kubernetes/enhancements/issues/4438 will enable\nsidecar containers to be restarted even during Pod termination.\n\nIn order to minimize OOM kills of sidecar containers, the OOM adjustment for\nthese containers will match or fall below the OOM score adjustment of regular\ncontainers in the Pod. This intent to solve the issue\nhttps://github.com/kubernetes/kubernetes/issues/111356 \n\nAs part of this KEP we also will be enabling for sidecar containers (those will\nnot be allowed for other init containers):\n- `PostStart` and `PreStop` lifecycle handlers for sidecar containers\n- All probes (startup, readiness, liveness)\n- Readiness probes of sidecars will contribute to determine the whole Pod\n  readiness.\n\n```yaml\nkind: Pod\nspec:\n  initContainers:\n  - name: vault-agent\n    image: hashicorp/vault:1.12.1\n  - name: istio-proxy\n    image: istio/proxyv2:1.16.0\n    args: [\"proxy\", \"sidecar\"]\n    restartPolicy: Always\n  containers:\n  ...\n```",
+              "evidence_ref": {
+                "evidence_id": "k8s_753:kep-proposal",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "753",
+                "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                "section": "Proposal"
+              },
+              "relevance_score": 3.526728
+            },
+            {
+              "source_fragment": "The `kubectl get pods` filters all the Init containers from output when Pod is Running.\nAs part of this KEP, the output will be extended to include status of sidecar Containers.\n#### Without sidecar containers support\n\nFor the Pod:\n\n```\ninitContainers:\n  - name: init-config\ncontainers:\n  - name: sidecar-1\n  - name: sidecar-2\n  - name: main\n```\n\nInitialization (Waiting)\n\n```\nNAME      READY   STATUS     RESTARTS   AGE\ntest      0/3     Init:0/1   0          0s\n```\nRunning\n\n```\nNAME      READY   STATUS     RESTARTS   AGE\ntest      3/3     Running    0          35s\n```\n\n#### With sidecar container feature\n\nFor the Pod:\n\n```\ninitContainers:\n  - name: init-config\n  - name: sidecar-1\n    restartPolicy: Always\n  - name: sidecar-2\n    restartPolicy: Always\ncontainers:\n  - name: main\n```\n\nWhat we have today:\n\nInitialization (Waiting)\n\n```\nNAME      READY   STATUS     RESTARTS   AGE\ntest      0/1     Init:0/3   0          0s\nNAME      READY   STATUS     RESTARTS   AGE\ntest      0/1     Init:1/3   0          5s\nNAME      READY   STATUS     RESTARTS   AGE\ntest      0/1     Init:2/3   0          10s\n```\n\nRunning\n\n```\nNAME      READY   STATUS     RESTARTS   AGE\ntest      1/1     Running    0          35s\n```\n\nWhat will be returned as part of the KEP implementation:\n\nInitialization (Waiting)\n\n```\nNAME      READY   STATUS     RESTARTS   AGE\ntest      0/3     Init:0/3   0          0s\nNAME      READY   STATUS     RESTARTS   AGE\ntest      0/3     Init:1/3   0          5s\nNAME      READY   STATUS     RESTARTS   AGE\ntest      0/3     Init:2/3   0          10s\n```\n\nRunning\n\n```\nNAME      READY   STATUS     RESTARTS   AGE\ntest      3/3     Running    0          35s\n```",
+              "evidence_ref": {
+                "evidence_id": "k8s_753:kep-design-details-kubectl-changes",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "753",
+                "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                "section": "Design Details / kubectl changes"
+              },
+              "relevance_score": 2.981424
+            },
+            {
+              "source_fragment": "The new field means that any Pod that is not using this field will behave the\nsame way as before.\n\nThe new field will only work with the proper control plane and kubelet. Upgrade\nand downgrade scenarios will be covered in the further sections.\n\nOutside of Kubernetes-controlled code, there might be third party controllers or\nexisting containers relying on the current behavior of init containers.\nBehaviors they can rely on:\n\n- Assuming nothing is running in the Pod when init container starts. For\n  instance taking PID of the process assuming there are no sidecars.\n- Incorrectly calculating the resource usage of a Pod not taking the new type of\n  containers into account (e.g. some grafana dashboards may need modification)\n- Stripping the restartPolicy:Always from init container as an unknown field\n  rendering Pod unfunctional as it will not pass the init stage after this\n- OPA rules may reject the Pod with new unknown fields because of failure to\n  parse the new field\n\nThese potential incompatibilities will be documented.",
+              "evidence_ref": {
+                "evidence_id": "k8s_753:kep-design-details-backward-compatibility",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "753",
+                "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                "section": "Design Details / Backward compatibility"
+              },
+              "relevance_score": 2.787493
+            },
+            {
+              "source_fragment": "It is worth noting that, like with regular containers, `PreStop` hook must complete before the `SIGTERM`\nsignal to stop the sidecar container can be sent. Therefore, ordering and graceful termination of sidecars\ncan only be guaranteed if the `PreStop` hook completes within the Pod's termination grace period.\n\nSidecars continue to be restarted until they enter the `Terminated` state which they are notified\nby a `SIGTERM` signal. This is to ensure that sidecars that fail are restarted until the TGPS expires.\n\nWe might postpone running the `livenessProbe` for restarted sidecar containers during termination\nuntil GA, depending on the implementation complexity.\n\nIf we compare this to the initial proposal, the following behaviors are preserved:\n- Sidecars should not begin termination until all primary containers have\n  terminated.\n  - Implicit in this is that sidecars should continue to be restarted until all\n    primary containers have terminated.\n- Sidecars should terminate serially and in reverse order. I.e. the first\n  sidecar to initialize should be the last sidecar to terminate.\n\nThe additional benefits of this approach comparing to initial proposal:\n- If graceful termination period is short, and mostly taken by the main container, the sidecar containers\n  has more time to gracefully terminate, for example, clear up buffers of logging container.\n- There is absolutely no change in behavior of main containers - they start graceful termination at exact\n  same time as before and can utilize as much of the graceful termination period as they need. The Pod graceful\n  termination period semantic also stay unchanged.",
+              "evidence_ref": {
+                "evidence_id": "k8s_753:kep-design-details-termination-of-containers-p2",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "753",
+                "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                "section": "Design Details / Termination of containers"
+              },
+              "relevance_score": 2.63493
+            },
+            {
+              "source_fragment": "Container resource requests & limits can now be mutated via the `/resize` pod subresource.\nPodStatus is extended to show the resources applied to the Pod and its Containers.\n\n* Pod.Spec.Containers[i].Resources becomes purely a declaration, denoting the\n  **desired** state of Pod resources\n* Pod.Status.ContainerStatuses[i].Resources (new field, type\n  v1.ResourceRequirements) shows the **actual** resources held by the Pod and\n  its Containers for running containers, and the allocated resources for non-running containers.\n* Pod.Status.ContainerStatuses[i].AllocatedResources (new field, type v1.ResourceList) reports the\n  allocated resource requests.\n* Pod.Status.Conditions explain what is happening for a given resource on a given container (see\n  details [below](#resize-status)).\n\nThe actual resources are reported by the container runtime in some cases, and for all other\nresources are copied from the latest snapshot of allocated resources. Currently, the resources\nreported by the runtime are CPU Limit (translated from quota & period), CPU Request (translated from\nshares), and Memory Limit.\n\nAdditionally, a new `Pod.Spec.Containers[i].ResizePolicy[]` field (type\n`[]v1.ContainerResizePolicy`) governs whether containers need to be restarted on resize. See\n[Container Resize Policy](#container-resize-policy) for more details.\n\n#### Allocated Resources\n\nWhen the Kubelet admits a pod initially or admits a resize, all resource requirements from the spec\nare cached and checkpointed locally. When a container is (re)started, these are the requests and\nlimits used. Only the allocated requests are reported in the API, through the\n`Pod.Status.ContainerStatuses[i].AllocatedResources` field.\n\nThe scheduler uses `max(spec...resources, status...allocatedResources, status...resources)` for fit\ndecisions, but since the actual resources are only relevant and reported for running containers, the\nKubelet sets `status...resources` equal to the allocated resources for non-running containers.\n\n#### Subresource\n\nResource changes can only be made via the new `/resize` subresource, which accepts Update and Patch\nverbs. The request & response types for this subresource are the full pod object, but only the\nfollowing fields are allowed to be modified:\n\n* `.spec.containers[*].resources`\n* `.spec.initContainers[*].resources` (only for sidecars)\n* `.spec.resizePolicy`\n\n#### Validation\n\nResource fields remain immutable via pod update (a change from the alpha behavior), but are mutable\nvia the new `/resize` subresource. The following API validation rules will be applied for updates via\nthe `/resize` subresource:\n\n1. Resources & ResizePolicy must be valid under pod create validation.\n2. Computed QOS class cannot change. See [QOS Class](#qos-class) for more details.\n3. Running pods without the `Pod.Status.ContainerStatuses[i].Resources` field set cannot be resized.\n   See [Version Skew Strategy](#version-skew-strategy) for more details.\n\n#### Container Resize Policy",
+              "evidence_ref": {
+                "evidence_id": "k8s_1287:kep-proposal-api-changes-p1",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "1287",
+                "source_path": "raw/kubernetes_enhancements/k8s_1287/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/1287-in-place-update-pod-resources/README.md",
+                "section": "Proposal / API Changes"
+              },
+              "relevance_score": 2.459748
+            }
+          ],
+          "agent_inferred_risk_findings": [
+            {
+              "description": "Introducing a new restartPolicy field on init containers changes the API schema. Existing clients, controllers, and admission webhooks that do not recognize this field may reject or strip it, causing pods to fail or behave unexpectedly. The evidence notes that third-party controllers may strip the field, OPA rules may reject it, and backward compatibility is only guaranteed for pods not using the field.",
+              "affected_components": [
+                "kube-apiserver",
+                "Pod API",
+                "kubectl"
+              ],
+              "risk_area": "API compatibility",
+              "historical_issue_refs": [
+                "753"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_753:kep-design-details-backward-compatibility",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "753",
+                  "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                  "section": "Design Details / Backward compatibility"
+                }
+              ],
+              "uncertainty": "The extent of ecosystem breakage depends on how widely the field is adopted and how strict admission controllers are."
+            },
+            {
+              "description": "Sidecar containers start in order with init containers and wait for startup completion (startup probe or postStart) rather than completion. This changes the startup ordering semantics, potentially breaking workloads that assume init containers complete before any other container starts. The evidence describes the new startup condition and ordering.",
+              "affected_components": [
+                "kubelet"
+              ],
+              "risk_area": "Startup ordering",
+              "historical_issue_refs": [
+                "753"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_753:kep-proposal",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "753",
+                  "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                  "section": "Proposal"
+                }
+              ],
+              "uncertainty": "The impact depends on how many existing init containers are converted to sidecars and whether they rely on the old completion-based sequencing."
+            },
+            {
+              "description": "Sidecar containers do not block pod completion; they are terminated when all regular containers complete. This changes the lifecycle semantics for init containers, which previously had to complete before regular containers started. Workloads that depend on init containers running until pod completion may be affected.",
+              "affected_components": [
+                "kubelet",
+                "Job completion"
+              ],
+              "risk_area": "Container lifecycle",
+              "historical_issue_refs": [
+                "753"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_753:kep-proposal",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "753",
+                  "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                  "section": "Proposal"
+                }
+              ],
+              "uncertainty": "The behavior is intentional, but users may not expect sidecars to be terminated early."
+            },
+            {
+              "description": "OOM score adjustment for sidecar containers is set to match or fall below regular containers to reduce OOM kills. This changes the OOM killer behavior, potentially affecting memory management and stability. The evidence mentions this intent to solve a specific issue.",
+              "affected_components": [
+                "OOM killer",
+                "kubelet"
+              ],
+              "risk_area": "Memory management",
+              "historical_issue_refs": [
+                "753"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_753:kep-proposal",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "753",
+                  "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                  "section": "Proposal"
+                }
+              ],
+              "uncertainty": "The exact OOM score adjustment values and their impact on overall pod memory pressure are not specified."
+            },
+            {
+              "description": "Enabling lifecycle handlers (postStart, preStop) and all probes (startup, readiness, liveness) for sidecar containers, with readiness probes contributing to pod readiness, changes probe execution and readiness semantics. This could affect pod readiness and lifecycle hook behavior, especially during startup and termination.",
+              "affected_components": [
+                "kubelet",
+                "Pod API"
+              ],
+              "risk_area": "Probe handling",
+              "historical_issue_refs": [
+                "753"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_753:kep-proposal",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "753",
+                  "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                  "section": "Proposal"
+                }
+              ],
+              "uncertainty": "The interaction of sidecar probes with existing init container probes and pod readiness is not fully detailed."
+            },
+            {
+              "description": "Resource calculation for scheduling and admission changes to account for sidecar containers running during init and regular phases. This affects scheduling accuracy and resource overcommitment, as sidecar resources are now considered in both phases. The evidence mentions this change in the proposal.",
+              "affected_components": [
+                "kube-scheduler",
+                "kube-apiserver",
+                "kubelet"
+              ],
+              "risk_area": "Scheduling accuracy",
+              "historical_issue_refs": [
+                "753"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_753:kep-proposal",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "753",
+                  "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                  "section": "Proposal"
+                }
+              ],
+              "uncertainty": "The exact resource accounting algorithm is not specified, and the impact on cluster capacity is unclear."
+            },
+            {
+              "description": "kubectl get pods output is extended to include sidecar container status in READY column and init status. This changes output compatibility and may confuse users who expect the previous format. The evidence shows the new output format.",
+              "affected_components": [
+                "kubectl"
+              ],
+              "risk_area": "Output compatibility",
+              "historical_issue_refs": [
+                "753"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_753:kep-design-details-kubectl-changes",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "753",
+                  "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                  "section": "Design Details / kubectl changes"
+                }
+              ],
+              "uncertainty": "The change is intentional, but scripts parsing kubectl output may break."
+            },
+            {
+              "description": "Termination behavior for sidecar containers changes: in alpha, terminated as regular containers; in beta, reverse-order termination after primary containers, with preStop hooks and SIGTERM handling. This affects graceful termination and lifecycle hook behavior, especially during pod termination.",
+              "affected_components": [
+                "kubelet"
+              ],
+              "risk_area": "Graceful termination",
+              "historical_issue_refs": [
+                "753"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_753:kep-design-details-termination-of-containers-p2",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "753",
+                  "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                  "section": "Design Details / Termination of containers"
+                }
+              ],
+              "uncertainty": "The alpha-to-beta transition may cause inconsistent behavior across versions."
+            },
+            {
+              "description": "Topology and CPU managers need updates to handle sidecar container resource requests, especially for NUMA and CPU pinning. This affects resource allocation and NUMA awareness, potentially impacting performance and stability.",
+              "affected_components": [
+                "CPU manager",
+                "Memory manager",
+                "Topology manager"
+              ],
+              "risk_area": "NUMA awareness",
+              "historical_issue_refs": [
+                "753"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_753:kep-proposal",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "753",
+                  "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                  "section": "Proposal"
+                }
+              ],
+              "uncertainty": "The specific changes to topology and CPU managers are not detailed in the provided evidence."
+            }
+          ],
+          "filtered_invalid_findings": [],
+          "uncertainty": "The evidence is based on the KEP proposal and design details, but the actual implementation may vary. The risk areas are inferred from the described changes and may not cover all potential issues."
+        },
+        "failure": null
+      },
+      "test_review": {
+        "branch": "test_review",
+        "status": "SUCCESS",
+        "value": {
+          "case_id": "k8s_753",
+          "coverage_state": "PLAN_ONLY",
+          "test_plans": [
+            {
+              "plan_id": "k8s_753:kep-test-plan",
+              "case_id": "k8s_753",
+              "content": "### Test Plan\n\n<!--\n**Note:** *Not required until targeted at a release.*\nThe goal is to ensure that we don't accept enhancements with inadequate testing.\n\nAll code is expected to have adequate tests (eventually with coverage\nexpectations). Please adhere to the [Kubernetes testing guidelines][testing-guidelines]\nwhen drafting this test plan.\n\n[testing-guidelines]: https://git.k8s.io/community/contributors/devel/sig-testing/testing.md\n-->\n\n[ ] I/we understand the owners of the involved components may require updates to\nexisting tests to make this code solid enough prior to committing the changes necessary\nto implement this enhancement.\n\n##### Prerequisite testing updates\n\n<!--\nBased on reviewers feedback describe what additional tests need to be added prior\nimplementing this enhancement to ensure the enhancements have also solid foundations.\n-->\n\n##### Unit tests\n\n<!--\nIn principle every added code should have complete unit test coverage, so providing\nthe exact set of tests will not bring additional value.\nHowever, if complete unit test coverage is not possible, explain the reason of it\ntogether with explanation why this is acceptable.\n-->\n\n<!--\nAdditionally, for Alpha try to enumerate the core package you will be touching\nto implement this enhancement and provide the current unit coverage for those\nin the form of:\n- <package>: <date> - <current test coverage>\nThe data can be easily read from:\nhttps://testgrid.k8s.io/sig-testing-canaries#ci-kubernetes-coverage-unit\n\nThis can inform certain test coverage improvements that we want to do before\nextending the production code to implement this enhancement.\n-->\n\n- `<package>`: `<date>` - `<test coverage>`\n\nThere will be many packages touched in process. A few that easy to identify by\nareas of a change:\n\nAdmission:\n- `k8s.io/kubernetes/pkg/kubelet/lifecycle`: `61.7`\n\nEnable probes for sidecar containers\n- `k8s.io/kubernetes/pkg/kubelet/prober`: `02/07/2023` - `79.9`\n\nInclude sidecars into QoS decision:\n- `k8s.io/kubernetes/pkg/kubelet/qos`: `02/07/2023` - `100`\n\nInclude sidecar in resources calculation and policy decisions:\n\n- `k8s.io/kubernetes/pkg/kubelet/cm/topologymanager`: `02/07/2023` - `93.2`\n- `k8s.io/kubernetes/pkg/kubelet/cm/memorymanager`: `02/07/2023` - `81.2`\n- `k8s.io/kubernetes/pkg/kubelet/cm/cpumanager`: `02/07/2023` - `86.4`\n\nUpdate OOM score adjustment:\n-  `k8s.io/kubernetes/pkg/kubelet/oom`: `02/07/2023` - ` 57.1`\n\n##### Integration tests\n\n<!--\nIntegration tests are contained in k8s.io/kubernetes/test/integration.\nIntegration tests allow control of the configuration parameters used to start the binaries under test.\nThis is different from e2e tests which do not allow configuration of parameters.\nDoing this allows testing non-default options and multiple different and potentially conflicting command line options.\n-->\n\n<!--\nThis question should be filled when targeting a release.\nFor Alpha, describe what tests will be added to ensure proper quality of the enhancement.\n\nFor Beta and GA, add links to added tests together with links to k8s-triage for those tests:\nhttps://storage.googleapis.com/k8s-triage/index.html\n-->\n\nNo integration tests are planned. We'll cover this with e2e_node tests.\n\n##### e2e tests\n\n<!--\nThis question should be filled when targeting a release.\nFor Alpha, describe what tests will be added to ensure proper quality of the enhancement.\n\nFor Beta and GA, add links to added tests together with links to k8s-triage for those tests:\nhttps://storage.googleapis.com/k8s-triage/index.html\n\nWe expect no non-infra related flakes in the last month as a GA graduation criteria.\n-->\n\n- Test failures: https://storage.googleapis.com/k8s-triage/index.html?pr=1&test=SidecarContainers\n- All related tests can be filtered with the SidecarContainers\n\n##### Ready state of a sidecar container is properly used to create/delete endpoints\n\nThe sidecar container can expose ports and can be used to handle external traffic.\n\n- Pod with sidecar container exposing the port can receive Service traffic to this Port\n- Pod with sidecar container exposing the port with readiness probe marks the Endpoint not ready when probe fails and switched back on when readiness probe succeed\n- Pod with sidecar container exposing the port can receive Service traffic to this Port during Pod termination (during graceful termination period)\n\n##### Pod lifecycle scenarios without sidecar containers\n\n- Init containers should start after the previous init container has completed\n- Regular containers should start in parallel after all init containers have completed\n- Restart behavior of the init containers\n\n##### Pod lifecycle scenarios with sidecar containers\n\n- Init containers should start after the previous restartable init container has started\n- Regular containers should start in parallel after all regular init containers have completed and all restartable init containers have started\n- Restartable init containers should restart always\n\n##### Kubelet restart test cases\n\n- It should restart the containers in the right order after the node reboot\n- It should not restart any completed init containers after the kubelet restart\n\n##### API server is down: failure to update containers status during initialization\n\nFrom @rata. Interesting test cases where the API server is down and kubelet\nwants to start a pod with sidecars. That was problematic in the previous\nsidecar KEP iterations.\n\nLet say the API server is up and a pod is being started by the kubelet\n- The kubelet still needs to start 3 sidecars in the pod\n- The API server crashes (it is not restarted yet)\n- The kubelet continues to try to start the sidecars\n- The pod is started correctly\n- The API server becomes reachable again\n\nI think testing this scenario works is important in early phases (alpha), as in\nthe past that proved to be tricky. The kubelet is authoritative on which\ncontainers are started and sends it to the API server, but I hit some bugs in\nthe past where if the API server was down, we couldn't read that a new container\nwas ready from the kubelet. The code to do it was there even if API server was\ndown, but something was not working and I didn't debug it. And the end result\nwas that the pod startup didn't finish until the API server was up again, as\nthat is when we realized from the kubelet that the sidecar was ready.\n\nI think this code has changed since 1.17 when I tested this, but I don't know if\nthis issue is fixed. It is a non-trivial scenario that, if it happens to need\nmore serious code changes in the kubelet to handle it correctly, it will be good\nto know in early stages of the KEP IMHO.\n\n#### Resource usage testing\n\n1. Validate that the pod overhead will be accounted for when scheduling a Pod\n   with sidecar container.\n2. Validate that LimitRanger will apply defaults and consider limits for the Pod\n   with the sidecar containers.\n\n#### Upgrade/downgrade testing\n\n1. Kubelet and control plane reject the Pod with the new field if the feature\n  gate is disabled.\n2. kubelet and control plane reject the Pod with the new field if the feature\n  gate was disabled AFTER the Pod with the new field was added.\n",
+              "evidence_ref": {
+                "evidence_id": "k8s_753:test-plan",
+                "source_type": "kep_test_plan",
+                "source_id": "753",
+                "source_path": "tests/test_plans.json",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+                "section": "case_id=k8s_753"
+              }
+            }
+          ],
+          "test_cases": [],
+          "coverage_assessment": "The existing test plan covers many key areas of the sidecar container feature, including lifecycle ordering, readiness probes, resource accounting, upgrade/downgrade behavior, and API server outage scenarios. However, there are notable gaps in coverage for OOM score adjustment, CPU manager and topology manager NUMA handling, kubectl output compatibility, and detailed termination behavior (especially preStop hooks and reverse-order termination). The plan also lacks explicit tests for scheduler admission control with sidecar resource requests and for memory manager behavior.",
+          "potential_gaps": [
+            "No explicit tests for OOM score adjustment of sidecar containers to ensure they are less likely to be OOM-killed than regular containers.",
+            "No tests for CPU manager behavior with sidecar containers, especially CPU pinning and guaranteed QoS scenarios.",
+            "No tests for Topology manager NUMA-aware resource allocation with sidecar containers.",
+            "No tests for Memory manager behavior with sidecar containers, especially when memory requests are accounted during init and regular phases.",
+            "No tests for kubectl get pods output to verify READY column and init status include sidecar containers correctly.",
+            "No tests for termination behavior in beta: reverse-order termination after primary containers, preStop hooks, and SIGTERM handling.",
+            "No tests for scheduler admission control to ensure sidecar resource requests are accounted for in scheduling decisions and LimitRanger defaults.",
+            "No tests for resource overcommitment scenarios where sidecar containers run during init and regular phases, potentially causing overcommitment.",
+            "No tests for probe execution and timeout handling for sidecar containers, especially startup probes and postStart hooks.",
+            "No tests for lifecycle hook behavior (postStart, preStop) for sidecar containers, including failure scenarios.",
+            "No tests for downgrade compatibility when feature gate is disabled after sidecar containers are in use, beyond rejection of new pods.",
+            "No tests for API server down during sidecar container startup with readiness probes failing or succeeding.",
+            "No tests for sidecar container restart behavior when kubelet restarts and containers are in various states (running, terminated, etc.).",
+            "No tests for sidecar containers with multiple sidecars and complex ordering dependencies.",
+            "No tests for sidecar containers with resource limits and QoS class assignment.",
+            "No tests for sidecar containers with startup probes that fail and restart behavior.",
+            "No tests for sidecar containers with preStop hooks during pod termination and graceful period.",
+            "No tests for sidecar containers with readiness probes affecting endpoint readiness during termination.",
+            "No tests for sidecar containers with liveness probes and restart policy Always.",
+            "No tests for sidecar containers with postStart hooks that block startup and timeout handling."
+          ],
+          "recommended_missing_cases": [
+            "Add unit tests for OOM score adjustment logic in pkg/kubelet/oom to verify sidecar containers get lower OOM scores than regular containers.",
+            "Add e2e_node tests for CPU manager with sidecar containers in guaranteed QoS, verifying CPU pinning and no CPU starvation.",
+            "Add e2e_node tests for Topology manager with sidecar containers requesting resources on specific NUMA nodes.",
+            "Add e2e_node tests for Memory manager with sidecar containers, verifying memory allocation and accounting during init and regular phases.",
+            "Add kubectl integration tests to verify READY column and init status display sidecar containers correctly.",
+            "Add e2e tests for beta termination behavior: reverse-order termination, preStop hooks, and SIGTERM handling for sidecar containers.",
+            "Add scheduler integration tests to verify sidecar resource requests are included in scheduling decisions and LimitRanger defaults.",
+            "Add e2e tests for resource overcommitment scenarios with sidecar containers running during init and regular phases.",
+            "Add e2e tests for probe execution and timeout handling for sidecar containers, including startup probe failures and restarts.",
+            "Add e2e tests for lifecycle hooks (postStart, preStop) on sidecar containers, including failure and timeout scenarios.",
+            "Add upgrade/downgrade tests to verify behavior when feature gate is disabled after sidecar containers are running, including pod status and termination.",
+            "Add e2e tests for API server down during sidecar startup with readiness probes, verifying pod startup completes when API server returns.",
+            "Add e2e tests for kubelet restart with sidecar containers in various states, verifying correct restart order and no duplicate starts.",
+            "Add e2e tests for multiple sidecar containers with complex ordering and dependency scenarios.",
+            "Add e2e tests for sidecar containers with resource limits and QoS class assignment, verifying admission and scheduling.",
+            "Add e2e tests for sidecar containers with failing startup probes and restart behavior.",
+            "Add e2e tests for sidecar containers with preStop hooks during pod termination, verifying graceful period and hook execution.",
+            "Add e2e tests for sidecar containers with readiness probes affecting endpoint readiness during termination.",
+            "Add e2e tests for sidecar containers with liveness probes and restart policy Always, verifying container restarts.",
+            "Add e2e tests for sidecar containers with postStart hooks that block startup, verifying timeout and pod startup failure handling."
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_753:test-plan",
+              "source_type": "kep_test_plan",
+              "source_id": "753",
+              "source_path": "tests/test_plans.json",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+              "section": "case_id=k8s_753"
+            }
+          ],
+          "uncertainty": "The existing test plan is a KEP draft and may not reflect actual implemented tests. The coverage percentages for packages are from a specific date and may have changed. The recommended missing cases are based on the change points and risk areas, but some may already be covered by tests not listed in the provided evidence."
+        },
+        "failure": null
+      }
+    },
+    "report": {
+      "case_id": "k8s_753",
+      "feature_summary": "Introduces sidecar containers as init containers with a restartPolicy of Always, allowing them to start in order with other init containers, run for the pod's lifetime, and not block pod termination. Includes changes to resource calculation, kubectl output, termination behavior, and OOM score adjustment.",
+      "change_points": [
+        {
+          "description": "New restartPolicy field on init containers to mark them as sidecar containers, with only 'Always' supported.",
+          "affected_components": [
+            "kube-apiserver",
+            "kubelet",
+            "Pod API"
+          ],
+          "change_type": "API addition",
+          "potential_risk_areas": [
+            "API compatibility",
+            "Validation",
+            "Downgrade compatibility"
+          ]
+        },
+        {
+          "description": "Kubelet starts sidecar containers in order with init containers, waiting for startup completion (startup probe or postStart) rather than completion.",
+          "affected_components": [
+            "kubelet"
+          ],
+          "change_type": "Behavioral change",
+          "potential_risk_areas": [
+            "Startup ordering",
+            "Container lifecycle",
+            "Probe handling"
+          ]
+        },
+        {
+          "description": "Sidecar containers do not block pod completion; they are terminated when all regular containers complete.",
+          "affected_components": [
+            "kubelet",
+            "Pod lifecycle"
+          ],
+          "change_type": "Behavioral change",
+          "potential_risk_areas": [
+            "Job completion",
+            "Graceful termination",
+            "Resource cleanup"
+          ]
+        },
+        {
+          "description": "OOM score adjustment for sidecar containers is set to match or fall below regular containers to reduce OOM kills.",
+          "affected_components": [
+            "kubelet",
+            "OOM killer"
+          ],
+          "change_type": "Behavioral change",
+          "potential_risk_areas": [
+            "Memory management",
+            "Stability"
+          ]
+        },
+        {
+          "description": "Enable lifecycle handlers (postStart, preStop) and all probes (startup, readiness, liveness) for sidecar containers; readiness probes contribute to pod readiness.",
+          "affected_components": [
+            "kubelet",
+            "Pod readiness"
+          ],
+          "change_type": "Feature enhancement",
+          "potential_risk_areas": [
+            "Probe execution",
+            "Readiness semantics",
+            "Lifecycle hook behavior"
+          ]
+        },
+        {
+          "description": "Resource calculation for scheduling and admission changes to account for sidecar containers running during init and regular phases.",
+          "affected_components": [
+            "kube-scheduler",
+            "kubelet",
+            "Resource quota"
+          ],
+          "change_type": "Algorithm change",
+          "potential_risk_areas": [
+            "Scheduling accuracy",
+            "Resource overcommitment",
+            "Admission control"
+          ]
+        },
+        {
+          "description": "kubectl get pods output extended to include sidecar container status in READY column and init status.",
+          "affected_components": [
+            "kubectl"
+          ],
+          "change_type": "User interface change",
+          "potential_risk_areas": [
+            "Output compatibility",
+            "User confusion"
+          ]
+        },
+        {
+          "description": "Termination behavior for sidecar containers: in alpha, terminated as regular containers; in beta, reverse-order termination after primary containers, with preStop hooks and SIGTERM handling.",
+          "affected_components": [
+            "kubelet",
+            "Pod termination"
+          ],
+          "change_type": "Behavioral change",
+          "potential_risk_areas": [
+            "Graceful termination",
+            "Ordering",
+            "Timeout handling"
+          ]
+        },
+        {
+          "description": "Topology and CPU managers need updates to handle sidecar container resource requests, especially for NUMA and CPU pinning.",
+          "affected_components": [
+            "kubelet",
+            "CPU manager",
+            "Memory manager",
+            "Topology manager"
+          ],
+          "change_type": "Implementation change",
+          "potential_risk_areas": [
+            "Resource allocation",
+            "NUMA awareness",
+            "Performance"
+          ]
+        }
+      ],
+      "high_risk_scenarios": [
+        {
+          "description": "Enabling lifecycle handlers (postStart, preStop) and all probes (startup, readiness, liveness) for sidecar containers, with readiness probes contributing to pod readiness, changes probe execution and readiness semantics. This could affect pod readiness and lifecycle hook behavior, especially during startup and termination.",
+          "affected_components": [
+            "kubelet",
+            "Pod API"
+          ],
+          "risk_area": "Probe handling",
+          "historical_issue_refs": [
+            "753"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_753:kep-proposal",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "753",
+              "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+              "section": "Proposal"
+            }
+          ],
+          "uncertainty": "The interaction of sidecar probes with existing init container probes and pod readiness is not fully detailed."
+        },
+        {
+          "description": "Introducing a new restartPolicy field on init containers changes the API schema. Existing clients, controllers, and admission webhooks that do not recognize this field may reject or strip it, causing pods to fail or behave unexpectedly. The evidence notes that third-party controllers may strip the field, OPA rules may reject it, and backward compatibility is only guaranteed for pods not using the field.",
+          "affected_components": [
+            "kube-apiserver",
+            "Pod API",
+            "kubectl"
+          ],
+          "risk_area": "API compatibility",
+          "historical_issue_refs": [
+            "753"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_753:kep-design-details-backward-compatibility",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "753",
+              "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+              "section": "Design Details / Backward compatibility"
+            }
+          ],
+          "uncertainty": "The extent of ecosystem breakage depends on how widely the field is adopted and how strict admission controllers are."
+        },
+        {
+          "description": "kubectl get pods output is extended to include sidecar container status in READY column and init status. This changes output compatibility and may confuse users who expect the previous format. The evidence shows the new output format.",
+          "affected_components": [
+            "kubectl"
+          ],
+          "risk_area": "Output compatibility",
+          "historical_issue_refs": [
+            "753"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_753:kep-design-details-kubectl-changes",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "753",
+              "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+              "section": "Design Details / kubectl changes"
+            }
+          ],
+          "uncertainty": "The change is intentional, but scripts parsing kubectl output may break."
+        },
+        {
+          "description": "OOM score adjustment for sidecar containers is set to match or fall below regular containers to reduce OOM kills. This changes the OOM killer behavior, potentially affecting memory management and stability. The evidence mentions this intent to solve a specific issue.",
+          "affected_components": [
+            "OOM killer",
+            "kubelet"
+          ],
+          "risk_area": "Memory management",
+          "historical_issue_refs": [
+            "753"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_753:kep-proposal",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "753",
+              "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+              "section": "Proposal"
+            }
+          ],
+          "uncertainty": "The exact OOM score adjustment values and their impact on overall pod memory pressure are not specified."
+        },
+        {
+          "description": "Resource calculation for scheduling and admission changes to account for sidecar containers running during init and regular phases. This affects scheduling accuracy and resource overcommitment, as sidecar resources are now considered in both phases. The evidence mentions this change in the proposal.",
+          "affected_components": [
+            "kube-scheduler",
+            "kube-apiserver",
+            "kubelet"
+          ],
+          "risk_area": "Scheduling accuracy",
+          "historical_issue_refs": [
+            "753"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_753:kep-proposal",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "753",
+              "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+              "section": "Proposal"
+            }
+          ],
+          "uncertainty": "The exact resource accounting algorithm is not specified, and the impact on cluster capacity is unclear."
+        },
+        {
+          "description": "Sidecar containers do not block pod completion; they are terminated when all regular containers complete. This changes the lifecycle semantics for init containers, which previously had to complete before regular containers started. Workloads that depend on init containers running until pod completion may be affected.",
+          "affected_components": [
+            "kubelet",
+            "Job completion"
+          ],
+          "risk_area": "Container lifecycle",
+          "historical_issue_refs": [
+            "753"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_753:kep-proposal",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "753",
+              "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+              "section": "Proposal"
+            }
+          ],
+          "uncertainty": "The behavior is intentional, but users may not expect sidecars to be terminated early."
+        },
+        {
+          "description": "Sidecar containers start in order with init containers and wait for startup completion (startup probe or postStart) rather than completion. This changes the startup ordering semantics, potentially breaking workloads that assume init containers complete before any other container starts. The evidence describes the new startup condition and ordering.",
+          "affected_components": [
+            "kubelet"
+          ],
+          "risk_area": "Startup ordering",
+          "historical_issue_refs": [
+            "753"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_753:kep-proposal",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "753",
+              "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+              "section": "Proposal"
+            }
+          ],
+          "uncertainty": "The impact depends on how many existing init containers are converted to sidecars and whether they rely on the old completion-based sequencing."
+        },
+        {
+          "description": "Termination behavior for sidecar containers changes: in alpha, terminated as regular containers; in beta, reverse-order termination after primary containers, with preStop hooks and SIGTERM handling. This affects graceful termination and lifecycle hook behavior, especially during pod termination.",
+          "affected_components": [
+            "kubelet"
+          ],
+          "risk_area": "Graceful termination",
+          "historical_issue_refs": [
+            "753"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_753:kep-design-details-termination-of-containers-p2",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "753",
+              "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+              "section": "Design Details / Termination of containers"
+            }
+          ],
+          "uncertainty": "The alpha-to-beta transition may cause inconsistent behavior across versions."
+        },
+        {
+          "description": "Topology and CPU managers need updates to handle sidecar container resource requests, especially for NUMA and CPU pinning. This affects resource allocation and NUMA awareness, potentially impacting performance and stability.",
+          "affected_components": [
+            "CPU manager",
+            "Memory manager",
+            "Topology manager"
+          ],
+          "risk_area": "NUMA awareness",
+          "historical_issue_refs": [
+            "753"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_753:kep-proposal",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "753",
+              "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+              "section": "Proposal"
+            }
+          ],
+          "uncertainty": "The specific changes to topology and CPU managers are not detailed in the provided evidence."
+        }
+      ],
+      "historical_issues": [
+        {
+          "issue_id": "753",
+          "title": "Sidecar Containers ",
+          "description": "### Enhancement Description\n\n- One-line enhancement description (can be used as a release note): Kubernetes introduces the built-in support for sidecar containers pattern.\n- Kubernetes Enhancement Proposal: https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/753-sidecar-containers/README.md\n- Discussion Link: Sidecar [working group](https://docs.google.com/document/d/1E1guvFJ5KBQIGcjCrQqFywU9_cBQHRtHvjuqcVbCXvU/edit#heading=h.m8xoiv5t6qma) and [KEP draft](https://github.com/kubernetes/enhancements/pull/3761)\n- Primary contact (assignee): @SergeyKanzhelev\n- Responsible SIGs: node\n- Enhancement target (which target equals to which milestone):\n  - Alpha release target (x.y): 1.28\n  - Beta release target (x.y): 1.29\n  - Stable release target (x.y): 1.33\n- [x] Alpha\n  - [X] KEP (`k/enhancements`) update PR(s): \n    - https://github.com/kubernetes/enhancements/pull/3761\n    - https://github.com/kubernetes/enhancements/pull/3968\n  - [x] Code (`k/k`) update PR(s): \n    - https://github.com/kubernetes/kubernetes/pull/116429\n  - [x] Docs (`k/website`) update PR(s):\n    - https://github.com/kubernetes/website/pull/41802\n- [x] Beta\n  - [x] KEP (`k/enhancements`) update PR(s): https://github.com/kubernetes/enhancements/pull/4255\n  - [x] Code (`k/k`) update PR(s):\n    - [x] https://github.com/kubernetes/kubernetes/pull/120620\n    - [x] https://github.com/kubernetes/kubernetes/pull/121579\n    - [x] https://github.com/kubernetes/kubernetes/pull/121307\n  - [x] Docs (`k/website`) update(s): https://github.com/kubernetes/website/pull/43471\n- [x] Stable\n  - [x] KEP (`k/enhancements`) update PR(s): \n    - https://github.com/kubernetes/enhancements/pull/5081\n    - https://github.com/kubernetes/enhancements/pull/4932\n  - [x] Code (`k/k`) update PR(s): https://github.com/kubernetes/kubernetes/pull/129731\n  - [x] Docs (`k/website`) update(s): https://github.com/kubernetes/website/pull/49685\n\n/sig node\n\n_Please keep this description up to date. This will help the Enhancement Team to track the evolution of the enhancement efficiently._\n",
+          "component": "sig-node",
+          "labels": [
+            "sig/apps",
+            "sig/node",
+            "stage/stable",
+            "kind/feature",
+            "kind/api-change"
+          ],
+          "state": "closed",
+          "severity": null,
+          "curated_severity": null,
+          "annotation_source": null,
+          "evidence_ref": {
+            "evidence_id": "k8s_753:issue:753",
+            "source_type": "github_enhancement_tracking_issue",
+            "source_id": "753",
+            "source_path": "raw/github_issues/enhancements_753.json",
+            "source_url": "https://github.com/kubernetes/enhancements/issues/753",
+            "section": null
+          }
+        }
+      ],
+      "existing_coverage": [
+        {
+          "plan_id": "k8s_753:kep-test-plan",
+          "case_id": "k8s_753",
+          "content": "### Test Plan\n\n<!--\n**Note:** *Not required until targeted at a release.*\nThe goal is to ensure that we don't accept enhancements with inadequate testing.\n\nAll code is expected to have adequate tests (eventually with coverage\nexpectations). Please adhere to the [Kubernetes testing guidelines][testing-guidelines]\nwhen drafting this test plan.\n\n[testing-guidelines]: https://git.k8s.io/community/contributors/devel/sig-testing/testing.md\n-->\n\n[ ] I/we understand the owners of the involved components may require updates to\nexisting tests to make this code solid enough prior to committing the changes necessary\nto implement this enhancement.\n\n##### Prerequisite testing updates\n\n<!--\nBased on reviewers feedback describe what additional tests need to be added prior\nimplementing this enhancement to ensure the enhancements have also solid foundations.\n-->\n\n##### Unit tests\n\n<!--\nIn principle every added code should have complete unit test coverage, so providing\nthe exact set of tests will not bring additional value.\nHowever, if complete unit test coverage is not possible, explain the reason of it\ntogether with explanation why this is acceptable.\n-->\n\n<!--\nAdditionally, for Alpha try to enumerate the core package you will be touching\nto implement this enhancement and provide the current unit coverage for those\nin the form of:\n- <package>: <date> - <current test coverage>\nThe data can be easily read from:\nhttps://testgrid.k8s.io/sig-testing-canaries#ci-kubernetes-coverage-unit\n\nThis can inform certain test coverage improvements that we want to do before\nextending the production code to implement this enhancement.\n-->\n\n- `<package>`: `<date>` - `<test coverage>`\n\nThere will be many packages touched in process. A few that easy to identify by\nareas of a change:\n\nAdmission:\n- `k8s.io/kubernetes/pkg/kubelet/lifecycle`: `61.7`\n\nEnable probes for sidecar containers\n- `k8s.io/kubernetes/pkg/kubelet/prober`: `02/07/2023` - `79.9`\n\nInclude sidecars into QoS decision:\n- `k8s.io/kubernetes/pkg/kubelet/qos`: `02/07/2023` - `100`\n\nInclude sidecar in resources calculation and policy decisions:\n\n- `k8s.io/kubernetes/pkg/kubelet/cm/topologymanager`: `02/07/2023` - `93.2`\n- `k8s.io/kubernetes/pkg/kubelet/cm/memorymanager`: `02/07/2023` - `81.2`\n- `k8s.io/kubernetes/pkg/kubelet/cm/cpumanager`: `02/07/2023` - `86.4`\n\nUpdate OOM score adjustment:\n-  `k8s.io/kubernetes/pkg/kubelet/oom`: `02/07/2023` - ` 57.1`\n\n##### Integration tests\n\n<!--\nIntegration tests are contained in k8s.io/kubernetes/test/integration.\nIntegration tests allow control of the configuration parameters used to start the binaries under test.\nThis is different from e2e tests which do not allow configuration of parameters.\nDoing this allows testing non-default options and multiple different and potentially conflicting command line options.\n-->\n\n<!--\nThis question should be filled when targeting a release.\nFor Alpha, describe what tests will be added to ensure proper quality of the enhancement.\n\nFor Beta and GA, add links to added tests together with links to k8s-triage for those tests:\nhttps://storage.googleapis.com/k8s-triage/index.html\n-->\n\nNo integration tests are planned. We'll cover this with e2e_node tests.\n\n##### e2e tests\n\n<!--\nThis question should be filled when targeting a release.\nFor Alpha, describe what tests will be added to ensure proper quality of the enhancement.\n\nFor Beta and GA, add links to added tests together with links to k8s-triage for those tests:\nhttps://storage.googleapis.com/k8s-triage/index.html\n\nWe expect no non-infra related flakes in the last month as a GA graduation criteria.\n-->\n\n- Test failures: https://storage.googleapis.com/k8s-triage/index.html?pr=1&test=SidecarContainers\n- All related tests can be filtered with the SidecarContainers\n\n##### Ready state of a sidecar container is properly used to create/delete endpoints\n\nThe sidecar container can expose ports and can be used to handle external traffic.\n\n- Pod with sidecar container exposing the port can receive Service traffic to this Port\n- Pod with sidecar container exposing the port with readiness probe marks the Endpoint not ready when probe fails and switched back on when readiness probe succeed\n- Pod with sidecar container exposing the port can receive Service traffic to this Port during Pod termination (during graceful termination period)\n\n##### Pod lifecycle scenarios without sidecar containers\n\n- Init containers should start after the previous init container has completed\n- Regular containers should start in parallel after all init containers have completed\n- Restart behavior of the init containers\n\n##### Pod lifecycle scenarios with sidecar containers\n\n- Init containers should start after the previous restartable init container has started\n- Regular containers should start in parallel after all regular init containers have completed and all restartable init containers have started\n- Restartable init containers should restart always\n\n##### Kubelet restart test cases\n\n- It should restart the containers in the right order after the node reboot\n- It should not restart any completed init containers after the kubelet restart\n\n##### API server is down: failure to update containers status during initialization\n\nFrom @rata. Interesting test cases where the API server is down and kubelet\nwants to start a pod with sidecars. That was problematic in the previous\nsidecar KEP iterations.\n\nLet say the API server is up and a pod is being started by the kubelet\n- The kubelet still needs to start 3 sidecars in the pod\n- The API server crashes (it is not restarted yet)\n- The kubelet continues to try to start the sidecars\n- The pod is started correctly\n- The API server becomes reachable again\n\nI think testing this scenario works is important in early phases (alpha), as in\nthe past that proved to be tricky. The kubelet is authoritative on which\ncontainers are started and sends it to the API server, but I hit some bugs in\nthe past where if the API server was down, we couldn't read that a new container\nwas ready from the kubelet. The code to do it was there even if API server was\ndown, but something was not working and I didn't debug it. And the end result\nwas that the pod startup didn't finish until the API server was up again, as\nthat is when we realized from the kubelet that the sidecar was ready.\n\nI think this code has changed since 1.17 when I tested this, but I don't know if\nthis issue is fixed. It is a non-trivial scenario that, if it happens to need\nmore serious code changes in the kubelet to handle it correctly, it will be good\nto know in early stages of the KEP IMHO.\n\n#### Resource usage testing\n\n1. Validate that the pod overhead will be accounted for when scheduling a Pod\n   with sidecar container.\n2. Validate that LimitRanger will apply defaults and consider limits for the Pod\n   with the sidecar containers.\n\n#### Upgrade/downgrade testing\n\n1. Kubelet and control plane reject the Pod with the new field if the feature\n  gate is disabled.\n2. kubelet and control plane reject the Pod with the new field if the feature\n  gate was disabled AFTER the Pod with the new field was added.\n",
+          "evidence_ref": {
+            "evidence_id": "k8s_753:test-plan",
+            "source_type": "kep_test_plan",
+            "source_id": "753",
+            "source_path": "tests/test_plans.json",
+            "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+            "section": "case_id=k8s_753"
+          }
+        }
+      ],
+      "existing_test_cases": [],
+      "coverage_state": "PLAN_ONLY",
+      "coverage_assessment": "The existing test plan covers many key areas of the sidecar container feature, including lifecycle ordering, readiness probes, resource accounting, upgrade/downgrade behavior, and API server outage scenarios. However, there are notable gaps in coverage for OOM score adjustment, CPU manager and topology manager NUMA handling, kubectl output compatibility, and detailed termination behavior (especially preStop hooks and reverse-order termination). The plan also lacks explicit tests for scheduler admission control with sidecar resource requests and for memory manager behavior.",
+      "potential_gaps": [
+        "No explicit tests for OOM score adjustment of sidecar containers to ensure they are less likely to be OOM-killed than regular containers.",
+        "No tests for CPU manager behavior with sidecar containers, especially CPU pinning and guaranteed QoS scenarios.",
+        "No tests for Topology manager NUMA-aware resource allocation with sidecar containers.",
+        "No tests for Memory manager behavior with sidecar containers, especially when memory requests are accounted during init and regular phases.",
+        "No tests for kubectl get pods output to verify READY column and init status include sidecar containers correctly.",
+        "No tests for termination behavior in beta: reverse-order termination after primary containers, preStop hooks, and SIGTERM handling.",
+        "No tests for scheduler admission control to ensure sidecar resource requests are accounted for in scheduling decisions and LimitRanger defaults.",
+        "No tests for resource overcommitment scenarios where sidecar containers run during init and regular phases, potentially causing overcommitment.",
+        "No tests for probe execution and timeout handling for sidecar containers, especially startup probes and postStart hooks.",
+        "No tests for lifecycle hook behavior (postStart, preStop) for sidecar containers, including failure scenarios.",
+        "No tests for downgrade compatibility when feature gate is disabled after sidecar containers are in use, beyond rejection of new pods.",
+        "No tests for API server down during sidecar container startup with readiness probes failing or succeeding.",
+        "No tests for sidecar container restart behavior when kubelet restarts and containers are in various states (running, terminated, etc.).",
+        "No tests for sidecar containers with multiple sidecars and complex ordering dependencies.",
+        "No tests for sidecar containers with resource limits and QoS class assignment.",
+        "No tests for sidecar containers with startup probes that fail and restart behavior.",
+        "No tests for sidecar containers with preStop hooks during pod termination and graceful period.",
+        "No tests for sidecar containers with readiness probes affecting endpoint readiness during termination.",
+        "No tests for sidecar containers with liveness probes and restart policy Always.",
+        "No tests for sidecar containers with postStart hooks that block startup and timeout handling."
+      ],
+      "missing_cases": [
+        "Add unit tests for OOM score adjustment logic in pkg/kubelet/oom to verify sidecar containers get lower OOM scores than regular containers.",
+        "Add e2e_node tests for CPU manager with sidecar containers in guaranteed QoS, verifying CPU pinning and no CPU starvation.",
+        "Add e2e_node tests for Topology manager with sidecar containers requesting resources on specific NUMA nodes.",
+        "Add e2e_node tests for Memory manager with sidecar containers, verifying memory allocation and accounting during init and regular phases.",
+        "Add kubectl integration tests to verify READY column and init status display sidecar containers correctly.",
+        "Add e2e tests for beta termination behavior: reverse-order termination, preStop hooks, and SIGTERM handling for sidecar containers.",
+        "Add scheduler integration tests to verify sidecar resource requests are included in scheduling decisions and LimitRanger defaults.",
+        "Add e2e tests for resource overcommitment scenarios with sidecar containers running during init and regular phases.",
+        "Add e2e tests for probe execution and timeout handling for sidecar containers, including startup probe failures and restarts.",
+        "Add e2e tests for lifecycle hooks (postStart, preStop) on sidecar containers, including failure and timeout scenarios.",
+        "Add upgrade/downgrade tests to verify behavior when feature gate is disabled after sidecar containers are running, including pod status and termination.",
+        "Add e2e tests for API server down during sidecar startup with readiness probes, verifying pod startup completes when API server returns.",
+        "Add e2e tests for kubelet restart with sidecar containers in various states, verifying correct restart order and no duplicate starts.",
+        "Add e2e tests for multiple sidecar containers with complex ordering and dependency scenarios.",
+        "Add e2e tests for sidecar containers with resource limits and QoS class assignment, verifying admission and scheduling.",
+        "Add e2e tests for sidecar containers with failing startup probes and restart behavior.",
+        "Add e2e tests for sidecar containers with preStop hooks during pod termination, verifying graceful period and hook execution.",
+        "Add e2e tests for sidecar containers with readiness probes affecting endpoint readiness during termination.",
+        "Add e2e tests for sidecar containers with liveness probes and restart policy Always, verifying container restarts.",
+        "Add e2e tests for sidecar containers with postStart hooks that block startup, verifying timeout and pod startup failure handling."
+      ],
+      "risk_level": "HIGH",
+      "priority": "ACT_NOW",
+      "completeness": "FULL",
+      "unavailable_sections": [],
+      "uncertainties": [
+        {
+          "branch": "document_analysis",
+          "message": "The document mentions that some behaviors are postponed to beta or GA, such as termination ordering and liveness probe during termination. The exact implementation details for resource calculation and termination may evolve. Also, the impact on third-party controllers and existing containers is noted but not fully detailed."
+        },
+        {
+          "branch": "risk_retrieval",
+          "message": "The evidence is based on the KEP proposal and design details, but the actual implementation may vary. The risk areas are inferred from the described changes and may not cover all potential issues."
+        },
+        {
+          "branch": "test_review",
+          "message": "The existing test plan is a KEP draft and may not reflect actual implemented tests. The coverage percentages for packages are from a specific date and may have changed. The recommended missing cases are based on the change points and risk areas, but some may already be covered by tests not listed in the provided evidence."
+        }
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "k8s_753:kep-proposal",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "753",
+          "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+          "section": "Proposal"
+        },
+        {
+          "evidence_id": "k8s_753:kep-design-details-backward-compatibility",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "753",
+          "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+          "section": "Design Details / Backward compatibility"
+        },
+        {
+          "evidence_id": "k8s_753:kep-design-details-kubectl-changes",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "753",
+          "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+          "section": "Design Details / kubectl changes"
+        },
+        {
+          "evidence_id": "k8s_753:kep-design-details-termination-of-containers-p2",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "753",
+          "source_path": "raw/kubernetes_enhancements/k8s_753/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+          "section": "Design Details / Termination of containers"
+        },
+        {
+          "evidence_id": "k8s_753:issue:753",
+          "source_type": "github_enhancement_tracking_issue",
+          "source_id": "753",
+          "source_path": "raw/github_issues/enhancements_753.json",
+          "source_url": "https://github.com/kubernetes/enhancements/issues/753",
+          "section": null
+        },
+        {
+          "evidence_id": "k8s_1287:kep-proposal-api-changes-p1",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "1287",
+          "source_path": "raw/kubernetes_enhancements/k8s_1287/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/1287-in-place-update-pod-resources/README.md",
+          "section": "Proposal / API Changes"
+        },
+        {
+          "evidence_id": "k8s_753:test-plan",
+          "source_type": "kep_test_plan",
+          "source_id": "753",
+          "source_path": "tests/test_plans.json",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md",
+          "section": "case_id=k8s_753"
+        }
+      ],
+      "uncertainty": "[Document analysis] The document mentions that some behaviors are postponed to beta or GA, such as termination ordering and liveness probe during termination. The exact implementation details for resource calculation and termination may evolve. Also, the impact on third-party controllers and existing containers is noted but not fully detailed. [Risk retrieval] The evidence is based on the KEP proposal and design details, but the actual implementation may vary. The risk areas are inferred from the described changes and may not cover all potential issues. [Test review] The existing test plan is a KEP draft and may not reflect actual implemented tests. The coverage percentages for packages are from a specific date and may have changed. The recommended missing cases are based on the change points and risk areas, but some may already be covered by tests not listed in the provided evidence."
+    },
+    "report_markdown": "# Feature Risk Review\n\n- case_id: k8s_753\n- Report completeness: FULL\n- Risk Level: HIGH\n- Priority: ACT_NOW\n\n## Feature Summary\n\nIntroduces sidecar containers as init containers with a restartPolicy of Always, allowing them to start in order with other init containers, run for the pod's lifetime, and not block pod termination. Includes changes to resource calculation, kubectl output, termination behavior, and OOM score adjustment.\n\n## Change Points\n\n- New restartPolicy field on init containers to mark them as sidecar containers, with only 'Always' supported.\n- Kubelet starts sidecar containers in order with init containers, waiting for startup completion (startup probe or postStart) rather than completion.\n- Sidecar containers do not block pod completion; they are terminated when all regular containers complete.\n- OOM score adjustment for sidecar containers is set to match or fall below regular containers to reduce OOM kills.\n- Enable lifecycle handlers (postStart, preStop) and all probes (startup, readiness, liveness) for sidecar containers; readiness probes contribute to pod readiness.\n- Resource calculation for scheduling and admission changes to account for sidecar containers running during init and regular phases.\n- kubectl get pods output extended to include sidecar container status in READY column and init status.\n- Termination behavior for sidecar containers: in alpha, terminated as regular containers; in beta, reverse-order termination after primary containers, with preStop hooks and SIGTERM handling.\n- Topology and CPU managers need updates to handle sidecar container resource requests, especially for NUMA and CPU pinning.\n\n## High-Risk Scenarios\n\n- Enabling lifecycle handlers (postStart, preStop) and all probes (startup, readiness, liveness) for sidecar containers, with readiness probes contributing to pod readiness, changes probe execution and readiness semantics. This could affect pod readiness and lifecycle hook behavior, especially during startup and termination. [C1]\n  - Risk area: Probe handling\n  - Affected components: kubelet, Pod API\n- Introducing a new restartPolicy field on init containers changes the API schema. Existing clients, controllers, and admission webhooks that do not recognize this field may reject or strip it, causing pods to fail or behave unexpectedly. The evidence notes that third-party controllers may strip the field, OPA rules may reject it, and backward compatibility is only guaranteed for pods not using the field. [C2]\n  - Risk area: API compatibility\n  - Affected components: kube-apiserver, Pod API, kubectl\n- kubectl get pods output is extended to include sidecar container status in READY column and init status. This changes output compatibility and may confuse users who expect the previous format. The evidence shows the new output format. [C3]\n  - Risk area: Output compatibility\n  - Affected components: kubectl\n- OOM score adjustment for sidecar containers is set to match or fall below regular containers to reduce OOM kills. This changes the OOM killer behavior, potentially affecting memory management and stability. The evidence mentions this intent to solve a specific issue. [C1]\n  - Risk area: Memory management\n  - Affected components: OOM killer, kubelet\n- Resource calculation for scheduling and admission changes to account for sidecar containers running during init and regular phases. This affects scheduling accuracy and resource overcommitment, as sidecar resources are now considered in both phases. The evidence mentions this change in the proposal. [C1]\n  - Risk area: Scheduling accuracy\n  - Affected components: kube-scheduler, kube-apiserver, kubelet\n- Sidecar containers do not block pod completion; they are terminated when all regular containers complete. This changes the lifecycle semantics for init containers, which previously had to complete before regular containers started. Workloads that depend on init containers running until pod completion may be affected. [C1]\n  - Risk area: Container lifecycle\n  - Affected components: kubelet, Job completion\n- Sidecar containers start in order with init containers and wait for startup completion (startup probe or postStart) rather than completion. This changes the startup ordering semantics, potentially breaking workloads that assume init containers complete before any other container starts. The evidence describes the new startup condition and ordering. [C1]\n  - Risk area: Startup ordering\n  - Affected components: kubelet\n- Termination behavior for sidecar containers changes: in alpha, terminated as regular containers; in beta, reverse-order termination after primary containers, with preStop hooks and SIGTERM handling. This affects graceful termination and lifecycle hook behavior, especially during pod termination. [C4]\n  - Risk area: Graceful termination\n  - Affected components: kubelet\n- Topology and CPU managers need updates to handle sidecar container resource requests, especially for NUMA and CPU pinning. This affects resource allocation and NUMA awareness, potentially impacting performance and stability. [C1]\n  - Risk area: NUMA awareness\n  - Affected components: CPU manager, Memory manager, Topology manager\n\n## Historical Issues\n\n- Sidecar Containers  (issue_id=753) [C5]\n  - component: sig-node\n  - severity: not provided\n  - description: ### Enhancement Description\n\n- One-line enhancement description (can be used as a release note): Kubernetes introduces the built-in support for sidecar containers pattern.\n- Kubernetes Enhancement Proposal: https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/753-sidecar-containers/README.md\n- Discussion Link: Sidecar [working group](https://docs.google.com/document/d/1E1guvFJ5KBQIGcjCrQqFywU9_cBQHRtHvjuqcVbCXvU/edit#heading=h.m8xoiv5t6qma) and [KEP draft](https://github.com/kubernetes/enhancements/pull/3761)\n- Primary contact (assignee): @SergeyKanzhelev\n- Responsible SIGs: node\n- Enhancement target (which target equals to which milestone):\n  - Alpha release target (x.y): 1.28\n  - Beta release target (x.y): 1.29\n  - Stable release target (x.y): 1.33\n- [x] Alpha\n  - [X] KEP (`k/enhancements`) update PR(s): \n    - https://github.com/kubernetes/enhancements/pull/3761\n    - https://github.com/kubernetes/enhancements/pull/3968\n  - [x] Code (`k/k`) update PR(s): \n    - https://github.com/kubernetes/kubernetes/pull/116429\n  - [x] Docs (`k/website`) update PR(s):\n    - https://github.com/kubernetes/website/pull/41802\n- [x] Beta\n  - [x] KEP (`k/enhancements`) update PR(s): https://github.com/kubernetes/enhancements/pull/4255\n  - [x] Code (`k/k`) update PR(s):\n    - [x] https://github.com/kubernetes/kubernetes/pull/120620\n    - [x] https://github.com/kubernetes/kubernetes/pull/121579\n    - [x] https://github.com/kubernetes/kubernetes/pull/121307\n  - [x] Docs (`k/website`) update(s): https://github.com/kubernetes/website/pull/43471\n- [x] Stable\n  - [x] KEP (`k/enhancements`) update PR(s): \n    - https://github.com/kubernetes/enhancements/pull/5081\n    - https://github.com/kubernetes/enhancements/pull/4932\n  - [x] Code (`k/k`) update PR(s): https://github.com/kubernetes/kubernetes/pull/129731\n  - [x] Docs (`k/website`) update(s): https://github.com/kubernetes/website/pull/49685\n\n/sig node\n\n_Please keep this description up to date. This will help the Enhancement Team to track the evolution of the enhancement efficiently._\n\n\n## Existing Coverage\n\n- coverage_state: PLAN_ONLY\n- Test Plan k8s_753:kep-test-plan [C7]\n\n## Coverage Assessment\n\nThe existing test plan covers many key areas of the sidecar container feature, including lifecycle ordering, readiness probes, resource accounting, upgrade/downgrade behavior, and API server outage scenarios. However, there are notable gaps in coverage for OOM score adjustment, CPU manager and topology manager NUMA handling, kubectl output compatibility, and detailed termination behavior (especially preStop hooks and reverse-order termination). The plan also lacks explicit tests for scheduler admission control with sidecar resource requests and for memory manager behavior.\n\n## Missing / Recommended Cases\n\nPotential gaps:\n- No explicit tests for OOM score adjustment of sidecar containers to ensure they are less likely to be OOM-killed than regular containers.\n- No tests for CPU manager behavior with sidecar containers, especially CPU pinning and guaranteed QoS scenarios.\n- No tests for Topology manager NUMA-aware resource allocation with sidecar containers.\n- No tests for Memory manager behavior with sidecar containers, especially when memory requests are accounted during init and regular phases.\n- No tests for kubectl get pods output to verify READY column and init status include sidecar containers correctly.\n- No tests for termination behavior in beta: reverse-order termination after primary containers, preStop hooks, and SIGTERM handling.\n- No tests for scheduler admission control to ensure sidecar resource requests are accounted for in scheduling decisions and LimitRanger defaults.\n- No tests for resource overcommitment scenarios where sidecar containers run during init and regular phases, potentially causing overcommitment.\n- No tests for probe execution and timeout handling for sidecar containers, especially startup probes and postStart hooks.\n- No tests for lifecycle hook behavior (postStart, preStop) for sidecar containers, including failure scenarios.\n- No tests for downgrade compatibility when feature gate is disabled after sidecar containers are in use, beyond rejection of new pods.\n- No tests for API server down during sidecar container startup with readiness probes failing or succeeding.\n- No tests for sidecar container restart behavior when kubelet restarts and containers are in various states (running, terminated, etc.).\n- No tests for sidecar containers with multiple sidecars and complex ordering dependencies.\n- No tests for sidecar containers with resource limits and QoS class assignment.\n- No tests for sidecar containers with startup probes that fail and restart behavior.\n- No tests for sidecar containers with preStop hooks during pod termination and graceful period.\n- No tests for sidecar containers with readiness probes affecting endpoint readiness during termination.\n- No tests for sidecar containers with liveness probes and restart policy Always.\n- No tests for sidecar containers with postStart hooks that block startup and timeout handling.\n\nRecommended missing cases (RECOMMENDATION, not existing tests):\n- Add unit tests for OOM score adjustment logic in pkg/kubelet/oom to verify sidecar containers get lower OOM scores than regular containers.\n- Add e2e_node tests for CPU manager with sidecar containers in guaranteed QoS, verifying CPU pinning and no CPU starvation.\n- Add e2e_node tests for Topology manager with sidecar containers requesting resources on specific NUMA nodes.\n- Add e2e_node tests for Memory manager with sidecar containers, verifying memory allocation and accounting during init and regular phases.\n- Add kubectl integration tests to verify READY column and init status display sidecar containers correctly.\n- Add e2e tests for beta termination behavior: reverse-order termination, preStop hooks, and SIGTERM handling for sidecar containers.\n- Add scheduler integration tests to verify sidecar resource requests are included in scheduling decisions and LimitRanger defaults.\n- Add e2e tests for resource overcommitment scenarios with sidecar containers running during init and regular phases.\n- Add e2e tests for probe execution and timeout handling for sidecar containers, including startup probe failures and restarts.\n- Add e2e tests for lifecycle hooks (postStart, preStop) on sidecar containers, including failure and timeout scenarios.\n- Add upgrade/downgrade tests to verify behavior when feature gate is disabled after sidecar containers are running, including pod status and termination.\n- Add e2e tests for API server down during sidecar startup with readiness probes, verifying pod startup completes when API server returns.\n- Add e2e tests for kubelet restart with sidecar containers in various states, verifying correct restart order and no duplicate starts.\n- Add e2e tests for multiple sidecar containers with complex ordering and dependency scenarios.\n- Add e2e tests for sidecar containers with resource limits and QoS class assignment, verifying admission and scheduling.\n- Add e2e tests for sidecar containers with failing startup probes and restart behavior.\n- Add e2e tests for sidecar containers with preStop hooks during pod termination, verifying graceful period and hook execution.\n- Add e2e tests for sidecar containers with readiness probes affecting endpoint readiness during termination.\n- Add e2e tests for sidecar containers with liveness probes and restart policy Always, verifying container restarts.\n- Add e2e tests for sidecar containers with postStart hooks that block startup, verifying timeout and pod startup failure handling.\n\n## Risk Level and Priority\n\n- Risk Level: HIGH\n- Priority: ACT_NOW\n\n## Uncertainty\n\n- [document_analysis] The document mentions that some behaviors are postponed to beta or GA, such as termination ordering and liveness probe during termination. The exact implementation details for resource calculation and termination may evolve. Also, the impact on third-party controllers and existing containers is noted but not fully detailed.\n- [risk_retrieval] The evidence is based on the KEP proposal and design details, but the actual implementation may vary. The risk areas are inferred from the described changes and may not cover all potential issues.\n- [test_review] The existing test plan is a KEP draft and may not reflect actual implemented tests. The coverage percentages for packages are from a specific date and may have changed. The recommended missing cases are based on the change points and risk areas, but some may already be covered by tests not listed in the provided evidence.\n\n## Evidence\n\n- [k8s_753:kep-proposal] [C1]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 753\n  - section: Proposal\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md\n- [k8s_753:kep-design-details-backward-compatibility] [C2]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 753\n  - section: Design Details / Backward compatibility\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md\n- [k8s_753:kep-design-details-kubectl-changes] [C3]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 753\n  - section: Design Details / kubectl changes\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md\n- [k8s_753:kep-design-details-termination-of-containers-p2] [C4]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 753\n  - section: Design Details / Termination of containers\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md\n- [k8s_753:issue:753] [C5]\n  - source_type: github_enhancement_tracking_issue\n  - source_id: 753\n  - section: n/a\n  - source_url: https://github.com/kubernetes/enhancements/issues/753\n- [k8s_1287:kep-proposal-api-changes-p1] [C6]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 1287\n  - section: Proposal / API Changes\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/1287-in-place-update-pod-resources/README.md\n- [k8s_753:test-plan] [C7]\n  - source_type: kep_test_plan\n  - source_id: 753\n  - section: case_id=k8s_753\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-node/753-sidecar-containers/README.md\n",
+    "runtime_manifest_digest": "798ac7114e3eef95b7c50758195b3231af7ffdbc495644761d0edf79d733d776"
+  }
+}

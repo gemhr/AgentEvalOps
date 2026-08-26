@@ -1,0 +1,886 @@
+{
+  "prediction": {
+    "schema_version": "feature-risk-review-prediction.v1",
+    "case_id": "k8s_541",
+    "attempt": 1,
+    "execution_classification": "BUSINESS_RESULT",
+    "model_ref": "deepseek/deepseek-chat",
+    "started_at": "2026-08-26T13:48:54.346889Z",
+    "finished_at": "2026-08-26T13:49:08.602866Z",
+    "workflow": {
+      "case_id": "k8s_541",
+      "workflow_status": "SUCCESS",
+      "document_analysis": {
+        "branch": "document_analysis",
+        "status": "SUCCESS",
+        "value": {
+          "case_id": "k8s_541",
+          "feature_summary": "This feature introduces external credential providers for Kubernetes client authentication, allowing out-of-tree executables to supply credentials (bearer tokens or mTLS) via a new exec-based authentication flow. It defines configuration in kubeconfig, input/output formats (ExecCredential), caching behavior, and metrics for monitoring.",
+          "change_points": [
+            {
+              "description": "New exec-based authentication flow in client libraries: before each request, the client executes a configured binary and uses its output for authentication.",
+              "affected_components": [
+                "client-go",
+                "kubeconfig parsing",
+                "authentication libraries"
+              ],
+              "change_type": "new feature",
+              "potential_risk_areas": [
+                "execution of external binaries",
+                "security of credentials",
+                "error handling"
+              ]
+            },
+            {
+              "description": "Addition of new configuration fields in kubeconfig (exec section) for users, including command, args, env, installHint, provideClusterInfo, and interactiveMode.",
+              "affected_components": [
+                "kubeconfig schema",
+                "client-go config parsing"
+              ],
+              "change_type": "configuration change",
+              "potential_risk_areas": [
+                "backward compatibility",
+                "validation of new fields"
+              ]
+            },
+            {
+              "description": "New ExecCredential API (client.authentication.k8s.io/v1) with input and output formats, including spec.cluster for cluster information and status for credentials.",
+              "affected_components": [
+                "API group client.authentication.k8s.io",
+                "client-go transport"
+              ],
+              "change_type": "new API",
+              "potential_risk_areas": [
+                "versioning",
+                "data serialization",
+                "security of sensitive fields"
+              ]
+            },
+            {
+              "description": "Caching of provider response in-memory until expirationTimestamp; if no expiration, cache for client runtime.",
+              "affected_components": [
+                "client-go transport"
+              ],
+              "change_type": "behavior change",
+              "potential_risk_areas": [
+                "stale credentials",
+                "memory usage"
+              ]
+            },
+            {
+              "description": "New metrics for exec plugin calls, certificate TTL, and rotation age.",
+              "affected_components": [
+                "client-go metrics",
+                "monitoring"
+              ],
+              "change_type": "new feature",
+              "potential_risk_areas": [
+                "metric cardinality",
+                "label correctness"
+              ]
+            },
+            {
+              "description": "Deprecation of gcp and azure authentication options (keystone already deprecated).",
+              "affected_components": [
+                "client-go authentication plugins"
+              ],
+              "change_type": "deprecation",
+              "potential_risk_areas": [
+                "user migration",
+                "breaking changes"
+              ]
+            }
+          ],
+          "affected_components": [
+            "client-go",
+            "kubeconfig",
+            "authentication libraries",
+            "API group client.authentication.k8s.io",
+            "metrics system"
+          ],
+          "potential_risk_areas": [
+            "security of credentials",
+            "execution of external binaries",
+            "backward compatibility",
+            "error handling",
+            "stale credentials",
+            "metric correctness"
+          ],
+          "uncertainty": "The document does not specify exact versioning strategy for the new API or how deprecation of gcp/azure will be communicated. Also, the impact on existing authentication flows is not fully detailed."
+        },
+        "failure": null
+      },
+      "risk_retrieval": {
+        "branch": "risk_retrieval",
+        "status": "SUCCESS",
+        "value": {
+          "case_id": "k8s_541",
+          "retrieved_historical_issues": [
+            {
+              "issue_id": "541",
+              "title": "External client-go credential providers",
+              "description": "# Enhancement Description\r\n- One-line enhancement description: external client-go credential providers\r\n- Kubernetes Enhancement Proposal: [KEP](https://github.com/kubernetes/enhancements/tree/master/keps/sig-auth/541-external-credential-providers)\r\n- Primary contact: @ankeesler \r\n- Responsible SIGs: sig-auth\r\n- Enhancement target:\r\n  - Alpha release target: 1.10\r\n  - Beta release target: 1.11\r\n  - Stable release target: 1.22",
+              "component": "sig-auth",
+              "labels": [
+                "sig/auth",
+                "stage/stable",
+                "kind/feature",
+                "kind/api-change"
+              ],
+              "state": "closed",
+              "severity": null,
+              "curated_severity": null,
+              "annotation_source": null,
+              "evidence_ref": {
+                "evidence_id": "k8s_541:issue:541",
+                "source_type": "github_enhancement_tracking_issue",
+                "source_id": "541",
+                "source_path": "raw/github_issues/enhancements_541.json",
+                "source_url": "https://github.com/kubernetes/enhancements/issues/541",
+                "section": null
+              }
+            }
+          ],
+          "retrieved_evidence": [
+            {
+              "source_fragment": "A new authentication flow in libraries around `kubeconfig` based on\nexecutables. Before performing a request, client executes a binary and uses its\noutput for authentication.\n\nThere are two modes of authentication:\n\n1. Bearer tokens\n2. mTLS\n\nProvider response is cached in-memory by the client and reused in future\nrequests (no caching is done across different executions of the client).  Note\nthat the executable is free to perform any actions internally (i.e. it may\ncache credentials on disk / external hardware, communicate with arbitrary\nexternal APIs, perform arbitrary computations, etc).\n\nClient is configured with a binary path, optional arguments and environment\nvariables to pass to it.  An optional install hint can be included to help a\nuser determine how to install an executable if it is missing.  A simple mechanism\nis available to handle per cluster configuration.",
+              "evidence_ref": {
+                "evidence_id": "k8s_541:kep-proposal",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "541",
+                "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                "section": "Proposal"
+              },
+              "relevance_score": 3.0
+            },
+            {
+              "source_fragment": "In JSON:\n\n```json\n{\n  \"apiVersion\": \"client.authentication.k8s.io/v1\",\n  \"kind\": \"ExecCredential\",\n  \"status\": {\n    \"expirationTimestamp\": \"$EXPIRATION\",\n    \"token\": \"$BEARER_TOKEN\",\n    \"clientKeyData\": \"$CLIENT_PRIVATE_KEY\",\n    \"clientCertificateData\": \"$CLIENT_CERTIFICATE\",\n  }\n}\n```\n\nThe Go struct:\n\n```golang\n// ExecCredentialStatus holds credentials for the transport to use.\n//\n// Token and ClientKeyData are sensitive fields. This data should only be\n// transmitted in-memory between client and exec plugin process. Exec plugin\n// itself should at least be protected via file permissions.\ntype ExecCredentialStatus struct {\n  // ExpirationTimestamp indicates a time when the provided credentials expire.\n  // +optional\n  ExpirationTimestamp *metav1.Time `json:\"expirationTimestamp,omitempty\"`\n  // Token is a bearer token used by the client for request authentication.\n  Token string `json:\"token,omitempty\"`\n  // PEM-encoded client TLS certificates (including intermediates, if any).\n  ClientCertificateData string `json:\"clientCertificateData,omitempty\"`\n  // PEM-encoded private key for the above certificate.\n  ClientKeyData string `json:\"clientKeyData,omitempty\"`\n}\n```\n\n`expirationTimestamp` specifies the RFC3339 timestamp with credential expiry.\nClient can cache provided credentials in-memory until this time.  If no\n`expirationTimestamp` is provided, credentials will be cached in-memory\nthroughout the runtime of the client (no attempt is made to infer an expiration\ntime based on the credentials themselves).\n\nAfter `expirationTimestamp`, client must execute the provider again for any new\nconnections. For mTLS connections, this applies even if the returned certificate\nis still valid (i.e. the `NotAfter` date is ignored).  Existing connections can\nbe kept open as long as possible even if the associated credential is expired\n(it is the responsibility of the server to close connections for expired\ncredentials).\n\n`token` contains a token for use in `Authorization` header of HTTP requests.\n\n`clientKeyData` and `clientCertificateData` contain client TLS credentials in\nPEM format. The certificate must be valid at the time of execution. These\ncredentials are used for mTLS handshakes.",
+              "evidence_ref": {
+                "evidence_id": "k8s_541:kep-design-details-provider-output-format",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "541",
+                "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                "section": "Design Details / Provider output format"
+              },
+              "relevance_score": 2.636364
+            },
+            {
+              "source_fragment": "In JSON:\n\n```json\n{\n  \"apiVersion\": \"client.authentication.k8s.io/v1\",\n  \"kind\": \"ExecCredential\",\n  \"spec\": {\n    \"interactive\": true,\n    \"cluster\": {\n      \"server\": \"https://1.2.3.4:8080\",\n      \"tls-server-name\": \"bar\",\n      \"insecure-skip-tls-verify\": true,\n      \"certificate-authority-data\": \" ... \",\n      \"proxy-url\": \"https://4.5.6.7:9090/proxy\",\n      \"config\": { ... }\n    }\n  }\n}\n```\n\nThe Go struct:\n\n```golang\n// ExecCredential is used by exec-based plugins to communicate credentials to\n// HTTP transports.\ntype ExecCredential struct {\n  metav1.TypeMeta `json:\",inline\"`\n\n// Spec holds information passed to the plugin by the transport.\n  Spec ExecCredentialSpec `json:\"spec,omitempty\"`\n\n// Status is filled in by the plugin and holds the credentials that the\n  // transport should use to contact the API.\n  // +optional\n  Status *ExecCredentialStatus `json:\"status,omitempty\"`\n}\n\n// ExecCredentialSpec holds request and runtime specific information provided by\n// the transport.\ntype ExecCredentialSpec struct {\n  // Cluster contains information to allow an exec plugin to communicate with the\n  // kubernetes cluster being authenticated to. Note that Cluster is non-nil only\n  // when provideClusterInfo is set to true in the exec provider config (i.e.,\n  // ExecConfig.ProvideClusterInfo).\n  // +optional\n  Cluster *Cluster `json:\"cluster,omitempty\"`\n\n// Interactive declares whether stdin has been passed to this exec plugin.\n  Interactive bool `json:\"interactive\"`\n}",
+              "evidence_ref": {
+                "evidence_id": "k8s_541:kep-design-details-provider-input-format-p1",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "541",
+                "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                "section": "Design Details / Provider input format"
+              },
+              "relevance_score": 2.429494
+            },
+            {
+              "source_fragment": "Configuration is provided via the users and clusters section of `kubeconfig` file:\n\n```yaml\napiVersion: v1\nkind: Config\nusers:\n- name: my-user\n  user:\n    exec:\n      # API version to use when decoding the ExecCredentials resource. Required.\n      apiVersion: \"client.authentication.k8s.io/v1\"\n\n# Command to execute. Required.\n      command: \"example-client-go-exec-plugin\"\n\n# Arguments to pass when executing the plugin. Optional.\n      args:\n      - \"arg1\"\n      - \"arg2\"\n\n# Environment variables to set when executing the plugin. Optional.\n      env:\n      - name: \"FOO\"\n        value: \"bar\"\n\n# Text shown to the user when the executable doesn't seem to be present. Optional.\n      installHint: |\n        example-client-go-exec-plugin is required to authenticate\n        to the current cluster.  It can be installed:\n\nOn macOS: brew install example-client-go-exec-plugin\n\nOn Ubuntu: apt-get install example-client-go-exec-plugin\n\nOn Fedora: dnf install example-client-go-exec-plugin\n\n...\n\n# Whether or not to provide cluster information, which could potentially contain\n      # very large CA data, to this exec plugin as a part of the KUBERNETES_EXEC_INFO\n      # environment variable. Optional. Defaults to false.\n      provideClusterInfo: true\n\n# The contract between the exec plugin and the standard input I/O stream. If the\n      # contract cannot be satisfied, this plugin will not be run and an error will be\n      # returned. Valid values are \"Never\" (this exec plugin never uses standard input),\n      # \"IfAvailable\" (this exec plugin wants to use standard input if it is available),\n      # or \"Always\" (this exec plugin requires standard input to function).\n      #\n      # In v1alpha1 and v1beta1, this is optional and defaults to IfAvailable. It is\n      # required otherwise.\n      interactiveMode: Never\nclusters:\n- name: my-cluster\n  cluster:\n    server: \"https://1.2.3.4:8080\"\n    certificate-authority: \"/etc/kubernetes/ca.pem\"\n    extensions:\n    - name: client.authentication.k8s.io/exec  # reserved extension name for per cluster exec config\n      extension:\n        some-config-per-cluster: config-data  # arbitrary config\ncontexts:\n- name: my-cluster\n  context:\n    cluster: my-cluster\n    user: my-user\ncurrent-context: my-cluster\n```\n\nThe Go struct for the `users[...].user.exec` field:\n\n```golang\n// ExecConfig specifies a command to provide client credentials. The command is exec'd\n// and outputs structured stdout holding credentials.\n//\n// See the client.authentiction.k8s.io API group for specifications of the exact input\n// and output format\ntype ExecConfig struct {\n  // Command to execute.\n  Command string `json:\"command\"`\n  // Arguments to pass to the command when executing it.\n  // +optional\n  Args []string `json:\"args\"`\n  // Env defines additional environment variables to expose to the process. These\n  // are unioned with the host's environment, as well as variables client-go uses\n  // to pass argument to the plugin.\n  // +optional\n  Env []ExecEnvVar `json:\"env\"`\n\n// Preferred input version of the ExecInfo. The returned ExecCredentials MUST use\n  // the same encoding version as the input.\n  APIVersion string `json:\"apiVersion,omitempty\"`\n\n// This text is shown to the user when the executable doesn't seem to be\n  // present. For example, `brew install foo-cli` might be a good InstallHint for\n  // foo-cli on Mac OS systems.\n  InstallHint string `json:\"installHint,omitempty\"`",
+              "evidence_ref": {
+                "evidence_id": "k8s_541:kep-design-details-provider-configuration-p1",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "541",
+                "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                "section": "Design Details / Provider configuration"
+              },
+              "relevance_score": 2.363728
+            },
+            {
+              "source_fragment": "// ProvideClusterInfo determines whether or not to provide cluster information,\n  // which could potentially contain very large CA data, to this exec plugin as a\n  // part of the KUBERNETES_EXEC_INFO environment variable. By default, it is set\n  // to false. Package k8s.io/client-go/tools/auth/exec provides helper methods for\n  // reading this environment variable.\n  ProvideClusterInfo bool `json:\"provideClusterInfo\"`\n\n// InteractiveMode determines this plugin's relationship with standard input. Valid\n  // values are \"Never\" (this exec plugin never uses standard input), \"IfAvailable\" (this\n  // exec plugin wants to use standard input if it is available), or \"Always\" (this exec\n  // plugin requires standard input to function). See ExecInteractiveMode values for more\n  // details.\n  //\n  // If APIVersion is client.authentication.k8s.io/v1alpha1 or\n  // client.authentication.k8s.io/v1beta1, then this field is optional and defaults\n  // to \"IfAvailable\" when unset. Otherwise, this field is required.\n  // +optional\n  InteractiveMode ExecInteractiveMode `json:\"interactiveMode,omitempty\"`\n}\n\n// ExecInteractiveMode is a string that describes an exec plugin's relationship with standard input.\ntype ExecInteractiveMode string\n\nconst (\n  // NeverExecInteractiveMode declares that this exec plugin never needs to use standard\n  // input, and therefore the exec plugin will be run regardless of whether standard input is\n  // available for user input.\n  NeverExecInteractiveMode ExecInteractiveMode = \"Never\"\n  // IfAvailableExecInteractiveMode declares that this exec plugin would like to use standard input\n  // if it is available, but can still operate if standard input is not available. Therefore, the\n  // exec plugin will be run regardless of whether stdin is available for user input. If standard\n  // input is available for user input, then it will be provided to this exec plugin.\n  IfAvailableExecInteractiveMode ExecInteractiveMode = \"IfAvailable\"\n  // AlwaysExecInteractiveMode declares that this exec plugin requires standard input in order to\n  // run, and therefore the exec plugin will only be run if standard input is available for user\n  // input. If standard input is not available for user input, then the exec plugin will not be run\n  // and an error will be returned by the exec plugin runner.\n  AlwaysExecInteractiveMode ExecInteractiveMode = \"Always\"\n)\n```\n\n`apiVersion` specifies the expected version of this API that the plugin\nimplements. If the version differs, client must return an error.\n\n`command` specifies the path to the provider binary. The file at this path must\nbe readable and executable by the client process.\n\n`args` specifies extra arguments passed to the executable.\n\n`env` specifies environment variables to pass to the provider. The environment\nvariables set in the client process are also passed to the provider.\n\n`installHint` specifies help text to print to the user when the required binary\nis missing.\n\n`provideClusterInfo` specifies whether to provide cluster information, which could\npotentially contain very large CA data, to this exec plugin as a part\nof the `KUBERNETES_EXEC_INFO` environment variable.",
+              "evidence_ref": {
+                "evidence_id": "k8s_541:kep-design-details-provider-configuration-p2",
+                "source_type": "kubernetes_enhancement_proposal",
+                "source_id": "541",
+                "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                "section": "Design Details / Provider configuration"
+              },
+              "relevance_score": 2.12132
+            }
+          ],
+          "agent_inferred_risk_findings": [
+            {
+              "description": "Exec-based authentication executes an external binary before each request, which can introduce security risks if the binary path is untrusted or compromised. The binary has access to environment variables and potentially cluster information, and its output is used for authentication, making it a vector for credential theft or malicious actions.",
+              "affected_components": [
+                "client-go",
+                "authentication libraries"
+              ],
+              "risk_area": "security of credentials",
+              "historical_issue_refs": [
+                "541"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_541:kep-proposal",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Proposal"
+                },
+                {
+                  "evidence_id": "k8s_541:kep-design-details-provider-configuration-p1",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Design Details / Provider configuration"
+                }
+              ],
+              "uncertainty": "The evidence does not specify how the binary path is validated or whether any sandboxing is applied."
+            },
+            {
+              "description": "The ExecCredential API transmits sensitive fields such as token, clientKeyData, and clientCertificateData between the client and exec plugin. The evidence notes these should only be transmitted in-memory, but if the plugin is compromised or the communication channel is not secure, credentials could be exposed.",
+              "affected_components": [
+                "client-go",
+                "API group client.authentication.k8s.io"
+              ],
+              "risk_area": "security of credentials",
+              "historical_issue_refs": [
+                "541"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_541:kep-design-details-provider-output-format",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Design Details / Provider output format"
+                }
+              ],
+              "uncertainty": "The evidence does not detail the exact in-memory transmission mechanism or potential side-channel leaks."
+            },
+            {
+              "description": "Caching of provider response in-memory until expirationTimestamp, or for the client runtime if no expiration is set, can lead to stale credentials being used if the expiration is not properly set or if the client runs for a long time. This could result in authentication failures or unauthorized access if credentials are revoked before expiration.",
+              "affected_components": [
+                "client-go",
+                "authentication libraries"
+              ],
+              "risk_area": "stale credentials",
+              "historical_issue_refs": [
+                "541"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_541:kep-proposal",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Proposal"
+                },
+                {
+                  "evidence_id": "k8s_541:kep-design-details-provider-output-format",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Design Details / Provider output format"
+                }
+              ],
+              "uncertainty": "The evidence does not specify how expirationTimestamp is validated or what happens if the plugin returns an invalid timestamp."
+            },
+            {
+              "description": "The new configuration fields in kubeconfig (exec section) introduce complexity and potential backward compatibility issues. Existing kubeconfig files that do not include these fields may behave differently, and the required interactiveMode field in newer API versions could break older plugins that do not set it.",
+              "affected_components": [
+                "kubeconfig",
+                "client-go"
+              ],
+              "risk_area": "backward compatibility",
+              "historical_issue_refs": [
+                "541"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_541:kep-design-details-provider-configuration-p1",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Design Details / Provider configuration"
+                },
+                {
+                  "evidence_id": "k8s_541:kep-design-details-provider-configuration-p2",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Design Details / Provider configuration"
+                }
+              ],
+              "uncertainty": "The evidence does not specify migration paths or versioning strategies for existing kubeconfig users."
+            },
+            {
+              "description": "Error handling for exec plugin execution is critical: if the binary is missing, fails to execute, or returns invalid output, the client must handle it gracefully. The installHint is provided for missing binaries, but other errors (e.g., invalid JSON, wrong API version) may not be well-handled, leading to authentication failures or crashes.",
+              "affected_components": [
+                "client-go",
+                "authentication libraries"
+              ],
+              "risk_area": "error handling",
+              "historical_issue_refs": [
+                "541"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_541:kep-design-details-provider-configuration-p1",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Design Details / Provider configuration"
+                },
+                {
+                  "evidence_id": "k8s_541:kep-design-details-provider-configuration-p2",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Design Details / Provider configuration"
+                }
+              ],
+              "uncertainty": "The evidence does not detail the exact error handling behavior for various failure modes."
+            },
+            {
+              "description": "The new metrics for exec plugin calls, certificate TTL, and rotation age may be incorrect if the exec plugin does not provide accurate expirationTimestamp or if the client caches credentials beyond the actual certificate validity. This could lead to misleading metrics and operational issues.",
+              "affected_components": [
+                "metrics system",
+                "client-go"
+              ],
+              "risk_area": "metric correctness",
+              "historical_issue_refs": [
+                "541"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_541:kep-design-details-provider-output-format",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Design Details / Provider output format"
+                }
+              ],
+              "uncertainty": "The evidence does not specify how metrics are collected or validated."
+            },
+            {
+              "description": "Deprecation of gcp and azure authentication options (and keystone already deprecated) may break existing users who rely on these methods. The new exec-based flow may not be a drop-in replacement, requiring users to migrate to new configuration, which could cause authentication failures if not handled properly.",
+              "affected_components": [
+                "kubeconfig",
+                "authentication libraries"
+              ],
+              "risk_area": "backward compatibility",
+              "historical_issue_refs": [
+                "541"
+              ],
+              "evidence_refs": [
+                {
+                  "evidence_id": "k8s_541:kep-proposal",
+                  "source_type": "kubernetes_enhancement_proposal",
+                  "source_id": "541",
+                  "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+                  "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                  "section": "Proposal"
+                }
+              ],
+              "uncertainty": "The evidence does not provide details on the deprecation timeline or migration support."
+            }
+          ],
+          "filtered_invalid_findings": [],
+          "uncertainty": "The evidence is based on a KEP proposal and design details, which may not reflect final implementation. Specific security measures, error handling, and backward compatibility strategies are not fully detailed."
+        },
+        "failure": null
+      },
+      "test_review": {
+        "branch": "test_review",
+        "status": "SUCCESS",
+        "value": {
+          "case_id": "k8s_541",
+          "coverage_state": "PLAN_ONLY",
+          "test_plans": [
+            {
+              "plan_id": "k8s_541:kep-test-plan",
+              "case_id": "k8s_541",
+              "content": "### Test Plan\n\nUnit tests to confirm:\n\n- Version mismatch is detected\n- Credentials are cached in-memory correctly\n  + Executable is only called as needed\n  + Expired credentials are rotated automatically\n  + Credentials are used across many requests (as long as they are still valid)\n- Single flight all calls to a given executable (when the config is the same)\n- Reasonable timeout to executable calls so clients do not hang indefinitely\n- `\"k8s.io/client-go/pkg/apis/clientauthentication\".Cluster` (and external types)\n  fields (Go and JSON) properly shadow\n  `\"k8s.io/client-go/tools/clientcmd/api/v1\".Cluster` fields (with the exception of\n  `CertificateAuthority` for reasons stated in design) so\n  that structs are kept up to date\n- Helper methods properly create `\"k8s.io/client-go/rest\".Config` from\n  `\"k8s.io/client-go/pkg/apis/clientauthentication\".Cluster` and vice versa\n- Metrics are reported as they should\n\nIntegration (or e2e CLI) tests to confirm:\n\n- Shared informers backed by exec credential work as expected\n  + Credential rotation does not cause issues\n  + Transient failures are correctly retried\n  + Executables requiring interactive prompts fail gracefully\n  + Executables are not called in a hot loop during transient failure\n- Static forms of auth should interact correctly with exec credential plugin\n  + Basic auth\n  + Token based auth\n  + Cert based auth\n- Interactive login flows work\n  + TTY forwarding between client and executable works\n  + `kubectl` commands and exec credential plugins do not fight for standard input\n  + All `InteractiveMode` values are supported\n- Metrics are reported as they should\n",
+              "evidence_ref": {
+                "evidence_id": "k8s_541:test-plan",
+                "source_type": "kep_test_plan",
+                "source_id": "541",
+                "source_path": "tests/test_plans.json",
+                "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+                "section": "case_id=k8s_541"
+              }
+            }
+          ],
+          "test_cases": [],
+          "coverage_assessment": "The existing test plan covers key aspects of the exec-based authentication flow, including version mismatch detection, in-memory caching, single-flight behavior, timeouts, struct shadowing, helper methods, metrics, integration with shared informers, static auth interactions, and interactive login flows. However, the plan is high-level and lacks specific test cases for security, error handling, and backward compatibility. The absence of concrete test cases means the plan may not be fully implemented or validated.",
+          "potential_gaps": [
+            "Security of credentials: no explicit tests for credential handling in memory, output masking, or prevention of credential leakage in logs or error messages.",
+            "Execution of external binaries: no tests for handling malicious or malformed executable output, command injection via args/env, or validation of executable path.",
+            "Backward compatibility: no tests for existing kubeconfig files without exec sections, or for deprecated gcp/azure auth options still functioning.",
+            "Error handling: no tests for non-zero exit codes, missing executable, permission denied, or malformed ExecCredential responses.",
+            "Stale credentials: no tests for expirationTimestamp in the past, or for caching behavior when expiration is absent.",
+            "Metric correctness: no tests for metric labels, values, or emission timing for exec plugin calls, certificate TTL, and rotation age.",
+            "Interactive mode: no tests for all InteractiveMode values (Never, IfAvailable, Always) and their fallback behavior.",
+            "Cluster information: no tests for provideClusterInfo=true and the content of spec.cluster, including CA data handling.",
+            "Concurrency: no tests for concurrent requests with different exec configs or for single-flight behavior under high concurrency.",
+            "Timeout: no tests for configurable timeout or for handling executables that hang indefinitely."
+          ],
+          "recommended_missing_cases": [
+            "Test that credentials are not logged or exposed in error messages or metrics.",
+            "Test that executable output is validated against the ExecCredential schema and that invalid output is rejected.",
+            "Test that command injection via args or env is not possible (e.g., using shell metacharacters).",
+            "Test that deprecated gcp and azure auth options still work and produce deprecation warnings.",
+            "Test that kubeconfig files without exec sections continue to work without regression.",
+            "Test that non-zero exit codes from the executable result in clear errors and no credential caching.",
+            "Test that missing executable or permission denied errors are handled gracefully and do not crash the client.",
+            "Test that expirationTimestamp in the past causes immediate rotation and that no expiration leads to caching for the client runtime.",
+            "Test that metrics for exec plugin calls, certificate TTL, and rotation age are emitted with correct labels and values.",
+            "Test all InteractiveMode values (Never, IfAvailable, Always) and verify fallback behavior when TTY is not available.",
+            "Test that provideClusterInfo=true populates spec.cluster correctly, including CA data and server address.",
+            "Test that concurrent requests with different exec configs do not interfere and that single-flight works per config.",
+            "Test that a configurable timeout is applied to executable calls and that hanging executables are killed.",
+            "Test that transient failures during credential rotation are retried without hot-looping the executable.",
+            "Test that static auth (basic, token, cert) can be combined with exec credential and that exec takes precedence when configured."
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_541:test-plan",
+              "source_type": "kep_test_plan",
+              "source_id": "541",
+              "source_path": "tests/test_plans.json",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "case_id=k8s_541"
+            }
+          ],
+          "uncertainty": "The existing test plan is a KEP test plan, not actual test cases. The absence of concrete test cases makes it difficult to assess actual coverage. The plan mentions metrics and integration tests but does not specify how they are implemented. There is also no information about test environments or CI integration."
+        },
+        "failure": null
+      }
+    },
+    "report": {
+      "case_id": "k8s_541",
+      "feature_summary": "This feature introduces external credential providers for Kubernetes client authentication, allowing out-of-tree executables to supply credentials (bearer tokens or mTLS) via a new exec-based authentication flow. It defines configuration in kubeconfig, input/output formats (ExecCredential), caching behavior, and metrics for monitoring.",
+      "change_points": [
+        {
+          "description": "New exec-based authentication flow in client libraries: before each request, the client executes a configured binary and uses its output for authentication.",
+          "affected_components": [
+            "client-go",
+            "kubeconfig parsing",
+            "authentication libraries"
+          ],
+          "change_type": "new feature",
+          "potential_risk_areas": [
+            "execution of external binaries",
+            "security of credentials",
+            "error handling"
+          ]
+        },
+        {
+          "description": "Addition of new configuration fields in kubeconfig (exec section) for users, including command, args, env, installHint, provideClusterInfo, and interactiveMode.",
+          "affected_components": [
+            "kubeconfig schema",
+            "client-go config parsing"
+          ],
+          "change_type": "configuration change",
+          "potential_risk_areas": [
+            "backward compatibility",
+            "validation of new fields"
+          ]
+        },
+        {
+          "description": "New ExecCredential API (client.authentication.k8s.io/v1) with input and output formats, including spec.cluster for cluster information and status for credentials.",
+          "affected_components": [
+            "API group client.authentication.k8s.io",
+            "client-go transport"
+          ],
+          "change_type": "new API",
+          "potential_risk_areas": [
+            "versioning",
+            "data serialization",
+            "security of sensitive fields"
+          ]
+        },
+        {
+          "description": "Caching of provider response in-memory until expirationTimestamp; if no expiration, cache for client runtime.",
+          "affected_components": [
+            "client-go transport"
+          ],
+          "change_type": "behavior change",
+          "potential_risk_areas": [
+            "stale credentials",
+            "memory usage"
+          ]
+        },
+        {
+          "description": "New metrics for exec plugin calls, certificate TTL, and rotation age.",
+          "affected_components": [
+            "client-go metrics",
+            "monitoring"
+          ],
+          "change_type": "new feature",
+          "potential_risk_areas": [
+            "metric cardinality",
+            "label correctness"
+          ]
+        },
+        {
+          "description": "Deprecation of gcp and azure authentication options (keystone already deprecated).",
+          "affected_components": [
+            "client-go authentication plugins"
+          ],
+          "change_type": "deprecation",
+          "potential_risk_areas": [
+            "user migration",
+            "breaking changes"
+          ]
+        }
+      ],
+      "high_risk_scenarios": [
+        {
+          "description": "Caching of provider response in-memory until expirationTimestamp, or for the client runtime if no expiration is set, can lead to stale credentials being used if the expiration is not properly set or if the client runs for a long time. This could result in authentication failures or unauthorized access if credentials are revoked before expiration.",
+          "affected_components": [
+            "client-go",
+            "authentication libraries"
+          ],
+          "risk_area": "stale credentials",
+          "historical_issue_refs": [
+            "541"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_541:kep-proposal",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Proposal"
+            },
+            {
+              "evidence_id": "k8s_541:kep-design-details-provider-output-format",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Design Details / Provider output format"
+            }
+          ],
+          "uncertainty": "The evidence does not specify how expirationTimestamp is validated or what happens if the plugin returns an invalid timestamp."
+        },
+        {
+          "description": "Error handling for exec plugin execution is critical: if the binary is missing, fails to execute, or returns invalid output, the client must handle it gracefully. The installHint is provided for missing binaries, but other errors (e.g., invalid JSON, wrong API version) may not be well-handled, leading to authentication failures or crashes.",
+          "affected_components": [
+            "client-go",
+            "authentication libraries"
+          ],
+          "risk_area": "error handling",
+          "historical_issue_refs": [
+            "541"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_541:kep-design-details-provider-configuration-p1",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Design Details / Provider configuration"
+            },
+            {
+              "evidence_id": "k8s_541:kep-design-details-provider-configuration-p2",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Design Details / Provider configuration"
+            }
+          ],
+          "uncertainty": "The evidence does not detail the exact error handling behavior for various failure modes."
+        },
+        {
+          "description": "Exec-based authentication executes an external binary before each request, which can introduce security risks if the binary path is untrusted or compromised. The binary has access to environment variables and potentially cluster information, and its output is used for authentication, making it a vector for credential theft or malicious actions.",
+          "affected_components": [
+            "client-go",
+            "authentication libraries"
+          ],
+          "risk_area": "security of credentials",
+          "historical_issue_refs": [
+            "541"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_541:kep-proposal",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Proposal"
+            },
+            {
+              "evidence_id": "k8s_541:kep-design-details-provider-configuration-p1",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Design Details / Provider configuration"
+            }
+          ],
+          "uncertainty": "The evidence does not specify how the binary path is validated or whether any sandboxing is applied."
+        },
+        {
+          "description": "The new configuration fields in kubeconfig (exec section) introduce complexity and potential backward compatibility issues. Existing kubeconfig files that do not include these fields may behave differently, and the required interactiveMode field in newer API versions could break older plugins that do not set it.",
+          "affected_components": [
+            "kubeconfig",
+            "client-go"
+          ],
+          "risk_area": "backward compatibility",
+          "historical_issue_refs": [
+            "541"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_541:kep-design-details-provider-configuration-p1",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Design Details / Provider configuration"
+            },
+            {
+              "evidence_id": "k8s_541:kep-design-details-provider-configuration-p2",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Design Details / Provider configuration"
+            }
+          ],
+          "uncertainty": "The evidence does not specify migration paths or versioning strategies for existing kubeconfig users."
+        },
+        {
+          "description": "Deprecation of gcp and azure authentication options (and keystone already deprecated) may break existing users who rely on these methods. The new exec-based flow may not be a drop-in replacement, requiring users to migrate to new configuration, which could cause authentication failures if not handled properly.",
+          "affected_components": [
+            "kubeconfig",
+            "authentication libraries"
+          ],
+          "risk_area": "backward compatibility",
+          "historical_issue_refs": [
+            "541"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_541:kep-proposal",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Proposal"
+            }
+          ],
+          "uncertainty": "The evidence does not provide details on the deprecation timeline or migration support."
+        },
+        {
+          "description": "The ExecCredential API transmits sensitive fields such as token, clientKeyData, and clientCertificateData between the client and exec plugin. The evidence notes these should only be transmitted in-memory, but if the plugin is compromised or the communication channel is not secure, credentials could be exposed.",
+          "affected_components": [
+            "client-go",
+            "API group client.authentication.k8s.io"
+          ],
+          "risk_area": "security of credentials",
+          "historical_issue_refs": [
+            "541"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_541:kep-design-details-provider-output-format",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Design Details / Provider output format"
+            }
+          ],
+          "uncertainty": "The evidence does not detail the exact in-memory transmission mechanism or potential side-channel leaks."
+        },
+        {
+          "description": "The new metrics for exec plugin calls, certificate TTL, and rotation age may be incorrect if the exec plugin does not provide accurate expirationTimestamp or if the client caches credentials beyond the actual certificate validity. This could lead to misleading metrics and operational issues.",
+          "affected_components": [
+            "metrics system",
+            "client-go"
+          ],
+          "risk_area": "metric correctness",
+          "historical_issue_refs": [
+            "541"
+          ],
+          "evidence_refs": [
+            {
+              "evidence_id": "k8s_541:kep-design-details-provider-output-format",
+              "source_type": "kubernetes_enhancement_proposal",
+              "source_id": "541",
+              "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+              "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+              "section": "Design Details / Provider output format"
+            }
+          ],
+          "uncertainty": "The evidence does not specify how metrics are collected or validated."
+        }
+      ],
+      "historical_issues": [
+        {
+          "issue_id": "541",
+          "title": "External client-go credential providers",
+          "description": "# Enhancement Description\r\n- One-line enhancement description: external client-go credential providers\r\n- Kubernetes Enhancement Proposal: [KEP](https://github.com/kubernetes/enhancements/tree/master/keps/sig-auth/541-external-credential-providers)\r\n- Primary contact: @ankeesler \r\n- Responsible SIGs: sig-auth\r\n- Enhancement target:\r\n  - Alpha release target: 1.10\r\n  - Beta release target: 1.11\r\n  - Stable release target: 1.22",
+          "component": "sig-auth",
+          "labels": [
+            "sig/auth",
+            "stage/stable",
+            "kind/feature",
+            "kind/api-change"
+          ],
+          "state": "closed",
+          "severity": null,
+          "curated_severity": null,
+          "annotation_source": null,
+          "evidence_ref": {
+            "evidence_id": "k8s_541:issue:541",
+            "source_type": "github_enhancement_tracking_issue",
+            "source_id": "541",
+            "source_path": "raw/github_issues/enhancements_541.json",
+            "source_url": "https://github.com/kubernetes/enhancements/issues/541",
+            "section": null
+          }
+        }
+      ],
+      "existing_coverage": [
+        {
+          "plan_id": "k8s_541:kep-test-plan",
+          "case_id": "k8s_541",
+          "content": "### Test Plan\n\nUnit tests to confirm:\n\n- Version mismatch is detected\n- Credentials are cached in-memory correctly\n  + Executable is only called as needed\n  + Expired credentials are rotated automatically\n  + Credentials are used across many requests (as long as they are still valid)\n- Single flight all calls to a given executable (when the config is the same)\n- Reasonable timeout to executable calls so clients do not hang indefinitely\n- `\"k8s.io/client-go/pkg/apis/clientauthentication\".Cluster` (and external types)\n  fields (Go and JSON) properly shadow\n  `\"k8s.io/client-go/tools/clientcmd/api/v1\".Cluster` fields (with the exception of\n  `CertificateAuthority` for reasons stated in design) so\n  that structs are kept up to date\n- Helper methods properly create `\"k8s.io/client-go/rest\".Config` from\n  `\"k8s.io/client-go/pkg/apis/clientauthentication\".Cluster` and vice versa\n- Metrics are reported as they should\n\nIntegration (or e2e CLI) tests to confirm:\n\n- Shared informers backed by exec credential work as expected\n  + Credential rotation does not cause issues\n  + Transient failures are correctly retried\n  + Executables requiring interactive prompts fail gracefully\n  + Executables are not called in a hot loop during transient failure\n- Static forms of auth should interact correctly with exec credential plugin\n  + Basic auth\n  + Token based auth\n  + Cert based auth\n- Interactive login flows work\n  + TTY forwarding between client and executable works\n  + `kubectl` commands and exec credential plugins do not fight for standard input\n  + All `InteractiveMode` values are supported\n- Metrics are reported as they should\n",
+          "evidence_ref": {
+            "evidence_id": "k8s_541:test-plan",
+            "source_type": "kep_test_plan",
+            "source_id": "541",
+            "source_path": "tests/test_plans.json",
+            "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+            "section": "case_id=k8s_541"
+          }
+        }
+      ],
+      "existing_test_cases": [],
+      "coverage_state": "PLAN_ONLY",
+      "coverage_assessment": "The existing test plan covers key aspects of the exec-based authentication flow, including version mismatch detection, in-memory caching, single-flight behavior, timeouts, struct shadowing, helper methods, metrics, integration with shared informers, static auth interactions, and interactive login flows. However, the plan is high-level and lacks specific test cases for security, error handling, and backward compatibility. The absence of concrete test cases means the plan may not be fully implemented or validated.",
+      "potential_gaps": [
+        "Security of credentials: no explicit tests for credential handling in memory, output masking, or prevention of credential leakage in logs or error messages.",
+        "Execution of external binaries: no tests for handling malicious or malformed executable output, command injection via args/env, or validation of executable path.",
+        "Backward compatibility: no tests for existing kubeconfig files without exec sections, or for deprecated gcp/azure auth options still functioning.",
+        "Error handling: no tests for non-zero exit codes, missing executable, permission denied, or malformed ExecCredential responses.",
+        "Stale credentials: no tests for expirationTimestamp in the past, or for caching behavior when expiration is absent.",
+        "Metric correctness: no tests for metric labels, values, or emission timing for exec plugin calls, certificate TTL, and rotation age.",
+        "Interactive mode: no tests for all InteractiveMode values (Never, IfAvailable, Always) and their fallback behavior.",
+        "Cluster information: no tests for provideClusterInfo=true and the content of spec.cluster, including CA data handling.",
+        "Concurrency: no tests for concurrent requests with different exec configs or for single-flight behavior under high concurrency.",
+        "Timeout: no tests for configurable timeout or for handling executables that hang indefinitely."
+      ],
+      "missing_cases": [
+        "Test that credentials are not logged or exposed in error messages or metrics.",
+        "Test that executable output is validated against the ExecCredential schema and that invalid output is rejected.",
+        "Test that command injection via args or env is not possible (e.g., using shell metacharacters).",
+        "Test that deprecated gcp and azure auth options still work and produce deprecation warnings.",
+        "Test that kubeconfig files without exec sections continue to work without regression.",
+        "Test that non-zero exit codes from the executable result in clear errors and no credential caching.",
+        "Test that missing executable or permission denied errors are handled gracefully and do not crash the client.",
+        "Test that expirationTimestamp in the past causes immediate rotation and that no expiration leads to caching for the client runtime.",
+        "Test that metrics for exec plugin calls, certificate TTL, and rotation age are emitted with correct labels and values.",
+        "Test all InteractiveMode values (Never, IfAvailable, Always) and verify fallback behavior when TTY is not available.",
+        "Test that provideClusterInfo=true populates spec.cluster correctly, including CA data and server address.",
+        "Test that concurrent requests with different exec configs do not interfere and that single-flight works per config.",
+        "Test that a configurable timeout is applied to executable calls and that hanging executables are killed.",
+        "Test that transient failures during credential rotation are retried without hot-looping the executable.",
+        "Test that static auth (basic, token, cert) can be combined with exec credential and that exec takes precedence when configured."
+      ],
+      "risk_level": "HIGH",
+      "priority": "ACT_NOW",
+      "completeness": "FULL",
+      "unavailable_sections": [],
+      "uncertainties": [
+        {
+          "branch": "document_analysis",
+          "message": "The document does not specify exact versioning strategy for the new API or how deprecation of gcp/azure will be communicated. Also, the impact on existing authentication flows is not fully detailed."
+        },
+        {
+          "branch": "risk_retrieval",
+          "message": "The evidence is based on a KEP proposal and design details, which may not reflect final implementation. Specific security measures, error handling, and backward compatibility strategies are not fully detailed."
+        },
+        {
+          "branch": "test_review",
+          "message": "The existing test plan is a KEP test plan, not actual test cases. The absence of concrete test cases makes it difficult to assess actual coverage. The plan mentions metrics and integration tests but does not specify how they are implemented. There is also no information about test environments or CI integration."
+        }
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "k8s_541:kep-proposal",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "541",
+          "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+          "section": "Proposal"
+        },
+        {
+          "evidence_id": "k8s_541:kep-design-details-provider-output-format",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "541",
+          "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+          "section": "Design Details / Provider output format"
+        },
+        {
+          "evidence_id": "k8s_541:kep-design-details-provider-configuration-p1",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "541",
+          "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+          "section": "Design Details / Provider configuration"
+        },
+        {
+          "evidence_id": "k8s_541:kep-design-details-provider-configuration-p2",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "541",
+          "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+          "section": "Design Details / Provider configuration"
+        },
+        {
+          "evidence_id": "k8s_541:issue:541",
+          "source_type": "github_enhancement_tracking_issue",
+          "source_id": "541",
+          "source_path": "raw/github_issues/enhancements_541.json",
+          "source_url": "https://github.com/kubernetes/enhancements/issues/541",
+          "section": null
+        },
+        {
+          "evidence_id": "k8s_541:kep-design-details-provider-input-format-p1",
+          "source_type": "kubernetes_enhancement_proposal",
+          "source_id": "541",
+          "source_path": "raw/kubernetes_enhancements/k8s_541/README.md",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+          "section": "Design Details / Provider input format"
+        },
+        {
+          "evidence_id": "k8s_541:test-plan",
+          "source_type": "kep_test_plan",
+          "source_id": "541",
+          "source_path": "tests/test_plans.json",
+          "source_url": "https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md",
+          "section": "case_id=k8s_541"
+        }
+      ],
+      "uncertainty": "[Document analysis] The document does not specify exact versioning strategy for the new API or how deprecation of gcp/azure will be communicated. Also, the impact on existing authentication flows is not fully detailed. [Risk retrieval] The evidence is based on a KEP proposal and design details, which may not reflect final implementation. Specific security measures, error handling, and backward compatibility strategies are not fully detailed. [Test review] The existing test plan is a KEP test plan, not actual test cases. The absence of concrete test cases makes it difficult to assess actual coverage. The plan mentions metrics and integration tests but does not specify how they are implemented. There is also no information about test environments or CI integration."
+    },
+    "report_markdown": "# Feature Risk Review\n\n- case_id: k8s_541\n- Report completeness: FULL\n- Risk Level: HIGH\n- Priority: ACT_NOW\n\n## Feature Summary\n\nThis feature introduces external credential providers for Kubernetes client authentication, allowing out-of-tree executables to supply credentials (bearer tokens or mTLS) via a new exec-based authentication flow. It defines configuration in kubeconfig, input/output formats (ExecCredential), caching behavior, and metrics for monitoring.\n\n## Change Points\n\n- New exec-based authentication flow in client libraries: before each request, the client executes a configured binary and uses its output for authentication.\n- Addition of new configuration fields in kubeconfig (exec section) for users, including command, args, env, installHint, provideClusterInfo, and interactiveMode.\n- New ExecCredential API (client.authentication.k8s.io/v1) with input and output formats, including spec.cluster for cluster information and status for credentials.\n- Caching of provider response in-memory until expirationTimestamp; if no expiration, cache for client runtime.\n- New metrics for exec plugin calls, certificate TTL, and rotation age.\n- Deprecation of gcp and azure authentication options (keystone already deprecated).\n\n## High-Risk Scenarios\n\n- Caching of provider response in-memory until expirationTimestamp, or for the client runtime if no expiration is set, can lead to stale credentials being used if the expiration is not properly set or if the client runs for a long time. This could result in authentication failures or unauthorized access if credentials are revoked before expiration. [C1][C2]\n  - Risk area: stale credentials\n  - Affected components: client-go, authentication libraries\n- Error handling for exec plugin execution is critical: if the binary is missing, fails to execute, or returns invalid output, the client must handle it gracefully. The installHint is provided for missing binaries, but other errors (e.g., invalid JSON, wrong API version) may not be well-handled, leading to authentication failures or crashes. [C3][C4]\n  - Risk area: error handling\n  - Affected components: client-go, authentication libraries\n- Exec-based authentication executes an external binary before each request, which can introduce security risks if the binary path is untrusted or compromised. The binary has access to environment variables and potentially cluster information, and its output is used for authentication, making it a vector for credential theft or malicious actions. [C1][C3]\n  - Risk area: security of credentials\n  - Affected components: client-go, authentication libraries\n- The new configuration fields in kubeconfig (exec section) introduce complexity and potential backward compatibility issues. Existing kubeconfig files that do not include these fields may behave differently, and the required interactiveMode field in newer API versions could break older plugins that do not set it. [C3][C4]\n  - Risk area: backward compatibility\n  - Affected components: kubeconfig, client-go\n- Deprecation of gcp and azure authentication options (and keystone already deprecated) may break existing users who rely on these methods. The new exec-based flow may not be a drop-in replacement, requiring users to migrate to new configuration, which could cause authentication failures if not handled properly. [C1]\n  - Risk area: backward compatibility\n  - Affected components: kubeconfig, authentication libraries\n- The ExecCredential API transmits sensitive fields such as token, clientKeyData, and clientCertificateData between the client and exec plugin. The evidence notes these should only be transmitted in-memory, but if the plugin is compromised or the communication channel is not secure, credentials could be exposed. [C2]\n  - Risk area: security of credentials\n  - Affected components: client-go, API group client.authentication.k8s.io\n- The new metrics for exec plugin calls, certificate TTL, and rotation age may be incorrect if the exec plugin does not provide accurate expirationTimestamp or if the client caches credentials beyond the actual certificate validity. This could lead to misleading metrics and operational issues. [C2]\n  - Risk area: metric correctness\n  - Affected components: metrics system, client-go\n\n## Historical Issues\n\n- External client-go credential providers (issue_id=541) [C5]\n  - component: sig-auth\n  - severity: not provided\n  - description: # Enhancement Description\r\n- One-line enhancement description: external client-go credential providers\r\n- Kubernetes Enhancement Proposal: [KEP](https://github.com/kubernetes/enhancements/tree/master/keps/sig-auth/541-external-credential-providers)\r\n- Primary contact: @ankeesler \r\n- Responsible SIGs: sig-auth\r\n- Enhancement target:\r\n  - Alpha release target: 1.10\r\n  - Beta release target: 1.11\r\n  - Stable release target: 1.22\n\n## Existing Coverage\n\n- coverage_state: PLAN_ONLY\n- Test Plan k8s_541:kep-test-plan [C7]\n\n## Coverage Assessment\n\nThe existing test plan covers key aspects of the exec-based authentication flow, including version mismatch detection, in-memory caching, single-flight behavior, timeouts, struct shadowing, helper methods, metrics, integration with shared informers, static auth interactions, and interactive login flows. However, the plan is high-level and lacks specific test cases for security, error handling, and backward compatibility. The absence of concrete test cases means the plan may not be fully implemented or validated.\n\n## Missing / Recommended Cases\n\nPotential gaps:\n- Security of credentials: no explicit tests for credential handling in memory, output masking, or prevention of credential leakage in logs or error messages.\n- Execution of external binaries: no tests for handling malicious or malformed executable output, command injection via args/env, or validation of executable path.\n- Backward compatibility: no tests for existing kubeconfig files without exec sections, or for deprecated gcp/azure auth options still functioning.\n- Error handling: no tests for non-zero exit codes, missing executable, permission denied, or malformed ExecCredential responses.\n- Stale credentials: no tests for expirationTimestamp in the past, or for caching behavior when expiration is absent.\n- Metric correctness: no tests for metric labels, values, or emission timing for exec plugin calls, certificate TTL, and rotation age.\n- Interactive mode: no tests for all InteractiveMode values (Never, IfAvailable, Always) and their fallback behavior.\n- Cluster information: no tests for provideClusterInfo=true and the content of spec.cluster, including CA data handling.\n- Concurrency: no tests for concurrent requests with different exec configs or for single-flight behavior under high concurrency.\n- Timeout: no tests for configurable timeout or for handling executables that hang indefinitely.\n\nRecommended missing cases (RECOMMENDATION, not existing tests):\n- Test that credentials are not logged or exposed in error messages or metrics.\n- Test that executable output is validated against the ExecCredential schema and that invalid output is rejected.\n- Test that command injection via args or env is not possible (e.g., using shell metacharacters).\n- Test that deprecated gcp and azure auth options still work and produce deprecation warnings.\n- Test that kubeconfig files without exec sections continue to work without regression.\n- Test that non-zero exit codes from the executable result in clear errors and no credential caching.\n- Test that missing executable or permission denied errors are handled gracefully and do not crash the client.\n- Test that expirationTimestamp in the past causes immediate rotation and that no expiration leads to caching for the client runtime.\n- Test that metrics for exec plugin calls, certificate TTL, and rotation age are emitted with correct labels and values.\n- Test all InteractiveMode values (Never, IfAvailable, Always) and verify fallback behavior when TTY is not available.\n- Test that provideClusterInfo=true populates spec.cluster correctly, including CA data and server address.\n- Test that concurrent requests with different exec configs do not interfere and that single-flight works per config.\n- Test that a configurable timeout is applied to executable calls and that hanging executables are killed.\n- Test that transient failures during credential rotation are retried without hot-looping the executable.\n- Test that static auth (basic, token, cert) can be combined with exec credential and that exec takes precedence when configured.\n\n## Risk Level and Priority\n\n- Risk Level: HIGH\n- Priority: ACT_NOW\n\n## Uncertainty\n\n- [document_analysis] The document does not specify exact versioning strategy for the new API or how deprecation of gcp/azure will be communicated. Also, the impact on existing authentication flows is not fully detailed.\n- [risk_retrieval] The evidence is based on a KEP proposal and design details, which may not reflect final implementation. Specific security measures, error handling, and backward compatibility strategies are not fully detailed.\n- [test_review] The existing test plan is a KEP test plan, not actual test cases. The absence of concrete test cases makes it difficult to assess actual coverage. The plan mentions metrics and integration tests but does not specify how they are implemented. There is also no information about test environments or CI integration.\n\n## Evidence\n\n- [k8s_541:kep-proposal] [C1]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 541\n  - section: Proposal\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md\n- [k8s_541:kep-design-details-provider-output-format] [C2]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 541\n  - section: Design Details / Provider output format\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md\n- [k8s_541:kep-design-details-provider-configuration-p1] [C3]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 541\n  - section: Design Details / Provider configuration\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md\n- [k8s_541:kep-design-details-provider-configuration-p2] [C4]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 541\n  - section: Design Details / Provider configuration\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md\n- [k8s_541:issue:541] [C5]\n  - source_type: github_enhancement_tracking_issue\n  - source_id: 541\n  - section: n/a\n  - source_url: https://github.com/kubernetes/enhancements/issues/541\n- [k8s_541:kep-design-details-provider-input-format-p1] [C6]\n  - source_type: kubernetes_enhancement_proposal\n  - source_id: 541\n  - section: Design Details / Provider input format\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md\n- [k8s_541:test-plan] [C7]\n  - source_type: kep_test_plan\n  - source_id: 541\n  - section: case_id=k8s_541\n  - source_url: https://github.com/kubernetes/enhancements/blob/c4f439c2dd4acb928094660be0ea771bf63f2b76/keps/sig-auth/541-external-credential-providers/README.md\n",
+    "runtime_manifest_digest": "798ac7114e3eef95b7c50758195b3231af7ffdbc495644761d0edf79d733d776"
+  }
+}

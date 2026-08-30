@@ -27,6 +27,13 @@ EVALUATION_DATASET_SCHEMA_VERSION = "evaluation-dataset.v1"
 EVALUATION_DATASET_SECURITY_SCHEMA_VERSION = "evaluation-dataset.v2"
 EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION = "evaluation-dataset.v3"
 EVALUATION_DATASET_ANSWERABILITY_SCHEMA_VERSION = "evaluation-dataset.v4"
+# WP5 Stateful Memory Evaluation schema variant。契约定义见 stateful_memory_dataset.py；
+# 它与上述 flat single-query case schema 共享 EvaluationDataset 的 versioned/strict/UTF-8
+# 约定，但不复用 flat case 的 step 语义。
+EVALUATION_DATASET_STATEFUL_MEMORY_SCHEMA_VERSION = "stateful-memory-scenario.v1"
+# R3-B：Stateful Dataset V2 schema variant。契约定义见 stateful_memory_dataset_v2.py；
+# 它引入 seeded canonical_text 与分层 identity evidence policy，与 V1 严格隔离。
+EVALUATION_DATASET_STATEFUL_MEMORY_SCHEMA_VERSION_V2 = "stateful-memory-scenario.v2"
 
 # 受支持 document contract 版本：v1（retrieval/ranking/generation）、v2（v1 + security）
 # 与 v3（v1 + document_retrieval，面向 document-level public benchmark ground truth）。
@@ -122,6 +129,7 @@ class Severity(StrEnum):
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
+
 
 # 与 producer wire id 一致的 bounded 标识符字符集。
 _WIRE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._~-]*$")
@@ -576,6 +584,8 @@ __all__ = [
     "EVALUATION_DATASET_SECURITY_SCHEMA_VERSION",
     "EVALUATION_DATASET_DOCUMENT_SCHEMA_VERSION",
     "EVALUATION_DATASET_ANSWERABILITY_SCHEMA_VERSION",
+    "EVALUATION_DATASET_STATEFUL_MEMORY_SCHEMA_VERSION",
+    "EVALUATION_DATASET_STATEFUL_MEMORY_SCHEMA_VERSION_V2",
     "EvaluationCase",
     "EvaluationDataset",
     "EvaluationDatasetLoadError",

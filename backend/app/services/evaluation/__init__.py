@@ -21,6 +21,24 @@ from app.services.evaluation.security_regression import (
     SecurityRunExecutionReceipt,
     SecurityRunPlan,
 )
+from app.services.evaluation.stateful_environment import (
+    LocalAgentSubprocessProvisioner,
+    ScenarioEnvironmentEvidence,
+    StatefulEnvironmentError,
+    StatefulEnvironmentProvisioner,
+    seed_fixture_memory,
+)
+from app.services.evaluation.stateful_runner import (
+    ScenarioExecutionReceipt,
+    ScenarioRunPlan,
+    ScenarioStepExecutionRecord,
+    StatefulScenarioRunnerService,
+    build_scenario_artifact,
+    build_scenario_catalog,
+    build_selection_evidence,
+    build_step_case,
+    build_step_case_ref,
+)
 
 __all__ = [
     "ClaimResult",
@@ -31,12 +49,26 @@ __all__ = [
     "EvaluationPersistenceService",
     "EvaluatorResolver",
     "ExecutionTargetResolver",
+    "LocalAgentSubprocessProvisioner",
     "RegressionReportService",
     "ResolvedEvaluator",
+    "ScenarioEnvironmentEvidence",
+    "ScenarioExecutionReceipt",
+    "ScenarioRunPlan",
+    "ScenarioStepExecutionRecord",
     "SecurityRegressionPlanError",
     "SecurityRegressionService",
     "SecurityRunExecutionReceipt",
     "SecurityRunPlan",
+    "StatefulEnvironmentError",
+    "StatefulEnvironmentProvisioner",
+    "StatefulScenarioRunnerService",
     "TargetVersionRequired",
     "TraceFeedbackService",
+    "build_scenario_artifact",
+    "build_scenario_catalog",
+    "build_selection_evidence",
+    "build_step_case",
+    "build_step_case_ref",
+    "seed_fixture_memory",
 ]

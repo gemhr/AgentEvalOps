@@ -84,9 +84,7 @@ _STOP_REASONS = frozenset(
         "PLANNING_FAILED",
     }
 )
-_CANCELLED_STOP_REASONS = frozenset(
-    {"USER_CANCELLED", "CLIENT_DISCONNECTED", "SYSTEM_SHUTDOWN"}
-)
+_CANCELLED_STOP_REASONS = frozenset({"USER_CANCELLED", "CLIENT_DISCONNECTED", "SYSTEM_SHUTDOWN"})
 
 
 class RuntimeExecuteResponse(BaseModel):
@@ -158,7 +156,9 @@ class LocalAgentHttpExecutionTarget:
         self._validate_target_ref(target_ref)
         self._base_url = self._validate_base_url(base_url)
         self._target_ref = target_ref
-        self._client = client or httpx.AsyncClient()
+        # 此 adapter 的 production owner 是 LocalAgent loopback execution target；
+        # 不读取 HTTP_PROXY/HTTPS_PROXY/ALL_PROXY，避免控制面请求被转发到 provider proxy。
+        self._client = client or httpx.AsyncClient(trust_env=False)
         self._owns_client = client is None
 
     @property
@@ -365,9 +365,7 @@ class LocalAgentHttpExecutionTarget:
                 evidence=True,
             )
         if self._evaluation_v2_mode:
-            return self._map_evaluation_v2_body(
-                request, started_at, run_id, response
-            )
+            return self._map_evaluation_v2_body(request, started_at, run_id, response)
         if self._evaluation_mode:
             return self._map_evaluation_body(request, started_at, run_id, response)
         return self._map_legacy_body(request, started_at, run_id, response)
@@ -529,9 +527,7 @@ class LocalAgentHttpExecutionTarget:
                 artifact = RagEvaluationArtifactV1.model_validate(raw)
                 if artifact.run_id != run_id:
                     raise ValueError("artifact run_id mismatch")
-                artifact_evidence.append(
-                    build_rag_artifact_evidence(artifact, wire.capture_status)
-                )
+                artifact_evidence.append(build_rag_artifact_evidence(artifact, wire.capture_status))
         except (TypeError, ValueError):
             validate_capture_status(wire.capture_status)
             if wire.capture_status == "COMPLETE":
@@ -684,15 +680,10 @@ class LocalAgentHttpExecutionTarget:
 
         final_evidence: EvidenceRef | None = None
         if wire.status == "SUCCEEDED" and wire.final_answer_capture_status == "COMPLETE":
-            if (
-                wire.final_answer_capture_error_code is not None
-                or wire.final_answer_evidence is None
-            ):
+            if wire.final_answer_capture_error_code is not None or wire.final_answer_evidence is None:
                 return self._final_answer_protocol_failure(request, started_at, run_id)
             try:
-                artifact = FinalAnswerEvidenceV1.model_validate(
-                    wire.final_answer_evidence
-                )
+                artifact = FinalAnswerEvidenceV1.model_validate(wire.final_answer_evidence)
                 if artifact.run_id != run_id:
                     raise ValueError("final answer run_id mismatch")
                 final_evidence = build_final_answer_evidence(artifact)
@@ -726,11 +717,7 @@ class LocalAgentHttpExecutionTarget:
         metadata["final_answer_capture_status"] = wire.final_answer_capture_status
         if wire.final_answer_capture_error_code is not None:
             metadata["final_answer_capture_error_code"] = wire.final_answer_capture_error_code
-        evidence_refs = (
-            (*base.evidence_refs, final_evidence)
-            if final_evidence is not None
-            else base.evidence_refs
-        )
+        evidence_refs = (*base.evidence_refs, final_evidence) if final_evidence is not None else base.evidence_refs
         return replace(base, evidence_refs=evidence_refs, metadata=metadata)
 
     def _final_answer_protocol_failure(
@@ -792,16 +779,14 @@ class LocalAgentHttpExecutionTarget:
     @property
     def _evaluation_mode(self) -> bool:
         return (
-            self._target_ref.target_version_ref
-            == LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION
+            self._target_ref.target_version_ref == LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION
             and self._target_ref.config_ref == LOCALAGENT_HTTP_EVALUATION_CONFIG
         )
 
     @property
     def _evaluation_v2_mode(self) -> bool:
         return (
-            self._target_ref.target_version_ref
-            == LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION
+            self._target_ref.target_version_ref == LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION
             and self._target_ref.config_ref == LOCALAGENT_HTTP_EVALUATION_V2_CONFIG
         )
 
@@ -834,7 +819,10 @@ class LocalAgentHttpExecutionTarget:
     def _metadata(
         request: ExecutionRequest,
         run_id: str,
-        wire: RuntimeExecuteResponse | RuntimeEvaluationExecuteResponse | RuntimeEvaluationExecuteV2Response | None = None,
+        wire: RuntimeExecuteResponse
+        | RuntimeEvaluationExecuteResponse
+        | RuntimeEvaluationExecuteV2Response
+        | None = None,
         **extra: object,
     ) -> dict[str, object]:
         metadata: dict[str, object] = {
@@ -861,7 +849,10 @@ class LocalAgentHttpExecutionTarget:
         *,
         kind: OutcomeKind = OutcomeKind.FAILURE,
         evidence: bool,
-        wire: RuntimeExecuteResponse | RuntimeEvaluationExecuteResponse | RuntimeEvaluationExecuteV2Response | None = None,
+        wire: RuntimeExecuteResponse
+        | RuntimeEvaluationExecuteResponse
+        | RuntimeEvaluationExecuteV2Response
+        | None = None,
         extra_evidence: tuple[EvidenceRef, ...] = (),
         **extra: object,
     ) -> ExecutionOutcome:
@@ -870,9 +861,7 @@ class LocalAgentHttpExecutionTarget:
             kind=kind,
             started_at=started_at,
             finished_at=_now(),
-            evidence_refs=(
-                (self._run_evidence(run_id), *extra_evidence) if evidence else ()
-            ),
+            evidence_refs=((self._run_evidence(run_id), *extra_evidence) if evidence else ()),
             error_category=error_category,
             reason=_safe_text(reason),
             metadata=self._metadata(request, run_id, wire, **extra),

@@ -66,9 +66,7 @@ class Settings(BaseSettings):
             return v
         url = httpx.URL(v.strip())
         if url.scheme not in {"http", "https"} or not url.host or url.query or url.fragment:
-            raise ValueError(
-                "LOCALAGENT_HTTP_BASE_URL must be an absolute http(s) URL without query or fragment"
-            )
+            raise ValueError("LOCALAGENT_HTTP_BASE_URL must be an absolute http(s) URL without query or fragment")
         return str(url).rstrip("/")
 
     # -- PostgreSQL -----------------------------------------------------------
@@ -168,6 +166,26 @@ class Settings(BaseSettings):
     # EvaluationLoopService resolves a LOCALAGENT_HTTP ExecutionTarget.
     # Must be an absolute http(s) URL with no query/fragment when set.
     LOCALAGENT_HTTP_BASE_URL: str = ""
+
+    # -- LocalAgent evaluation-environment interpreter ------------------------
+    # AgentEvalOps-owned path to the Python executable that must launch an
+    # isolated LocalAgent runtime process (e.g. the Local_Agent repository's own
+    # virtualenv interpreter). This is intentionally NOT LocalAgent's production
+    # setting (LocalAgent uses LOCAL_AGENT_* env vars); it selects the interpreter
+    # for the evaluation-only subprocess. Empty means "not configured" and the
+    # StatefulEnvironmentProvisioner must fail closed rather than fall back to the
+    # AgentEvalOps interpreter.
+    LOCALAGENT_PYTHON_EXECUTABLE: str = ""
+
+    # -- Stateful Memory journal settle / poll ---------------------------------
+    # After a LocalAgent terminal, memory events may be committed to the runtime
+    # journal slightly after the HTTP response. The runner performs a bounded,
+    # deadline-aware re-read until the expected evidence is observed, the journal
+    # watermark is stable for one poll interval, or the settle deadline is reached.
+    # These are AgentEvalOps-owned capture controls; missing evidence at deadline
+    # still becomes BLOCKED(evidence_capture) (never a silent default-0 PASS).
+    STATEFUL_JOURNAL_SETTLE_BUDGET_MS: int = 2000
+    STATEFUL_JOURNAL_POLL_INTERVAL_MS: int = 200
 
     # -- Application URLs -----------------------------------------------------
     APP_URL: str = "https://app.pandaprobe.com"

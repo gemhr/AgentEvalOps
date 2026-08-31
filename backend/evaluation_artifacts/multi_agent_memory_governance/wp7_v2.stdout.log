@@ -1,0 +1,472 @@
+connect_tcp.started host='127.0.0.1' port=7890 local_address=None timeout=5 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x000002207F72A660>
+send_request_headers.started request=<Request [b'CONNECT']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'CONNECT']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'CONNECT']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'Connection established', [])
+start_tls.started ssl_context=<ssl.SSLContext object at 0x000002207F771130> server_hostname='raw.githubusercontent.com' timeout=5
+start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x000002207F778B90>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Connection', b'keep-alive'), (b'Content-Length', b'101302'), (b'Cache-Control', b'max-age=300'), (b'Content-Security-Policy', b"default-src 'none'; style-src 'unsafe-inline'; sandbox"), (b'Content-Type', b'text/plain; charset=utf-8'), (b'ETag', b'W/"ec1919846f92f45c3a86c24366b5004b75f3ac5b81387fe7db4d016d7afc02bf"'), (b'Strict-Transport-Security', b'max-age=31536000'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Frame-Options', b'deny'), (b'X-XSS-Protection', b'1; mode=block'), (b'X-GitHub-Request-Id', b'783E:227F80:3DB144:9E2B79:6A956FB3'), (b'x-github-edge-region', b'japaneast'), (b'Content-Encoding', b'gzip'), (b'Accept-Ranges', b'bytes'), (b'Date', b'Mon, 31 Aug 2026 14:58:34 GMT'), (b'Via', b'1.1 varnish'), (b'X-Served-By', b'cache-nrt-rjaa8190074-NRT'), (b'X-Cache', b'HIT'), (b'X-Cache-Hits', b'17'), (b'X-Timer', b'S1788188314.303146,VS0,VE0'), (b'Vary', b'Authorization,Accept-Encoding'), (b'Access-Control-Allow-Origin', b'*'), (b'Cross-Origin-Resource-Policy', b'cross-origin'), (b'X-Fastly-Request-ID', b'd093d24a15ac8f1d2265987536440154a627a1ee'), (b'Expires', b'Mon, 31 Aug 2026 15:03:34 GMT'), (b'Source-Age', b'51')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+[Non-Blocking] Unable to import GenericAPILogger - LiteLLM Enterprise Feature - No module named 'litellm_enterprise'
+litellm: could not pre-load bedrock-runtime response stream shape ¡ª Bedrock event-stream decoding will be unavailable. Error: No module named 'botocore'
+litellm: could not pre-load sagemaker-runtime response stream shape ¡ª SageMaker event-stream decoding will be unavailable. Error: No module named 'botocore'
+Using AiohttpTransport...
+Creating AiohttpTransport...
+NEW SESSION: Creating new ClientSession (no shared session provided)
+Using AiohttpTransport...
+Creating AiohttpTransport...
+NEW SESSION: Creating new ClientSession (no shared session provided)
+Using AiohttpTransport...
+Creating AiohttpTransport...
+NEW SESSION: Creating new ClientSession (no shared session provided)
+Using AiohttpTransport...
+Creating AiohttpTransport...
+NEW SESSION: Creating new ClientSession (no shared session provided)
+Using proactor: IocpProactor
+connect_tcp.started host='127.0.0.1' port=12622 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=12622 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=12622 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000022008814830>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:58:42 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=12622 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000022008864050>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:58:42 GMT'), (b'server', b'uvicorn'), (b'content-length', b'1123'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=12638 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=12638 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=12638 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000022008865810>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:58:48 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=12638 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000220068FFBB0>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:58:48 GMT'), (b'server', b'uvicorn'), (b'content-length', b'1025'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=6043 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=6043 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=6043 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000220088790F0>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:58:54 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=6043 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000022008845EB0>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:58:54 GMT'), (b'server', b'uvicorn'), (b'content-length', b'1147'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=6055 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=6055 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=6055 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002200882E7A0>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:01 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=6055 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002200882F680>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:01 GMT'), (b'server', b'uvicorn'), (b'content-length', b'988'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:01 GMT'), (b'server', b'uvicorn'), (b'content-length', b'940'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=9879 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=9879 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=9879 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000220068CBE50>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:07 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=9879 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002200886A450>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:07 GMT'), (b'server', b'uvicorn'), (b'content-length', b'988'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:07 GMT'), (b'server', b'uvicorn'), (b'content-length', b'832'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=9894 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=9894 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=9894 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000022008820410>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:13 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=9894 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000220088815E0>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:13 GMT'), (b'server', b'uvicorn'), (b'content-length', b'988'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:13 GMT'), (b'server', b'uvicorn'), (b'content-length', b'847'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=3392 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=3392 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=3392 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000022008858130>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:19 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=3392 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000220088590F0>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:19 GMT'), (b'server', b'uvicorn'), (b'content-length', b'988'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:19 GMT'), (b'server', b'uvicorn'), (b'content-length', b'1081'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=3406 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=3406 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=3406 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000220088A81F0>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:26 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=3406 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000220088A4E90>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:26 GMT'), (b'server', b'uvicorn'), (b'content-length', b'1436'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=11104 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=11104 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=11104 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000220088A5A90>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:32 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=11104 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002200880CD60>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:32 GMT'), (b'server', b'uvicorn'), (b'content-length', b'1309'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=11118 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=11118 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=11118 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002200880EE60>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:38 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=11118 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002200888D310>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:38 GMT'), (b'server', b'uvicorn'), (b'content-length', b'1660'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=14444 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=14444 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=14444 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000002200888E170>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:44 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=14444 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000220068FA210>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:44 GMT'), (b'server', b'uvicorn'), (b'content-length', b'1660'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=14458 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=14458 local_address=None timeout=2.0 socket_options=None
+connect_tcp.failed exception=ConnectTimeout(TimeoutError())
+connect_tcp.started host='127.0.0.1' port=14458 local_address=None timeout=2.0 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000022008873150>
+send_request_headers.started request=<Request [b'GET']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'GET']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'GET']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:51 GMT'), (b'server', b'uvicorn'), (b'content-length', b'79'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'GET']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+connect_tcp.started host='127.0.0.1' port=14458 local_address=None timeout=75 socket_options=None
+connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x00000220088739D0>
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:51 GMT'), (b'server', b'uvicorn'), (b'content-length', b'988'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+send_request_headers.started request=<Request [b'POST']>
+send_request_headers.complete
+send_request_body.started request=<Request [b'POST']>
+send_request_body.complete
+receive_response_headers.started request=<Request [b'POST']>
+receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Mon, 31 Aug 2026 14:59:51 GMT'), (b'server', b'uvicorn'), (b'content-length', b'940'), (b'content-type', b'application/json')])
+receive_response_body.started request=<Request [b'POST']>
+receive_response_body.complete
+response_closed.started
+response_closed.complete
+close.started
+close.complete
+D:\PythonProject\AgentEvalOps\backend\evaluation_artifacts\multi_agent_memory_governance\experiment_artifact.v2.json
+{"pass": 12, "fail": 0, "blocked": 0, "gate": "PASS"}

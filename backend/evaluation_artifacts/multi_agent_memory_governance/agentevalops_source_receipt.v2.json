@@ -1,0 +1,11 @@
+{
+  "schema_version": "multi-agent-memory-governance-source-receipt.v1",
+  "owner": "AgentEvalOps",
+  "aggregate_algorithm": "sha256(path\\0file_sha256\\0byte_length\\0)",
+  "aggregate_ref": "sha256:cb5715b3c430f0610671226d54d76061688adf79992335e67d4127cfdcecf883",
+  "files": [
+    {"relative_file_path": "backend/evaluation_assets/multi_agent_memory_governance_v2/dataset.json", "sha256": "sha256:82e7fbbe9d6c0d53a2448379571df19c5439b1929c2509b8cddefcaed07537d6", "byte_length": 5445},
+    {"relative_file_path": "backend/app/core/evaluation/multi_agent_memory_governance.py", "sha256": "sha256:f688f6ddc94f0ff96bab248e1c57f52b30f6199aacd08663e7417dcf184e15e4", "byte_length": 13766},
+    {"relative_file_path": "backend/_run_wp7_layer1_v2.py", "sha256": "sha256:bca4c42bdf258bc8670ff933f83f6637d3f59bf58546037892e39fe72b52bfa1", "byte_length": 8623}
+  ]
+}

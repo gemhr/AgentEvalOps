@@ -1,0 +1,18 @@
+{
+  "schema_version": "multi-agent-memory-governance-baseline.v1",
+  "baseline_id": "WP7_MULTI_AGENT_MEMORY_GOVERNANCE_BASELINE_V2",
+  "status": "CANDIDATE",
+  "candidate_reason": "PHASE5_FINAL_GATE_REGRESSION_COMPLETED",
+  "dataset": {"id": "multi_agent_memory_governance_v2", "version": "v2", "digest": "sha256:82e7fbbe9d6c0d53a2448379571df19c5439b1929c2509b8cddefcaed07537d6"},
+  "target_implementation_ref": "sha256:107ff45eace28849162ddfda1bdfda2bb5e064eee50f36cd0fd0d8b6434b46d0",
+  "target_source_receipt": {"path": "backend/evaluation_artifacts/multi_agent_memory_governance/target_source_receipt.v2.json", "aggregate_ref": "sha256:962c0a9a667b1018ad6e94336a2b27d0f99930f64d887753bacbcbd064b7ef0f"},
+  "agentevalops_implementation_ref": "sha256:cb5715b3c430f0610671226d54d76061688adf79992335e67d4127cfdcecf883",
+  "agentevalops_source_receipt": {"path": "backend/evaluation_artifacts/multi_agent_memory_governance/agentevalops_source_receipt.v2.json", "aggregate_ref": "sha256:cb5715b3c430f0610671226d54d76061688adf79992335e67d4127cfdcecf883"},
+  "execution_policy": "GLOBAL_SEQUENTIAL",
+  "schema_version_localagent": 5,
+  "experiment_artifact": {"path": "backend/evaluation_artifacts/multi_agent_memory_governance/experiment_artifact.v2.json", "digest": "sha256:b71fc75d1644a77b6c48f835bcc0a0e0f3da774f1c5e8ff676ed0bda1f3343ce"},
+  "layer1_gate": "PASS",
+  "scenarios": {"total": 12, "pass": 12, "fail": 0, "blocked": 0, "p0": 0},
+  "full_regression": {"mode": "SINGLE_PROCESS", "collected_nodeids": 2331, "executed_unique_nodeids": 2331, "missing_nodeids": 0, "duplicate_nodeids": 0, "pass": 2315, "fail": 15, "skipped": 1, "classification": "PASS_WITH_PREEXISTING_FAILURES"},
+  "baseline_compatibility": "any change to dataset digest, implementation ref, source receipt aggregate, execution policy, schema version, or experiment digest is BASELINE_INCOMPATIBLE"
+}

@@ -1,0 +1,1276 @@
+{
+  "schema_version": "multi-agent-memory-governance-experiment.v2",
+  "created_at": "2026-08-31T14:59:51.498094+00:00",
+  "dataset": {
+    "id": "multi_agent_memory_governance_v2",
+    "version": "v2",
+    "digest": "sha256:82e7fbbe9d6c0d53a2448379571df19c5439b1929c2509b8cddefcaed07537d6",
+    "lineage": {
+      "parent_dataset_id": "multi_agent_memory_governance_v1",
+      "parent_version": "v1",
+      "parent_digest": "sha256:8bfddfb8e907d6fbbcb98fc33e52be76f2b1a7d9c6c258ad3741e86f67d70718",
+      "remediation_reason": "STATEFUL_EVIDENCE_DEFECT"
+    }
+  },
+  "target_implementation_ref": "sha256:107ff45eace28849162ddfda1bdfda2bb5e064eee50f36cd0fd0d8b6434b46d0",
+  "agentevalops_implementation_ref": "sha256:cb5715b3c430f0610671226d54d76061688adf79992335e67d4127cfdcecf883",
+  "target_source_receipt": {
+    "aggregate_algorithm": "sha256(path\\0file_sha256\\0byte_length\\0)",
+    "aggregate_ref": "sha256:962c0a9a667b1018ad6e94336a2b27d0f99930f64d887753bacbcbd064b7ef0f",
+    "files": [
+      {
+        "relative_file_path": "server.py",
+        "sha256": "sha256:e1a9e647bfee4cea685fccc6b7a93434076ed7ad2e8b73fb5ace030907c27c7c",
+        "byte_length": 91043
+      },
+      {
+        "relative_file_path": "core/runtime/memory_authorization.py",
+        "sha256": "sha256:24f56c7254cdd3056fd18258037381d95f67ee0385485744ba959acd00588d69",
+        "byte_length": 14142
+      },
+      {
+        "relative_file_path": "core/runtime/project_memory.py",
+        "sha256": "sha256:06b5024cc6137110e2638a9d9a7a6c5cb8f2606ee3fe9d33cbe8bed5f1d33518",
+        "byte_length": 14018
+      },
+      {
+        "relative_file_path": "core/runtime/run_coordinator.py",
+        "sha256": "sha256:1e7a49be704748a1af97847841b81a9466051fb2e942ff820728dc34cdb7a572",
+        "byte_length": 94289
+      },
+      {
+        "relative_file_path": "core/runtime/context.py",
+        "sha256": "sha256:cb261044b3316110456555795e0f09abe5c05cea14abc282e8fe04c7a039e71c",
+        "byte_length": 11072
+      },
+      {
+        "relative_file_path": "core/runtime/runtime_factory.py",
+        "sha256": "sha256:ef5a30cd26292966888411ce830f9dd7487902036ffe9135f4080ba1b9c37ec2",
+        "byte_length": 29818
+      },
+      {
+        "relative_file_path": "core/chat_service.py",
+        "sha256": "sha256:5e71ed46171716f62c32be542217862134d2f46fe607993450ba8853308c105e",
+        "byte_length": 27567
+      }
+    ]
+  },
+  "agentevalops_source_receipt": {
+    "aggregate_algorithm": "sha256(path\\0file_sha256\\0byte_length\\0)",
+    "aggregate_ref": "sha256:cb5715b3c430f0610671226d54d76061688adf79992335e67d4127cfdcecf883",
+    "files": [
+      {
+        "relative_file_path": "backend/evaluation_assets/multi_agent_memory_governance_v2/dataset.json",
+        "sha256": "sha256:82e7fbbe9d6c0d53a2448379571df19c5439b1929c2509b8cddefcaed07537d6",
+        "byte_length": 5445
+      },
+      {
+        "relative_file_path": "backend/app/core/evaluation/multi_agent_memory_governance.py",
+        "sha256": "sha256:f688f6ddc94f0ff96bab248e1c57f52b30f6199aacd08663e7417dcf184e15e4",
+        "byte_length": 13766
+      },
+      {
+        "relative_file_path": "backend/_run_wp7_layer1_v2.py",
+        "sha256": "sha256:bca4c42bdf258bc8670ff933f83f6637d3f59bf58546037892e39fe72b52bfa1",
+        "byte_length": 8623
+      }
+    ]
+  },
+  "execution_policy": "GLOBAL_SEQUENTIAL",
+  "real_model_experiment_executed": false,
+  "target_gate_field_used_as_authority": false,
+  "scenarios": [
+    {
+      "scenario_id": "G01",
+      "required_surface": "private_authorization",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "fe0b7837-0783-4a41-8f1d-424adff37fd9",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [
+              {
+                "fixture_ref": "private-a",
+                "outcome": "INSTALLED",
+                "safe_memory_ref": "wp7-fixture-9fca384fc84a5b398114426bf80872b0",
+                "owner_safe_identity": "agent-a",
+                "visibility": "PRIVATE"
+              }
+            ],
+            "authorization": {
+              "operation": "READ",
+              "requester": "agent-a",
+              "owner_safe_identity": "agent-a",
+              "visibility": "PRIVATE",
+              "owner_match": true,
+              "scope_match": true,
+              "grant_match": null,
+              "decision": "ALLOW",
+              "reason": "OWNER_MATCH",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 1,
+              "selected_count": 1,
+              "supplied_count": 1,
+              "injected_count": 1,
+              "safe_memory_refs": [
+                "wp7-fixture-9fca384fc84a5b398114426bf80872b0"
+              ],
+              "context_sources": [
+                {
+                  "source_type": "memory_retrieval",
+                  "trust_role": "user_content"
+                }
+              ]
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": null,
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G02",
+      "required_surface": "private_authorization",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "7e4836b3-1e2a-42d7-86c0-547368391874",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [
+              {
+                "fixture_ref": "private-a",
+                "outcome": "INSTALLED",
+                "safe_memory_ref": "wp7-fixture-9fca384fc84a5b398114426bf80872b0",
+                "owner_safe_identity": "agent-a",
+                "visibility": "PRIVATE"
+              }
+            ],
+            "authorization": {
+              "operation": "READ",
+              "requester": "agent-b",
+              "owner_safe_identity": "agent-a",
+              "visibility": "PRIVATE",
+              "owner_match": false,
+              "scope_match": true,
+              "grant_match": null,
+              "decision": "DENY",
+              "reason": "FOREIGN_PRIVATE_OWNER",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": null,
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G03",
+      "required_surface": "private_authorization",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "90b338ed-a07b-4d12-af0c-b3d824e33f13",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [
+              {
+                "fixture_ref": "private-a",
+                "outcome": "INSTALLED",
+                "safe_memory_ref": "wp7-fixture-9fca384fc84a5b398114426bf80872b0",
+                "owner_safe_identity": "agent-a",
+                "visibility": "PRIVATE"
+              }
+            ],
+            "authorization": {
+              "operation": "FORGET",
+              "requester": "agent-b",
+              "owner_safe_identity": "agent-a",
+              "visibility": "PRIVATE",
+              "owner_match": false,
+              "scope_match": true,
+              "grant_match": null,
+              "decision": "DENY",
+              "reason": "FOREIGN_PRIVATE_OWNER",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": {
+              "operation": "PRIVATE_FORGET",
+              "before_count": 1,
+              "affected_count": 0,
+              "after_count": 1,
+              "outcome": "DENIED",
+              "safe_target_ref": null
+            },
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G04",
+      "required_surface": "project_retrieval",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "e8102977-d699-4682-857d-f5f4bdfd858a",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": {
+              "operation": "WRITE",
+              "requester": "agent-a",
+              "owner_kind": "PROJECT",
+              "owner_match": true,
+              "visibility": "PROJECT",
+              "scope_match": true,
+              "grant_type": "WRITE",
+              "decision": "ALLOW",
+              "reason": "ALLOW",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": {
+              "operation": "PROJECT_WRITE",
+              "before_count": 0,
+              "affected_count": 1,
+              "after_count": 1,
+              "outcome": "CREATED",
+              "safe_target_ref": "e2e897c1-a9bf-4ff5-ad04-0c4fbede7e87"
+            },
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        },
+        {
+          "run_id": "run_b",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "60bdc2fc-d733-49ed-abdf-48d664ee6325",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": {
+              "operation": "READ",
+              "requester": "agent-b",
+              "owner_kind": "PROJECT",
+              "owner_match": true,
+              "visibility": "PROJECT",
+              "scope_match": true,
+              "grant_type": "READ",
+              "decision": "ALLOW",
+              "reason": "ALLOW",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 1,
+              "selected_count": 1,
+              "supplied_count": 1,
+              "injected_count": 1,
+              "safe_memory_refs": [
+                "e2e897c1-a9bf-4ff5-ad04-0c4fbede7e87"
+              ],
+              "context_sources": [
+                {
+                  "source_type": "project_memory_retrieval",
+                  "trust_role": "user_content"
+                }
+              ]
+            },
+            "mutation": null,
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G05",
+      "required_surface": "project_retrieval",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "155e3a76-4665-4d40-b545-f51d56e976cf",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": {
+              "operation": "WRITE",
+              "requester": "agent-a",
+              "owner_kind": "PROJECT",
+              "owner_match": true,
+              "visibility": "PROJECT",
+              "scope_match": true,
+              "grant_type": "WRITE",
+              "decision": "ALLOW",
+              "reason": "ALLOW",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": {
+              "operation": "PROJECT_WRITE",
+              "before_count": 0,
+              "affected_count": 1,
+              "after_count": 1,
+              "outcome": "CREATED",
+              "safe_target_ref": "71ac5348-77ac-4299-985b-2f558db1d240"
+            },
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        },
+        {
+          "run_id": "run_b",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "4fd268c2-0848-425e-88cf-5b3dc62ba451",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": {
+              "operation": "READ",
+              "requester": "agent-b",
+              "owner_kind": "PROJECT",
+              "owner_match": true,
+              "visibility": "PROJECT",
+              "scope_match": true,
+              "grant_type": "READ",
+              "decision": "ALLOW",
+              "reason": "ALLOW",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": null,
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G06",
+      "required_surface": "project_retrieval",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "1b754825-9f36-4ccf-bb39-e62ed4dd03bd",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": {
+              "operation": "WRITE",
+              "requester": "agent-a",
+              "owner_kind": "PROJECT",
+              "owner_match": true,
+              "visibility": "PROJECT",
+              "scope_match": true,
+              "grant_type": "WRITE",
+              "decision": "ALLOW",
+              "reason": "ALLOW",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": {
+              "operation": "PROJECT_WRITE",
+              "before_count": 0,
+              "affected_count": 1,
+              "after_count": 1,
+              "outcome": "CREATED",
+              "safe_target_ref": "00468270-c240-449e-8f87-17ba7ba87666"
+            },
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        },
+        {
+          "run_id": "run_b",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "b8926ecb-2352-4138-ac4b-c3ad6fba88fd",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": {
+              "operation": "READ",
+              "requester": "agent-b",
+              "owner_kind": "PROJECT",
+              "owner_match": false,
+              "visibility": "PROJECT",
+              "scope_match": false,
+              "grant_type": "READ",
+              "decision": "DENY",
+              "reason": "PROJECT_READ_DENIED",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": null,
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G07",
+      "required_surface": "project_mutation",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "934e8b63-490b-4540-bc95-05b841700597",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": {
+              "operation": "WRITE",
+              "requester": "agent-a",
+              "owner_kind": "PROJECT",
+              "owner_match": true,
+              "visibility": "PROJECT",
+              "scope_match": true,
+              "grant_type": "WRITE",
+              "decision": "ALLOW",
+              "reason": "ALLOW",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": {
+              "operation": "PROJECT_WRITE",
+              "before_count": 0,
+              "affected_count": 1,
+              "after_count": 1,
+              "outcome": "CREATED",
+              "safe_target_ref": "4afbc576-ef88-42c8-9b5b-34959f283115"
+            },
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        },
+        {
+          "run_id": "run_b",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "561bf280-d1d5-4005-bac1-974e8038ae16",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": {
+              "operation": "FORGET",
+              "requester": "agent-b",
+              "owner_kind": "PROJECT",
+              "owner_match": false,
+              "visibility": "PROJECT",
+              "scope_match": false,
+              "grant_type": "FORGET",
+              "decision": "DENY",
+              "reason": "PROJECT_FORGET_DENIED",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 1,
+              "selected_count": 1,
+              "supplied_count": 1,
+              "injected_count": 1,
+              "safe_memory_refs": [
+                "4afbc576-ef88-42c8-9b5b-34959f283115"
+              ],
+              "context_sources": [
+                {
+                  "source_type": "project_memory_retrieval",
+                  "trust_role": "user_content"
+                }
+              ]
+            },
+            "mutation": {
+              "operation": "PROJECT_FORGET",
+              "before_count": 1,
+              "affected_count": 0,
+              "after_count": 1,
+              "outcome": "DENIED",
+              "safe_target_ref": null
+            },
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G08",
+      "required_surface": "promotion",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "7b659420-2747-4da9-9ec2-8b75a337993e",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [
+              {
+                "fixture_ref": "private-a",
+                "outcome": "INSTALLED",
+                "safe_memory_ref": "wp7-fixture-9fca384fc84a5b398114426bf80872b0",
+                "owner_safe_identity": "agent-a",
+                "visibility": "PRIVATE"
+              }
+            ],
+            "authorization": {
+              "operation": "WRITE",
+              "requester": "agent-a",
+              "owner_kind": "PROJECT",
+              "owner_match": true,
+              "visibility": "PROJECT",
+              "scope_match": true,
+              "grant_type": "WRITE",
+              "decision": "ALLOW",
+              "reason": "ALLOW",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 1,
+              "selected_count": 1,
+              "supplied_count": 1,
+              "injected_count": 1,
+              "safe_memory_refs": [
+                "wp7-fixture-9fca384fc84a5b398114426bf80872b0"
+              ],
+              "context_sources": [
+                {
+                  "source_type": "memory_retrieval",
+                  "trust_role": "user_content"
+                }
+              ]
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": null,
+            "promotion": {
+              "source_private_memory_ref": "wp7-fixture-9fca384fc84a5b398114426bf80872b0",
+              "source_owner_safe_identity": "agent-a",
+              "promoter_safe_identity": "agent-a",
+              "target_project_safe_identity": "project-p",
+              "decision": "ALLOW",
+              "outcome": "CREATED",
+              "provenance_complete": true,
+              "resulting_project_memory_ref": "8fec91c5-7465-4fa4-bf5c-411d2834298a"
+            },
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G09",
+      "required_surface": "promotion",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "9ddce46f-cd6a-4d7e-b09d-e8c7f89dddaa",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [
+              {
+                "fixture_ref": "private-a",
+                "outcome": "INSTALLED",
+                "safe_memory_ref": "wp7-fixture-9fca384fc84a5b398114426bf80872b0",
+                "owner_safe_identity": "agent-a",
+                "visibility": "PRIVATE"
+              }
+            ],
+            "authorization": {
+              "operation": "WRITE",
+              "requester": "agent-b",
+              "owner_kind": "PROJECT",
+              "owner_match": false,
+              "visibility": "PROJECT",
+              "scope_match": false,
+              "grant_type": "WRITE",
+              "decision": "DENY",
+              "reason": "PROJECT_WRITE_DENIED",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": null,
+            "promotion": {
+              "source_private_memory_ref": "wp7-fixture-9fca384fc84a5b398114426bf80872b0",
+              "source_owner_safe_identity": "agent-a",
+              "promoter_safe_identity": "agent-b",
+              "target_project_safe_identity": "project-p",
+              "decision": "DENY",
+              "outcome": "DENIED",
+              "provenance_complete": false,
+              "resulting_project_memory_ref": null
+            },
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G10",
+      "required_surface": "specialist",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "d3fbe87b-4772-4120-8410-763c54d5812c",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": null,
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": null,
+            "promotion": null,
+            "specialist_formation": [
+              {
+                "run_id": "d3fbe87b-4772-4120-8410-763c54d5812c",
+                "step_id": "task-release_list",
+                "planned_agent": "code_expert",
+                "binding_agent": "code_expert",
+                "claim_agent": "code_expert",
+                "producer_agent": "code_expert",
+                "verified_performer": "code_expert",
+                "episode_owner": "code_expert",
+                "episode_kind": "STEP",
+                "formation_outcome": "OBSERVED",
+                "idempotency_outcome": "OBSERVED"
+              },
+              {
+                "run_id": "d3fbe87b-4772-4120-8410-763c54d5812c",
+                "step_id": "task-rollback_plan",
+                "planned_agent": "data_analyst",
+                "binding_agent": "data_analyst",
+                "claim_agent": "data_analyst",
+                "producer_agent": "data_analyst",
+                "verified_performer": "data_analyst",
+                "episode_owner": "data_analyst",
+                "episode_kind": "STEP",
+                "formation_outcome": "OBSERVED",
+                "idempotency_outcome": "OBSERVED"
+              }
+            ],
+            "invocation_visibility": [
+              {
+                "invocation_role": "DELEGATED",
+                "private_bundle_present": false,
+                "project_bundle_present": false,
+                "dependency_result_present": false,
+                "context_source_roles": []
+              },
+              {
+                "invocation_role": "SYNTHESIS",
+                "private_bundle_present": false,
+                "project_bundle_present": false,
+                "dependency_result_present": true,
+                "context_source_roles": [
+                  "step_result"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G11",
+      "required_surface": "delegation",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "0b981b04-be2e-4599-bad5-6565ea38150f",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": null,
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": null,
+            "promotion": null,
+            "specialist_formation": [
+              {
+                "run_id": "0b981b04-be2e-4599-bad5-6565ea38150f",
+                "step_id": "task-release_list",
+                "planned_agent": "code_expert",
+                "binding_agent": "code_expert",
+                "claim_agent": "code_expert",
+                "producer_agent": "code_expert",
+                "verified_performer": "code_expert",
+                "episode_owner": "code_expert",
+                "episode_kind": "STEP",
+                "formation_outcome": "OBSERVED",
+                "idempotency_outcome": "OBSERVED"
+              },
+              {
+                "run_id": "0b981b04-be2e-4599-bad5-6565ea38150f",
+                "step_id": "task-rollback_plan",
+                "planned_agent": "data_analyst",
+                "binding_agent": "data_analyst",
+                "claim_agent": "data_analyst",
+                "producer_agent": "data_analyst",
+                "verified_performer": "data_analyst",
+                "episode_owner": "data_analyst",
+                "episode_kind": "STEP",
+                "formation_outcome": "OBSERVED",
+                "idempotency_outcome": "OBSERVED"
+              }
+            ],
+            "invocation_visibility": [
+              {
+                "invocation_role": "DELEGATED",
+                "private_bundle_present": false,
+                "project_bundle_present": false,
+                "dependency_result_present": false,
+                "context_source_roles": []
+              },
+              {
+                "invocation_role": "SYNTHESIS",
+                "private_bundle_present": false,
+                "project_bundle_present": false,
+                "dependency_result_present": true,
+                "context_source_roles": [
+                  "step_result"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "scenario_id": "G12",
+      "required_surface": "context_trust",
+      "verdict": "PASS",
+      "runs": [
+        {
+          "run_id": "run_a",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "c20a735e-4f70-4ca2-8f48-8e736fd36873",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": {
+              "operation": "WRITE",
+              "requester": "agent-a",
+              "owner_kind": "PROJECT",
+              "owner_match": true,
+              "visibility": "PROJECT",
+              "scope_match": true,
+              "grant_type": "WRITE",
+              "decision": "ALLOW",
+              "reason": "ALLOW",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "mutation": {
+              "operation": "PROJECT_WRITE",
+              "before_count": 0,
+              "affected_count": 1,
+              "after_count": 1,
+              "outcome": "CREATED",
+              "safe_target_ref": "faf71f1a-bb4c-4eb3-85fe-f8818bd97633"
+            },
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        },
+        {
+          "run_id": "run_b",
+          "http_status": 200,
+          "response": {
+            "protocol_version": "localagent-wp7-governance-evaluation-execute.v4",
+            "run_id": "4d027cc8-52ba-4223-85b4-6f75ab9fd6b4",
+            "status": "SUCCEEDED",
+            "stop_reason": "COMPLETED",
+            "error_code": null,
+            "safe_message": "运行已成功完成",
+            "fixture_receipts": [],
+            "authorization": {
+              "operation": "READ",
+              "requester": "agent-b",
+              "owner_kind": "PROJECT",
+              "owner_match": true,
+              "visibility": "PROJECT",
+              "scope_match": true,
+              "grant_type": "READ",
+              "decision": "ALLOW",
+              "reason": "ALLOW",
+              "affected_count": 0
+            },
+            "private_retrieval": {
+              "candidate_count": 0,
+              "selected_count": 0,
+              "supplied_count": 0,
+              "injected_count": 0,
+              "safe_memory_refs": [],
+              "context_sources": []
+            },
+            "project_retrieval": {
+              "candidate_count": 1,
+              "selected_count": 1,
+              "supplied_count": 1,
+              "injected_count": 1,
+              "safe_memory_refs": [
+                "faf71f1a-bb4c-4eb3-85fe-f8818bd97633"
+              ],
+              "context_sources": [
+                {
+                  "source_type": "project_memory_retrieval",
+                  "trust_role": "user_content"
+                }
+              ]
+            },
+            "mutation": null,
+            "promotion": null,
+            "specialist_formation": [],
+            "invocation_visibility": []
+          }
+        }
+      ]
+    }
+  ],
+  "metrics": {
+    "PRIVATE_MEMORY_LEAKAGE_RATE": {
+      "metric_name": "PRIVATE_MEMORY_LEAKAGE_RATE",
+      "numerator": 0,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 0.0
+    },
+    "PROJECT_SCOPE_LEAKAGE_RATE": {
+      "metric_name": "PROJECT_SCOPE_LEAKAGE_RATE",
+      "numerator": 0,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 0.0
+    },
+    "AUTHORIZED_PRIVATE_READ_SUCCESS_RATE": {
+      "metric_name": "AUTHORIZED_PRIVATE_READ_SUCCESS_RATE",
+      "numerator": 1,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 1.0
+    },
+    "UNAUTHORIZED_PRIVATE_MUTATION_REJECTION_RATE": {
+      "metric_name": "UNAUTHORIZED_PRIVATE_MUTATION_REJECTION_RATE",
+      "numerator": 1,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 1.0
+    },
+    "PROJECT_SHARED_RECALL_RATE": {
+      "metric_name": "PROJECT_SHARED_RECALL_RATE",
+      "numerator": 1,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 1.0
+    },
+    "PROJECT_INJECTION_SUCCESS_RATE": {
+      "metric_name": "PROJECT_INJECTION_SUCCESS_RATE",
+      "numerator": 1,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 1.0
+    },
+    "UNAUTHORIZED_PROJECT_ACCESS_REJECTION_RATE": {
+      "metric_name": "UNAUTHORIZED_PROJECT_ACCESS_REJECTION_RATE",
+      "numerator": 1,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 1.0
+    },
+    "UNAUTHORIZED_PROJECT_MUTATION_REJECTION_RATE": {
+      "metric_name": "UNAUTHORIZED_PROJECT_MUTATION_REJECTION_RATE",
+      "numerator": 1,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 1.0
+    },
+    "PROMOTION_SUCCESS_RATE": {
+      "metric_name": "PROMOTION_SUCCESS_RATE",
+      "numerator": 1,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 1.0
+    },
+    "PROMOTION_PROVENANCE_ACCURACY": {
+      "metric_name": "PROMOTION_PROVENANCE_ACCURACY",
+      "numerator": 1,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 1.0
+    },
+    "SPECIALIST_OWNER_CORRECTNESS": {
+      "metric_name": "SPECIALIST_OWNER_CORRECTNESS",
+      "numerator": 1,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 1.0
+    },
+    "DELEGATION_PRIVATE_PROPAGATION_RATE": {
+      "metric_name": "DELEGATION_PRIVATE_PROPAGATION_RATE",
+      "numerator": 0,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 0.0
+    },
+    "INSTRUCTION_ELEVATION_VIOLATION_RATE": {
+      "metric_name": "INSTRUCTION_ELEVATION_VIOLATION_RATE",
+      "numerator": 0,
+      "evaluable_denominator": 1,
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "value": 0.0
+    },
+    "GOVERNANCE_SCENARIO_SUCCESS_RATE": {
+      "metric_name": "GOVERNANCE_SCENARIO_SUCCESS_RATE",
+      "numerator": 12,
+      "evaluable_denominator": 12,
+      "passed": 12,
+      "failed": 0,
+      "blocked": 0,
+      "value": 1.0
+    }
+  },
+  "assertion_summary": {
+    "pass": 12,
+    "fail": 0,
+    "blocked": 0
+  },
+  "p0_memory_governance_violations": 0,
+  "layer1_gate": "PASS"
+}

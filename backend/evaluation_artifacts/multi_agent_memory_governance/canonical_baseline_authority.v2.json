@@ -1,0 +1,37 @@
+{
+  "schema_version": "multi-agent-memory-governance-canonical-authority.v1",
+  "baseline_id": "WP7_MULTI_AGENT_MEMORY_GOVERNANCE_BASELINE_V2",
+  "freeze_decision": "CANONICAL",
+  "candidate_authority": {
+    "path": "backend/evaluation_artifacts/multi_agent_memory_governance/baseline_authority.v2.json",
+    "digest": "sha256:f5b02e6eb47c2659264682018fcf948caa6cf7ecf9bbe3c6f0380a9a45039aa9"
+  },
+  "dataset_digest": "sha256:82e7fbbe9d6c0d53a2448379571df19c5439b1929c2509b8cddefcaed07537d6",
+  "target_implementation_ref": "sha256:107ff45eace28849162ddfda1bdfda2bb5e064eee50f36cd0fd0d8b6434b46d0",
+  "target_source_receipt": {
+    "path": "backend/evaluation_artifacts/multi_agent_memory_governance/target_source_receipt.v2.json",
+    "digest": "sha256:e90a2d5037bf18e9787dcbcd3c1d245ec17c247290fefe7108489f5b66f2918f",
+    "aggregate_ref": "sha256:962c0a9a667b1018ad6e94336a2b27d0f99930f64d887753bacbcbd064b7ef0f"
+  },
+  "agentevalops_implementation_ref": "sha256:cb5715b3c430f0610671226d54d76061688adf79992335e67d4127cfdcecf883",
+  "agentevalops_source_receipt": {
+    "path": "backend/evaluation_artifacts/multi_agent_memory_governance/agentevalops_source_receipt.v2.json",
+    "digest": "sha256:9de3d78c26959de58c6013bfb337056595d39d1ed81531bca434a3cd6e39e559",
+    "aggregate_ref": "sha256:cb5715b3c430f0610671226d54d76061688adf79992335e67d4127cfdcecf883"
+  },
+  "execution_policy": "GLOBAL_SEQUENTIAL",
+  "schema_version_localagent": 5,
+  "experiment_artifact": {
+    "path": "backend/evaluation_artifacts/multi_agent_memory_governance/experiment_artifact.v2.json",
+    "digest": "sha256:b71fc75d1644a77b6c48f835bcc0a0e0f3da774f1c5e8ff676ed0bda1f3343ce"
+  },
+  "full_regression": {
+    "mode": "SINGLE_PROCESS",
+    "collected_nodeids": 2331,
+    "executed_unique_nodeids": 2331,
+    "missing_nodeids": 0,
+    "duplicate_nodeids": 0,
+    "outcome": "PASS_WITH_PREEXISTING_FAILURES"
+  },
+  "immutability": "The candidate and this authority are immutable. Any mismatch of a bound compatibility dimension is BASELINE_INCOMPATIBLE."
+}

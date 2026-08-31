@@ -1,0 +1,15 @@
+{
+  "schema_version": "multi-agent-memory-governance-source-receipt.v1",
+  "owner": "LocalAgent",
+  "aggregate_algorithm": "sha256(path\\0file_sha256\\0byte_length\\0)",
+  "aggregate_ref": "sha256:962c0a9a667b1018ad6e94336a2b27d0f99930f64d887753bacbcbd064b7ef0f",
+  "files": [
+    {"relative_file_path": "server.py", "sha256": "sha256:e1a9e647bfee4cea685fccc6b7a93434076ed7ad2e8b73fb5ace030907c27c7c", "byte_length": 91043},
+    {"relative_file_path": "core/runtime/memory_authorization.py", "sha256": "sha256:24f56c7254cdd3056fd18258037381d95f67ee0385485744ba959acd00588d69", "byte_length": 14142},
+    {"relative_file_path": "core/runtime/project_memory.py", "sha256": "sha256:06b5024cc6137110e2638a9d9a7a6c5cb8f2606ee3fe9d33cbe8bed5f1d33518", "byte_length": 14018},
+    {"relative_file_path": "core/runtime/run_coordinator.py", "sha256": "sha256:1e7a49be704748a1af97847841b81a9466051fb2e942ff820728dc34cdb7a572", "byte_length": 94289},
+    {"relative_file_path": "core/runtime/context.py", "sha256": "sha256:cb261044b3316110456555795e0f09abe5c05cea14abc282e8fe04c7a039e71c", "byte_length": 11072},
+    {"relative_file_path": "core/runtime/runtime_factory.py", "sha256": "sha256:ef5a30cd26292966888411ce830f9dd7487902036ffe9135f4080ba1b9c37ec2", "byte_length": 29818},
+    {"relative_file_path": "core/chat_service.py", "sha256": "sha256:5e71ed46171716f62c32be542217862134d2f46fe607993450ba8853308c105e", "byte_length": 27567}
+  ]
+}

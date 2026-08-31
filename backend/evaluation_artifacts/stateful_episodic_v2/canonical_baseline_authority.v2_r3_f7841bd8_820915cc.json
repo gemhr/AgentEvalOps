@@ -1,0 +1,27 @@
+{
+  "authority_schema": "stateful-episodic-canonical-freeze-authority.v1",
+  "created_at": "2026-08-31T05:14:18.162314+00:00",
+  "freeze_decision": "CANONICAL",
+  "baseline_id": "WP6_STATEFUL_EPISODIC_BASELINE_V2_R3",
+  "candidate_baseline_ref": "backend/evaluation_artifacts/stateful_episodic_v2/baseline_authority.v2_r3_f7841bd8_820915cc.json",
+  "candidate_baseline_digest": "sha256:bea35651c2dbbaa25ba45ad3029a7cb40497ac33f264a5dd1a2463467cc5def6",
+  "experiment_artifact_ref": "backend/evaluation_artifacts/stateful_episodic_v2/experiment_artifact.v2_r3_f7841bd8_820915cc.json",
+  "experiment_artifact_digest": "sha256:6f1d67c5ec7ae562aaa2e09d7f4c820c65a26e287b1f4c71505e7e8fd601a38f",
+  "dataset_digest": "sha256:678ecc706c6d0e199c057e7c45d94816679f9c9d9d6a9cc47b704e1b5f589e62",
+  "target_evaluation_implementation_ref": "sha256:f7841bd8f1c178b7beaf9b64e8becc89bad64532d6c8a118a0e4bcada932492b",
+  "target_source_receipt_ref": "backend/evaluation_artifacts/stateful_episodic_v2/target_source_receipt.v2_r3_f7841bd8.json",
+  "target_source_receipt_digest": "sha256:a29cb29882835faac22c4d8562c092d60d26aa922db78047b1dd9852a186de58",
+  "agentevalops_evaluation_implementation_ref": "sha256:820915cc8b5a8881e8c1095713bed276e3fe1a5e65fc9b7663c727508cc184c1",
+  "agentevalops_source_receipt_ref": "backend/evaluation_artifacts/stateful_episodic_v2/agentevalops_source_receipt.v2_r3_820915cc.json",
+  "agentevalops_source_receipt_digest": "sha256:f4078aec43c0fa2a4743ab474b5e3486b363d39eb17add2a6817a20c05f79b1a",
+  "execution_policy": "GLOBAL_SEQUENTIAL",
+  "canonical_immutability_contract": "same canonical baseline id with any different immutable compatibility dimension => BASELINE_INCOMPATIBLE",
+  "preconditions": {
+    "experiment_execution_status": "COMPLETED",
+    "layer1_gate_passed": true,
+    "scenarios_pass": 12,
+    "open_p0": 0,
+    "open_p1": 0,
+    "source_stability_required": true
+  }
+}

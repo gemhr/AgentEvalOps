@@ -1,0 +1,195 @@
+{
+  "authority_schema": "stateful-episodic-baseline-authority.v2",
+  "baseline_id": "WP6_STATEFUL_EPISODIC_BASELINE_V2_R3",
+  "status": "CANDIDATE",
+  "canonical_baseline": false,
+  "parent_baseline_id": "WP6_STATEFUL_EPISODIC_BASELINE_V2_R2",
+  "parent_status": "CANDIDATE",
+  "lineage_reason": "BASELINE_IMMUTABILITY_REMEDIATION",
+  "created_at": "2026-08-31T05:14:18.161619+00:00",
+  "dataset": {
+    "schema": "stateful-episodic-scenario.v2",
+    "id": "stateful_episodic_v2",
+    "version": "v2",
+    "digest": "sha256:678ecc706c6d0e199c057e7c45d94816679f9c9d9d6a9cc47b704e1b5f589e62"
+  },
+  "dataset_lineage": {
+    "parent_dataset_id": "stateful_episodic_v1",
+    "parent_dataset_version": "v1",
+    "parent_dataset_digest": "sha256:d87ccfe28e414b90b8df10ffe3b1107b24f70dacf98e2996bb93f4950b105a2f",
+    "remediation_reason": "DATASET_SCOPE_REMEDIATION",
+    "authority_gate": "WP6_G7"
+  },
+  "target_evaluation_implementation_ref": "sha256:f7841bd8f1c178b7beaf9b64e8becc89bad64532d6c8a118a0e4bcada932492b",
+  "target_source_receipt_ref": "backend/evaluation_artifacts/stateful_episodic_v2/target_source_receipt.v2_r3_f7841bd8.json",
+  "target_source_receipt_digest": "sha256:a29cb29882835faac22c4d8562c092d60d26aa922db78047b1dd9852a186de58",
+  "agentevalops_evaluation_implementation_ref": "sha256:820915cc8b5a8881e8c1095713bed276e3fe1a5e65fc9b7663c727508cc184c1",
+  "agentevalops_source_receipt_ref": "backend/evaluation_artifacts/stateful_episodic_v2/agentevalops_source_receipt.v2_r3_820915cc.json",
+  "agentevalops_source_receipt_digest": "sha256:f4078aec43c0fa2a4743ab474b5e3486b363d39eb17add2a6817a20c05f79b1a",
+  "execution_policy": "GLOBAL_SEQUENTIAL",
+  "environment_provenance": {
+    "target_ref": "sha256:f7841bd8f1c178b7beaf9b64e8becc89bad64532d6c8a118a0e4bcada932492b",
+    "execution_policy": "GLOBAL_SEQUENTIAL",
+    "interpreter_ref": "D:\\PythonProject\\Local_Agent\\.venv\\Scripts\\python.exe"
+  },
+  "scenario_outcomes": {
+    "E01": "PASS",
+    "E02": "PASS",
+    "E03": "PASS",
+    "E04": "PASS",
+    "E05": "PASS",
+    "E06": "PASS",
+    "E07": "PASS",
+    "E08": "PASS",
+    "E09": "PASS",
+    "E10": "PASS",
+    "E11": "PASS",
+    "E12": "PASS"
+  },
+  "assertion_summary": {
+    "PASS": 194,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT_APPLICABLE": 0
+  },
+  "failure_taxonomy": [],
+  "blocked_taxonomy": [],
+  "metrics": {
+    "episode_formation_precision": {
+      "metric_name": "episode_formation_precision",
+      "kind": "ratio",
+      "numerator": 16,
+      "denominator": 16,
+      "not_applicable": 0,
+      "value": 1.0
+    },
+    "episode_formation_recall": {
+      "metric_name": "episode_formation_recall",
+      "kind": "ratio",
+      "numerator": 16,
+      "denominator": 16,
+      "not_applicable": 0,
+      "value": 1.0
+    },
+    "trivial_run_rejection_rate": {
+      "metric_name": "trivial_run_rejection_rate",
+      "kind": "ratio",
+      "numerator": 1,
+      "denominator": 1,
+      "not_applicable": 0,
+      "value": 1.0
+    },
+    "episode_grounding_accuracy": {
+      "metric_name": "episode_grounding_accuracy",
+      "passed": 32,
+      "failed": 0,
+      "blocked": 0,
+      "not_applicable": 0,
+      "evaluable_denominator": 32,
+      "value": 1.0
+    },
+    "fabricated_runtime_fact_rate": {
+      "metric_name": "fabricated_runtime_fact_rate",
+      "kind": "ratio",
+      "numerator": 0,
+      "denominator": 16,
+      "not_applicable": 0,
+      "value": 0.0
+    },
+    "expected_episode_recall_at_k": {
+      "metric_name": "expected_episode_recall_at_k",
+      "passed": 13,
+      "failed": 0,
+      "blocked": 0,
+      "not_applicable": 0,
+      "evaluable_denominator": 13,
+      "value": 1.0
+    },
+    "hit_at_k": {
+      "metric_name": "hit_at_k",
+      "passed": 6,
+      "failed": 0,
+      "blocked": 0,
+      "not_applicable": 0,
+      "evaluable_denominator": 6,
+      "value": 1.0
+    },
+    "irrelevant_episode_selection_rate": {
+      "metric_name": "irrelevant_episode_selection_rate",
+      "passed": 19,
+      "failed": 0,
+      "blocked": 0,
+      "not_applicable": 0,
+      "evaluable_denominator": 19,
+      "value": 0.0
+    },
+    "episode_injection_success_rate": {
+      "metric_name": "episode_injection_success_rate",
+      "passed": 6,
+      "failed": 0,
+      "blocked": 0,
+      "not_applicable": 0,
+      "evaluable_denominator": 6,
+      "value": 1.0
+    },
+    "episode_scope_leakage_rate": {
+      "metric_name": "episode_scope_leakage_rate",
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "not_applicable": 0,
+      "evaluable_denominator": 1,
+      "value": 0.0
+    },
+    "instruction_elevation_violation_rate": {
+      "metric_name": "instruction_elevation_violation_rate",
+      "passed": 1,
+      "failed": 0,
+      "blocked": 0,
+      "not_applicable": 0,
+      "evaluable_denominator": 1,
+      "value": 0.0
+    },
+    "runtime_block_rate": {
+      "metric_name": "runtime_block_rate",
+      "kind": "ratio",
+      "numerator": 0,
+      "denominator": 194,
+      "not_applicable": 0,
+      "value": 0.0
+    },
+    "evaluation_infra_failure_rate": {
+      "metric_name": "evaluation_infra_failure_rate",
+      "kind": "ratio",
+      "numerator": 0,
+      "denominator": 194,
+      "not_applicable": 0,
+      "value": 0.0
+    },
+    "stateful_episodic_scenario_success_rate": {
+      "metric_name": "stateful_episodic_scenario_success_rate",
+      "passed": 12,
+      "failed": 0,
+      "blocked": 0,
+      "not_applicable": 0,
+      "evaluable_denominator": 12,
+      "value": 1.0
+    }
+  },
+  "layer1_gate": {
+    "passed": true,
+    "reasons": [],
+    "layer": "LAYER_1_DETERMINISTIC",
+    "deterministic_gate_required_total": 12,
+    "deterministic_gate_required_passed": 12,
+    "required_blocked_total": 0,
+    "p0_violations": 0,
+    "fabricated_fact_violations": 0,
+    "privacy_violations": 0,
+    "scope_leakage_violations": 0,
+    "instruction_elevation_violations": 0,
+    "evidence_failure_retained": true
+  },
+  "experiment_artifact_ref": "backend/evaluation_artifacts/stateful_episodic_v2/experiment_artifact.v2_r3_f7841bd8_820915cc.json",
+  "experiment_artifact_digest": "sha256:6f1d67c5ec7ae562aaa2e09d7f4c820c65a26e287b1f4c71505e7e8fd601a38f"
+}

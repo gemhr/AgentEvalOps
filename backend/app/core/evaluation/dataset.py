@@ -34,6 +34,11 @@ EVALUATION_DATASET_STATEFUL_MEMORY_SCHEMA_VERSION = "stateful-memory-scenario.v1
 # R3-B：Stateful Dataset V2 schema variant。契约定义见 stateful_memory_dataset_v2.py；
 # 它引入 seeded canonical_text 与分层 identity evidence policy，与 V1 严格隔离。
 EVALUATION_DATASET_STATEFUL_MEMORY_SCHEMA_VERSION_V2 = "stateful-memory-scenario.v2"
+# WP6-E Stateful Episodic Dataset schema variant。契约定义见 episodic_dataset.py；
+# 它是独立 typed schema，不向 stateful_memory_v2 追加字段，也不复用 semantic-memory DTO。
+EVALUATION_DATASET_EPISODIC_SCENARIO_SCHEMA_VERSION = "stateful-episodic-scenario.v1"
+# WP6-E-D-G6-R1：V2 仅调整 Episodic Grounding 的 domain scope；V1 contract 保持可读。
+EVALUATION_DATASET_EPISODIC_SCENARIO_SCHEMA_VERSION_V2 = "stateful-episodic-scenario.v2"
 
 # 受支持 document contract 版本：v1（retrieval/ranking/generation）、v2（v1 + security）
 # 与 v3（v1 + document_retrieval，面向 document-level public benchmark ground truth）。
@@ -586,6 +591,8 @@ __all__ = [
     "EVALUATION_DATASET_ANSWERABILITY_SCHEMA_VERSION",
     "EVALUATION_DATASET_STATEFUL_MEMORY_SCHEMA_VERSION",
     "EVALUATION_DATASET_STATEFUL_MEMORY_SCHEMA_VERSION_V2",
+    "EVALUATION_DATASET_EPISODIC_SCENARIO_SCHEMA_VERSION",
+    "EVALUATION_DATASET_EPISODIC_SCENARIO_SCHEMA_VERSION_V2",
     "EvaluationCase",
     "EvaluationDataset",
     "EvaluationDatasetLoadError",

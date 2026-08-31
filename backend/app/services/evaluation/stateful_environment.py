@@ -354,11 +354,13 @@ class LocalAgentSubprocessProvisioner:
         localagent_python_executable: str | Path | None = None,
         health_timeout_seconds: float = 60.0,
         health_poll_seconds: float = 1.0,
+        subprocess_environment: dict[str, str] | None = None,
     ) -> None:
         self._repo = Path(localagent_repo)
         self._base_work_dir = Path(base_work_dir)
         self._health_timeout = health_timeout_seconds
         self._health_poll = health_poll_seconds
+        self._subprocess_environment = dict(subprocess_environment or {})
         self._processes: dict[str, asyncio.subprocess.Process] = {}
         self._localagent_python_executable = self._resolve_interpreter(localagent_python_executable)
 
@@ -409,6 +411,7 @@ class LocalAgentSubprocessProvisioner:
         env[LOCALAGENT_HOST_ENV] = "127.0.0.1"
         env[LOCALAGENT_ENVIRONMENT_ID_ENV] = token
         env[LOCALAGENT_ENVIRONMENT_PROFILE_ENV] = "TEST"
+        env.update(self._subprocess_environment)
         command = (
             str(interpreter),
             "-m",

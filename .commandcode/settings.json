@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(git:*)",
+      "Shell(ls D:\\PythonProject\\Local_Agent\\.ai\\handoff\\stage5_phase5 2>nul; echo ---; ls D:\\PythonProject\\Local_Agent\\.ai 2>nul)",
+      "Shell(dir D:\\PythonProject\\Local_Agent\\.ai /s /b 2>nul | findstr /i \"62 63 64\")",
+      "Shell(uv:*)",
+      "Shell(findstr:*)",
+      "Shell(dir \"C:\\Users\\GemHr\\AppData\\Local\\Temp\\opencode\\episodic_evidence_run\" 2>nul | findstr /i \"dir\" ; echo ---; if exist \"C:\\Users\\GemHr\\AppData\\Local\\Temp\\opencode\\episodic_evidence_run\" (dir /b \"C:\\Users\\GemHr\\AppData\\Local\\Temp\\opencode\\episodic_evidence_run\") else (echo MISSING))",
+      "powershell",
+      "Shell(dir:*)",
+      "Shell(cd D:\\PythonProject\\AgentEvalOps\\backend && dir /b tests\\unit\\test_stateful* tests\\unit\\test_evaluation* 2>nul)",
+      "Shell(cd D:\\PythonProject\\Local_Agent && findstr /i \"ruff\" pyproject.toml 2>nul; echo ---; ls .venv/Scripts/ruff* 2>nul; echo ---; uvx ruff check core/ server.py tests/test_startup_configuration.py tests/test_episodic_evaluation_harness.py 2>&1 | findstr /v \"CLIXML\")",
+      "Shell(dir \"C:\\Users\\GemHr\\AppData\\Local\\Temp\\opencode\\episodic_evidence_run\" 2>nul | findstr /i \"experiment\")",
+      "Shell(cd D:\\PythonProject\\AgentEvalOps\\backend && uv run python -u _run_layer1_evidence.py > _run_layer1_evidence.log 2>&1)",
+      "Shell(cd D:\\PythonProject\\AgentEvalOps\\backend && del _inspect_controls.py _run_layer1_evidence.log 2>nul & echo CLEANED)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

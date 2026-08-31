@@ -29,6 +29,11 @@ MEMORY_FORMATION_COMPLETED = "MEMORY_FORMATION_COMPLETED"
 MEMORY_LIFECYCLE_RESOLVED = "MEMORY_LIFECYCLE_RESOLVED"
 MEMORY_RETRIEVAL_COMPLETED = "MEMORY_RETRIEVAL_COMPLETED"
 
+#: Journal ``RuntimeEvent.step_id`` 身份断言消费的 step 事件（canonical step identity）。
+STEP_STARTED_EVENT = "STEP_STARTED"
+STEP_COMPLETED_EVENT = "STEP_COMPLETED"
+_SUPPORTED_STEP_EVENT_TYPES = frozenset({STEP_STARTED_EVENT, STEP_COMPLETED_EVENT})
+
 _REQUIRED_COLUMNS = frozenset({"event_id", "run_id", "sequence", "event_type", "safe_payload"})
 _SUPPORTED_MEMORY_EVENT_SCHEMA_VERSIONS = frozenset({1, "v1"})
 
@@ -249,6 +254,66 @@ class JournalEvents:
         object.__setattr__(self, "retrieval", tuple(self.retrieval))
 
 
+@dataclass(frozen=True, slots=True)
+class JournalStepFact:
+    """Journal ``RuntimeEvent.step_id`` 的 typed step 事实（canonical step identity）。
+
+    ``step_id`` 是 canonical Runtime ``PlanStep.step_id``（Journal authority）；``status``
+    是 STEP_COMPLETED safe_payload 的 step status（STEP_STARTED 只贡献 presence，不给
+    status authority）。identity 绝不来自 ``EpisodeObservation.name`` / display name。
+    """
+
+    run_id: str
+    event_id: str
+    event_type: str
+    step_id: str
+    status: str | None = None
+
+    def __post_init__(self) -> None:
+        require_text(self.run_id, "run_id")
+        require_text(self.event_id, "event_id")
+        require_text(self.event_type, "event_type")
+        require_text(self.step_id, "step_id")
+        if self.event_type not in _SUPPORTED_STEP_EVENT_TYPES:
+            raise JournalEvidenceError(f"unsupported step journal event_type: {self.event_type}")
+
+
+@dataclass(frozen=True, slots=True)
+class JournalStepFacts:
+    """一个 run_id 的 canonical step identity 事实（RuntimeEvent.step_id authority）。
+
+    ``step_id`` 必须全部来自 Journal 的 ``step_id`` 列；不做 display-name、canonical-text
+    或 created_at 推断。
+    """
+
+    run_id: str
+    facts: tuple[JournalStepFact, ...]
+
+    def __post_init__(self) -> None:
+        require_text(self.run_id, "run_id")
+        object.__setattr__(self, "facts", tuple(self.facts))
+        for fact in self.facts:
+            if fact.run_id != self.run_id:
+                raise JournalEvidenceError(f"step fact run_id mismatch: {fact.run_id!r} != {self.run_id!r}")
+
+    def step_ids(self) -> tuple[str, ...]:
+        """Return the computed property value."""
+        return tuple(sorted({fact.step_id for fact in self.facts}))
+
+    def status_for(self, step_id: str) -> str | None:
+        """Return the latest STEP_COMPLETED status for ``step_id`` (None if not terminal)."""
+        completed = [
+            fact for fact in self.facts if fact.step_id == step_id and fact.event_type == STEP_COMPLETED_EVENT
+        ]
+        if not completed:
+            return None
+        return completed[-1].status
+
+    def has_step(self, step_id: str) -> bool:
+        """Implement the ``has_step`` contract (typed, fail-closed)."""
+        return any(fact.step_id == step_id for fact in self.facts)
+
+
 def _parse_payload(event_type: str, raw: str) -> object:
     try:
         payload = json.loads(raw)
@@ -387,6 +452,77 @@ def read_journal_events(db_path: str | Path, run_id: str) -> JournalEvents:
         connection.close()
 
 
+def read_journal_step_facts(db_path: str | Path, run_id: str) -> JournalStepFacts:
+    """从隔离 runtime journal 只读读取指定 run 的 canonical step identity 事实。
+
+    ``RuntimeEvent.step_id`` 是冻结的 canonical step identity authority（Journal 列
+    ``step_id``）；本函数只消费该列与 STEP_STARTED / STEP_COMPLETED 事件类型，绝不把
+    ``safe_payload`` 中的 display name 或其它内容当作 identity。
+
+    Args:
+        db_path: scenario-isolated ``runtime_event_journal`` SQLite 文件路径。
+        run_id: 要采集的 run identity（一个 scenario step 对应一个 run）。
+
+    Returns:
+        该 run 的 canonical step facts（可能为空 tuple）。
+
+    Raises:
+        JournalEvidenceError: 文件缺失、schema 不匹配或 payload 畸形（fail closed）。
+    """
+    path = Path(db_path)
+    if not path.is_file():
+        raise JournalEvidenceError(f"isolated journal db is missing: {path}")
+    uri = f"file:{path.resolve().as_posix()}?mode=ro"
+    try:
+        connection = sqlite3.connect(uri, uri=True)
+    except sqlite3.Error as exc:
+        raise JournalEvidenceError(f"cannot open isolated journal db read-only: {path}") from exc
+    try:
+        try:
+            columns = {row[1] for row in connection.execute(f"PRAGMA table_info({_JOURNAL_TABLE})")}
+        except sqlite3.Error as exc:
+            raise JournalEvidenceError(f"cannot inspect journal schema: {exc}") from exc
+        required = _REQUIRED_COLUMNS | {"step_id"}
+        if not required.issubset(columns):
+            raise JournalEvidenceError(f"isolated journal schema is missing required columns: {path}")
+        try:
+            rows = connection.execute(
+                f"SELECT event_id, event_type, step_id, safe_payload FROM {_JOURNAL_TABLE} "
+                f"WHERE run_id = ? AND event_type IN ({', '.join('?' for _ in _SUPPORTED_STEP_EVENT_TYPES)}) "
+                f"ORDER BY sequence",
+                (run_id, *_SUPPORTED_STEP_EVENT_TYPES),
+            ).fetchall()
+        except sqlite3.Error as exc:
+            raise JournalEvidenceError(f"cannot read journal step events: {exc}") from exc
+        facts: list[JournalStepFact] = []
+        for event_id, event_type, step_id, safe_payload in rows:
+            if step_id is None or not step_id.strip():
+                raise JournalEvidenceError(
+                    f"{event_type} journal event {event_id} is missing canonical step_id (identity authority)"
+                )
+            status: str | None = None
+            if event_type == STEP_COMPLETED_EVENT:
+                try:
+                    parsed = json.loads(safe_payload)
+                except (TypeError, ValueError) as exc:
+                    raise JournalEvidenceError(f"{event_type} safe_payload is not valid JSON") from exc
+                if not isinstance(parsed, dict) or not isinstance(parsed.get("status"), str):
+                    raise JournalEvidenceError(f"{event_type} safe_payload must contain a status string")
+                status = parsed["status"]
+            facts.append(
+                JournalStepFact(
+                    run_id=run_id,
+                    event_id=event_id,
+                    event_type=event_type,
+                    step_id=step_id,
+                    status=status,
+                )
+            )
+        return JournalStepFacts(run_id=run_id, facts=tuple(facts))
+    finally:
+        connection.close()
+
+
 def journal_sequence_watermark(db_path: str | Path, run_id: str) -> int:
     """返回该 run 在 scenario-owned journal 中的当前最大 sequence（只读）。
 
@@ -466,12 +602,17 @@ __all__ = [
     "JournalEvidenceError",
     "JournalEvents",
     "JournalSettleEvidence",
+    "JournalStepFact",
+    "JournalStepFacts",
     "LifecycleEvent",
     "MEMORY_FORMATION_COMPLETED",
     "MEMORY_LIFECYCLE_RESOLVED",
     "MEMORY_RETRIEVAL_COMPLETED",
     "RetrievalEvent",
+    "STEP_COMPLETED_EVENT",
+    "STEP_STARTED_EVENT",
     "has_required_memory_events",
     "journal_sequence_watermark",
     "read_journal_events",
+    "read_journal_step_facts",
 ]

@@ -1,0 +1,104 @@
+{
+  "receipt_schema": "evaluation-semantic-source-receipt",
+  "receipt_version": "v1",
+  "semantic_manifest_version": "v1",
+  "kind": "localagent-target-semantic-source",
+  "ordered_files": [
+    {
+      "relative_path": "core/advanced_memory.py",
+      "sha256": "sha256:d544a0b65ebe649f560c4277cb8fa70cb37c6be01aae21a1e3a339f968c06856",
+      "byte_length": 76630
+    },
+    {
+      "relative_path": "core/runtime/fault_injection_contract.py",
+      "sha256": "sha256:2ce68958687ab51fc824ca744552608c254ab285c908f02627ab62017987c129",
+      "byte_length": 21659
+    },
+    {
+      "relative_path": "core/runtime/fault_injection.py",
+      "sha256": "sha256:076597d17a6818ae927a3570797721cd48253ab8ae270478fda1524c615fb381",
+      "byte_length": 18433
+    },
+    {
+      "relative_path": "core/runtime/multi_agent_driver.py",
+      "sha256": "sha256:c350964e96660bc0a81585059709d1b2c6b1fbbe0fd7a7b56d14c84076ce94b6",
+      "byte_length": 11083
+    },
+    {
+      "relative_path": "core/runtime/multi_agent_planning.py",
+      "sha256": "sha256:89cb88788a9a38a27f8c5b983924ead2aae609c9184c706d7f3509b1c6fd5240",
+      "byte_length": 21616
+    },
+    {
+      "relative_path": "core/runtime/plan_compiler.py",
+      "sha256": "sha256:98cae586b6e108825cf4a48ecdef3a32c54c1527f0f320936c8c1e38799a797a",
+      "byte_length": 21081
+    },
+    {
+      "relative_path": "core/runtime/episodic_evaluation.py",
+      "sha256": "sha256:19dc61506414f124931c6b82f95b6388e698b5b53a34195a3bc7a06ef5c1eb18",
+      "byte_length": 41200
+    },
+    {
+      "relative_path": "core/runtime/run_coordinator.py",
+      "sha256": "sha256:93f0a707941418475bc4accdff324ebd8a65f855b9efaf97283ddab02e71b9a1",
+      "byte_length": 88903
+    },
+    {
+      "relative_path": "core/runtime/runtime_factory.py",
+      "sha256": "sha256:e84de0468ad63dd50fd504b9f1261c798625f0467a46b5126f5fcce5eae40da5",
+      "byte_length": 29131
+    },
+    {
+      "relative_path": "core/chat_service.py",
+      "sha256": "sha256:e24d29c3ab14cb603c1b3d4ef98b0e243835fb4f2f9a8a235cab8612085ced31",
+      "byte_length": 26288
+    },
+    {
+      "relative_path": "core/agent_router.py",
+      "sha256": "sha256:7cc33babaa2ae2b12f9fd79043866dd40eb42fad532fb93180fda8c66fc748c9",
+      "byte_length": 109790
+    },
+    {
+      "relative_path": "core/runtime/episodic_memory_formation.py",
+      "sha256": "sha256:04cb1bcb333a87f913d3e5a9788ac5a6a1b62827258e2696453910497d915fa0",
+      "byte_length": 6881
+    },
+    {
+      "relative_path": "core/runtime/memory_retrieval.py",
+      "sha256": "sha256:bebf3efb98d56a53c3c0e999a3850b5e2928abd29ce8316a1e7641a7fb02abdd",
+      "byte_length": 22238
+    },
+    {
+      "relative_path": "core/runtime/model_context.py",
+      "sha256": "sha256:309d4731b46ca4e1e2590f76224ba42479ecad11689d6182cc3027598d0b63b8",
+      "byte_length": 23768
+    },
+    {
+      "relative_path": "server.py",
+      "sha256": "sha256:cb0467d2b198158577999010756c56e60efb3c137474c0399de5e135eb010523",
+      "byte_length": 71505
+    },
+    {
+      "relative_path": "tests/test_episodic_evaluation_harness.py",
+      "sha256": "sha256:6de6664f88ea7b857beeca3a4e54a2736d741d0c56ea08f597cbf42cbfe27550",
+      "byte_length": 30157
+    },
+    {
+      "relative_path": "core/settings.py",
+      "sha256": "sha256:824c35fe406d9d2e5c02cfef05400498dc7f8dc8d0a3997615bce753a43f9269",
+      "byte_length": 44329
+    },
+    {
+      "relative_path": "core/llm_engine.py",
+      "sha256": "sha256:11f04033f2093105cf47b083d9542590c065d64b784e14923a5c9498c8a45817",
+      "byte_length": 13991
+    }
+  ],
+  "aggregate_algorithm": "sha256(relative-path + NUL + file-bytes + NUL; ordered manifest)",
+  "aggregate_ref": "sha256:f7841bd8f1c178b7beaf9b64e8becc89bad64532d6c8a118a0e4bcada932492b",
+  "created_at": "2026-08-31T05:09:39.348339+00:00",
+  "repository_identity": "D:\\PythonProject\\Local_Agent",
+  "git_head": "0514a9753c5b003ea86befa7dd7609e1ec9e9b6e",
+  "dirty_worktree_state": "M core/advanced_memory.py\n M core/agent_router.py\n M core/chat_service.py\n M core/llm_engine.py\n M core/memory_manager.py\n M core/runtime/__init__.py\n M core/runtime/events.py\n M core/runtime/memory_retrieval.py\n M core/runtime/model_context.py\n M core/runtime/run_coordinator.py\n M core/runtime/runtime_factory.py\n M core/settings.py\n M docs/runtime/runtime_architecture_v1.md\n M docs/runtime/runtime_capability_matrix.md\n M docs/runtime/runtime_deployment_runbook.md\n M docs/runtime/runtime_operations_runbook.md\n M docs/runtime/runtime_owner_matrix.md\n M docs/runtime/runtime_security_boundary.md\n M server.py\n M tests/test_advanced_memory_domain.py\n M tests/test_persistence_migration.py\n M tests/test_persistence_preflight.py\n M tests/test_stage3_wp3d_sql_injection_guard.py\n M tests/test_startup_configuration.py\n?? $null\n?? .commandcode/\n?? core/runtime/episodic_evaluation.py\n?? core/runtime/episodic_memory_formation.py\n?? tests/test_episodic_evaluation_harness.py\n?? tests/test_episodic_memory_formation.py\n?? tests/test_episodic_memory_persistence.py\n?? tests/test_episodic_memory_retrieval.py"
+}

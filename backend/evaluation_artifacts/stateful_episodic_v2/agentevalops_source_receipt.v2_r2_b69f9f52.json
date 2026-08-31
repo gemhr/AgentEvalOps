@@ -1,0 +1,129 @@
+{
+  "receipt_schema": "evaluation-semantic-source-receipt",
+  "receipt_version": "v1",
+  "semantic_manifest_version": "v1",
+  "kind": "agentevalops_episodic_evaluation",
+  "ordered_files": [
+    {
+      "relative_path": "app/core/evaluation/episodic_dataset.py",
+      "sha256": "sha256:e16e38c540175a2c8cb6862e2c8918abedc0558d157db58d67aa27a95961cd3a",
+      "byte_length": 70481
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_assertion.py",
+      "sha256": "sha256:3439d43acc36790e4950fa53c3d6829579b4cba38376f22bf10c63953a6647f0",
+      "byte_length": 10689
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_evidence.py",
+      "sha256": "sha256:d3de2806341d23634a46545aceebfb9c124c7b11014e458913e162b6bcaaa047",
+      "byte_length": 24185
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_identity.py",
+      "sha256": "sha256:1da6869fc3bc1702bf93fd043924cd5b99cfde60337f8651ea2212c140eb0ec0",
+      "byte_length": 7107
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_step_identity.py",
+      "sha256": "sha256:85f3f3d892868a8716c39f7dfc04f7ca56a4bc831b4fdf2385dcd2b5c0f40f9e",
+      "byte_length": 5071
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_projection.py",
+      "sha256": "sha256:bd6b6f0ddcd172f33b0790855ced220bf4a6e953856a9db13989fe13a6f5d5d8",
+      "byte_length": 14021
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_evaluators.py",
+      "sha256": "sha256:e40c7d154bc044c5b9a1bda9234620352c040809239bc81e3e3244a5b879bcee",
+      "byte_length": 99786
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_metrics.py",
+      "sha256": "sha256:db8721a18eefe64d003d0cfcbc87d5acc2d0e08de6b77e8140305388396c8809",
+      "byte_length": 15624
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_gate.py",
+      "sha256": "sha256:23e479026ce7b0b40e5b8f4554a485be290d0a824b9651b604cc57b81b2d2763",
+      "byte_length": 6061
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_artifact.py",
+      "sha256": "sha256:de83cbf3c957b7fc444e0f5cf413846774434b965c4c9ff3edf98b2a52600db1",
+      "byte_length": 5961
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_impl_ref.py",
+      "sha256": "sha256:abb3bec5b51cf49cb80398a6ebbf544b5346eb3c45b242e0641118c7bdf78de5",
+      "byte_length": 3455
+    },
+    {
+      "relative_path": "app/core/evaluation/episodic_baseline.py",
+      "sha256": "sha256:2202afb96b3b8121f6b46676b3b5618e65df1b55270eff7fbf49e62dae6f8792",
+      "byte_length": 8085
+    },
+    {
+      "relative_path": "app/core/evaluation/stateful_journal.py",
+      "sha256": "sha256:016b3678c75252b7f26b7b23e4c433f02aa4e46afb9468cffc5ef09d5aec765e",
+      "byte_length": 24732
+    },
+    {
+      "relative_path": "app/core/evaluation/stateful_projection.py",
+      "sha256": "sha256:9485f38136a1891fcd326bd0ac5973841e721dedc5c37a061a13d9f427f327d0",
+      "byte_length": 15058
+    },
+    {
+      "relative_path": "app/core/evaluation/execution.py",
+      "sha256": "sha256:d82cbd754bdb7626a04457649a797aafa1336b938268f128436c48ddc759f960",
+      "byte_length": 6534
+    },
+    {
+      "relative_path": "app/core/evaluation/run_attempts.py",
+      "sha256": "sha256:dfbbf3a7ea7759aca5297f369533dcbdbbad37eb7dc35de7e88a44d7380a2c14",
+      "byte_length": 9500
+    },
+    {
+      "relative_path": "app/services/evaluation/episodic_environment.py",
+      "sha256": "sha256:e23452171b823d51fb2c09b6659a9f834d90da0236a33bd59db64ef91d92051e",
+      "byte_length": 11210
+    },
+    {
+      "relative_path": "app/services/evaluation/episodic_runner.py",
+      "sha256": "sha256:2e2a5a6e24603eb2d6899547f14fe46988a69fdff31506afbea7dabe40cd3cc8",
+      "byte_length": 39849
+    },
+    {
+      "relative_path": "app/adapters/evaluation/episodic_http_target.py",
+      "sha256": "sha256:8f5a7132c1f66cabad1ec216e1a73ce8c462801b78561f2a0538972041f1abd1",
+      "byte_length": 9734
+    },
+    {
+      "relative_path": "app/adapters/evaluation/http_localagent.py",
+      "sha256": "sha256:23569fc77bd0bea9e54565b8e1eb3981de056ee85ba9c92517b083a2e7cadd24",
+      "byte_length": 34076
+    },
+    {
+      "relative_path": "app/registry/settings.py",
+      "sha256": "sha256:8714d64339ed04a8844d0e48c29996e538e534f36c1653dd22cb51b1d104b52b",
+      "byte_length": 9611
+    },
+    {
+      "relative_path": "evaluation_assets/stateful_episodic_v1/stateful_episodic_dataset.v1.json",
+      "sha256": "sha256:d87ccfe28e414b90b8df10ffe3b1107b24f70dacf98e2996bb93f4950b105a2f",
+      "byte_length": 50304
+    },
+    {
+      "relative_path": "evaluation_assets/stateful_episodic_v2/stateful_episodic_dataset.v2.json",
+      "sha256": "sha256:678ecc706c6d0e199c057e7c45d94816679f9c9d9d6a9cc47b704e1b5f589e62",
+      "byte_length": 47443
+    }
+  ],
+  "aggregate_algorithm": "sha256(relative-path + NUL + file-bytes + NUL; ordered manifest)",
+  "aggregate_ref": "sha256:b69f9f5269f7f4bd8f66ff5bcd697f62ce02363f7c97025d085d4a8ecde1c2e7",
+  "created_at": "2026-08-31T04:54:06.495704+00:00",
+  "repository_identity": "D:\\PythonProject\\AgentEvalOps\\backend",
+  "git_head": "d6d2271e5a9a497ec04250a59246734eaa3b0e5e",
+  "dirty_worktree_state": true
+}

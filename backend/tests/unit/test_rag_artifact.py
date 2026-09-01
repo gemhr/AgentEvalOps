@@ -282,6 +282,32 @@ def test_v2_bm25_channel_and_score_kind_accepted() -> None:
     assert artifact.ranked_items[0].retrieval_channels == ["BM25", "RRF"]
 
 
+def test_v2_hybrid_optional_channel_ranks_and_budget_counters_accepted() -> None:
+    payload = v2_payload()
+    payload["budget_usage"] = {**payload["budget_usage"], "bm25_queries": 1, "rrf_fusions": 1}
+    payload["retrieved_items"] = [{**_item(), "dense_channel_rank": 1}]
+    payload["ranked_items"] = [
+        {
+            **_item(),
+            "retrieval_score_kind": "RRF_SCORE",
+            "retrieval_channels": ["VECTOR_REWRITTEN_QUERY", "BM25", "RRF"],
+            "dense_channel_rank": 1,
+            "bm25_channel_rank": 2,
+            "rrf_fused_rank": 1,
+        }
+    ]
+    artifact = RagEvaluationArtifactV1.model_validate(payload)
+    assert artifact.ranked_items[0].rrf_fused_rank == 1
+    assert artifact.budget_usage.bm25_queries == artifact.budget_usage.rrf_fusions == 1
+
+
+@pytest.mark.parametrize("field", ["dense_channel_rank", "bm25_channel_rank", "rrf_fused_rank"])
+def test_optional_channel_rank_must_be_positive(field: str) -> None:
+    payload = v2_payload(retrieved_items=[{**_item(), field: 0}])
+    with pytest.raises(ValidationError):
+        RagEvaluationArtifactV1.model_validate(payload)
+
+
 def test_v2_unknown_channel_rejected() -> None:
     payload = v2_payload()
     payload["retrieved_items"] = [{**_item(), "retrieval_channels": ["CROSS_ENCODER"]}]

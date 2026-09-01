@@ -137,6 +137,20 @@ def test_recall_uses_retrieval_rank_ordering() -> None:
     assert result.value_at(5) == 1.0
 
 
+def test_hybrid_recall_uses_fused_ranked_items_not_multichannel_evidence() -> None:
+    truth = gt(("d", "A"))
+    art = artifact(
+        retrieved=[item("d", "A", 1), item("d", "X", 2)],
+        ranked=[item("d", "X", 1), item("d", "A", 2)],
+    )
+    payload = art.model_dump(mode="json")
+    payload["schema_version"] = "rag-evaluation-artifact.v2"
+    payload["retrieval_strategy"] = "HYBRID_RRF"
+    payload["provenance_sha256"] = "a" * 64
+    hybrid = RagEvaluationArtifactV1.model_validate(payload)
+    assert calculate_recall_at_k(truth, hybrid, k_values=(1, 2)).values == (0.0, 1.0)
+
+
 def test_recall_invalid_k_rejected() -> None:
     truth = gt(("d", "A"))
     art = artifact(retrieved=[item("d", "A", 1)])

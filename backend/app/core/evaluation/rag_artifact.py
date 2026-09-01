@@ -83,6 +83,9 @@ class _RetrievedRankedItem(BaseModel):
     sheet: StrictStr | None = None
     content_hash: StrictStr | None = None
     selected: bool
+    dense_channel_rank: int | None = Field(default=None, ge=1)
+    bm25_channel_rank: int | None = Field(default=None, ge=1)
+    rrf_fused_rank: int | None = Field(default=None, ge=1)
 
     @field_validator("retrieval_score_kind")
     @classmethod
@@ -149,6 +152,8 @@ class _RagBudgetUsage(BaseModel):
     embedding_calls: int = 0
     vector_queries: int = 0
     keyword_queries: int = 0
+    bm25_queries: int = 0
+    rrf_fusions: int = 0
     document_reads: int = 0
     context_chars: int = 0
 

@@ -49,8 +49,15 @@ def _require_relevant_identities(ground_truth: RetrievalGroundTruth) -> frozense
 def _retrieval_window_identities(
     artifact: RagEvaluationArtifactV1, k: int
 ) -> list[ChunkIdentity]:
-    """返回 retrieved_items 按 artifact 自身 retrieval_rank 排序的前 k 个 item identity。"""
-    ordered = sorted(artifact.retrieved_items, key=lambda item: item.retrieval_rank)
+    """返回 top-k 的 identity；Hybrid 使用唯一的 RRF fused ranking。
+
+    Hybrid 的 ``retrieved_items`` 是 pre-fusion 多通道证据，同一 identity 可以
+    合法出现多次，不能用于 Recall@K。BASELINE 保持既有 retrieved 语义。
+    """
+    if artifact.retrieval_strategy == "HYBRID_RRF":
+        ordered = sorted(artifact.ranked_items, key=lambda item: item.rank)
+    else:
+        ordered = sorted(artifact.retrieved_items, key=lambda item: item.retrieval_rank)
     return [(item.document_id, item.chunk_id) for item in ordered[:k]]
 
 

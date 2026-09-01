@@ -12,6 +12,7 @@ from app.core.evaluation.rag_artifact import (
     RAG_ARTIFACT_EVIDENCE_SCHEMA_VERSION,
     RAG_ARTIFACT_MEDIA_TYPE,
     RAG_ARTIFACT_SCHEMA_VERSION,
+    RAG_ARTIFACT_SCHEMA_VERSION_V2,
     RagEvaluationArtifactV1,
     build_rag_artifact_evidence,
 )
@@ -136,7 +137,7 @@ def test_extra_field_in_nested_item_rejected() -> None:
 def test_unsupported_schema_version_rejected() -> None:
     with pytest.raises(ValidationError, match="schema_version"):
         RagEvaluationArtifactV1.model_validate(
-            artifact_payload(schema_version="rag-evaluation-artifact.v2")
+            artifact_payload(schema_version="rag-evaluation-artifact.v9")
         )
 
 
@@ -230,3 +231,99 @@ def test_build_evidence_rejects_unknown_capture_status() -> None:
     artifact = RagEvaluationArtifactV1.model_validate(artifact_payload())
     with pytest.raises(ValueError, match="capture_status"):
         build_rag_artifact_evidence(artifact, "BOGUS")
+
+
+# ---------------------------------------------------------------------------
+# Stage5-Phase6-WP1 artifact v2 consumer acceptance（v1 兼容保留）
+# ---------------------------------------------------------------------------
+
+
+def v2_payload(**changes: object) -> dict[str, object]:
+    payload = artifact_payload(schema_version=RAG_ARTIFACT_SCHEMA_VERSION_V2)
+    payload["retrieval_strategy"] = "HYBRID_RRF"
+    payload["provenance_sha256"] = "a" * 64
+    payload.update(changes)
+    return payload
+
+
+def test_v2_artifact_accepted_with_strategy_and_provenance() -> None:
+    artifact = RagEvaluationArtifactV1.model_validate(v2_payload())
+    assert artifact.schema_version == RAG_ARTIFACT_SCHEMA_VERSION_V2
+    assert artifact.retrieval_strategy == "HYBRID_RRF"
+    assert artifact.provenance_sha256 == "a" * 64
+
+
+def test_v2_bm25_channel_and_score_kind_accepted() -> None:
+    payload = v2_payload()
+    payload["retrieved_items"] = [
+        {
+            **_item(),
+            "retrieval_score_kind": "BM25_RAW_SCORE",
+            "retrieval_channels": ["BM25"],
+            "rerank_score_kind": None,
+            "rerank_score": None,
+            "rerank_rank": None,
+        }
+    ]
+    payload["ranked_items"] = [
+        {
+            **_item(),
+            "retrieval_score_kind": "RRF_SCORE",
+            "retrieval_channels": ["BM25", "RRF"],
+            "rerank_score_kind": None,
+            "rerank_score": None,
+            "rerank_rank": None,
+        }
+    ]
+    artifact = RagEvaluationArtifactV1.model_validate(payload)
+    assert artifact.retrieved_items[0].retrieval_score_kind == "BM25_RAW_SCORE"
+    assert artifact.retrieved_items[0].retrieval_channels == ["BM25"]
+    assert artifact.ranked_items[0].retrieval_score_kind == "RRF_SCORE"
+    assert artifact.ranked_items[0].retrieval_channels == ["BM25", "RRF"]
+
+
+def test_v2_unknown_channel_rejected() -> None:
+    payload = v2_payload()
+    payload["retrieved_items"] = [{**_item(), "retrieval_channels": ["CROSS_ENCODER"]}]
+    with pytest.raises(ValidationError, match="retrieval_channels"):
+        RagEvaluationArtifactV1.model_validate(payload)
+
+
+def test_v2_unknown_score_kind_rejected() -> None:
+    payload = v2_payload()
+    payload["retrieved_items"] = [{**_item(), "retrieval_score_kind": "CROSS_ENCODER_SCORE"}]
+    with pytest.raises(ValidationError, match="retrieval_score_kind"):
+        RagEvaluationArtifactV1.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("retrieval_score_kind", "VECTOR"),
+        ("retrieval_channels", ["KEYWORD"]),
+        ("rerank_score_kind", "VECTOR"),
+    ],
+)
+def test_v2_legacy_shorthand_rejected(field: str, value: object) -> None:
+    payload = v2_payload()
+    payload["retrieved_items"] = [{**_item(), field: value}]
+    with pytest.raises(ValidationError, match="v2 does not accept legacy"):
+        RagEvaluationArtifactV1.model_validate(payload)
+
+
+def test_v2_missing_provenance_allowed_for_baseline_truthfulness() -> None:
+    """v2 schema 允许 provenance_sha256 缺失（BASELINE 不产生 Hybrid provenance）。"""
+    payload = artifact_payload(schema_version=RAG_ARTIFACT_SCHEMA_VERSION_V2)
+    payload["retrieval_strategy"] = "BASELINE"
+    artifact = RagEvaluationArtifactV1.model_validate(payload)
+    assert artifact.retrieval_strategy == "BASELINE"
+    assert artifact.provenance_sha256 is None
+
+
+def test_v2_evidence_roundtrip_preserves_strategy() -> None:
+    artifact = RagEvaluationArtifactV1.model_validate(v2_payload())
+    ref = build_rag_artifact_evidence(artifact, "COMPLETE")
+    meta = dict(ref.metadata)
+    assert meta["payload"]["schema_version"] == RAG_ARTIFACT_SCHEMA_VERSION_V2
+    assert meta["payload"]["retrieval_strategy"] == "HYBRID_RRF"
+    assert meta["payload"]["provenance_sha256"] == "a" * 64

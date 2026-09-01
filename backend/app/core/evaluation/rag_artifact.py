@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator, m
 from app.core.evaluation.references import EvidenceRef
 
 RAG_ARTIFACT_SCHEMA_VERSION = "rag-evaluation-artifact.v1"
+RAG_ARTIFACT_SCHEMA_VERSION_V2 = "rag-evaluation-artifact.v2"
 RAG_ARTIFACT_EVIDENCE_KIND = "rag_evaluation_artifact"
 RAG_ARTIFACT_MEDIA_TYPE = "application/vnd.agentevalops.rag-evaluation-artifact+json"
 RAG_ARTIFACT_EVIDENCE_SCHEMA_VERSION = "v1"
@@ -25,6 +26,31 @@ _RETRIEVAL_STATUSES = frozenset(
     {"SUCCEEDED", "EMPTY", "DEGRADED", "FAILED", "TIMED_OUT", "CANCELLED"}
 )
 _CAPTURE_STATUSES = frozenset({"COMPLETE", "PARTIAL", "FAILED"})
+# Stage5-Phase6-WP1 artifact v2：新增通道/评分语义（schema/plumbing 支持）。
+# 同时保留历史 consumer 测试使用的 legacy shorthand（VECTOR / KEYWORD）。
+_RETRIEVAL_CHANNELS = frozenset(
+    {
+        "VECTOR",
+        "KEYWORD",
+        "VECTOR_REWRITTEN_QUERY",
+        "VECTOR_ORIGINAL_QUERY",
+        "VECTOR_ORIGINAL_AND_REWRITTEN",
+        "BM25",
+        "RRF",
+    }
+)
+_RETRIEVAL_SCORE_KINDS = frozenset(
+    {
+        "VECTOR",
+        "KEYWORD",
+        "VECTOR_NORMALIZED_RELEVANCE",
+        "KEYWORD_FIXED_HEURISTIC",
+        "HEURISTIC_RERANK",
+        "BM25_RAW_SCORE",
+        "RRF_SCORE",
+    }
+)
+_LEGACY_V1_SHORTHAND = frozenset({"VECTOR", "KEYWORD"})
 # 与 producer `_WIRE_ID` 一致：retrieval id / artifact id 片段只允许 wire-safe 字符。
 _ARTIFACT_ID = re.compile(r"^rag-eval://([A-Za-z0-9-]+)/([A-Za-z0-9._~-]+)$")
 
@@ -57,6 +83,28 @@ class _RetrievedRankedItem(BaseModel):
     sheet: StrictStr | None = None
     content_hash: StrictStr | None = None
     selected: bool
+
+    @field_validator("retrieval_score_kind")
+    @classmethod
+    def _retrieval_score_kind(cls, value: str) -> str:
+        if value not in _RETRIEVAL_SCORE_KINDS:
+            raise ValueError(f"unsupported retrieval_score_kind: {value}")
+        return value
+
+    @field_validator("rerank_score_kind")
+    @classmethod
+    def _rerank_score_kind(cls, value: str | None) -> str | None:
+        if value is not None and value not in _RETRIEVAL_SCORE_KINDS:
+            raise ValueError(f"unsupported rerank_score_kind: {value}")
+        return value
+
+    @field_validator("retrieval_channels")
+    @classmethod
+    def _retrieval_channels(cls, values: list[str]) -> list[str]:
+        unknown = [value for value in values if value not in _RETRIEVAL_CHANNELS]
+        if unknown:
+            raise ValueError(f"unsupported retrieval_channels: {unknown}")
+        return values
 
 
 class _SelectedItem(BaseModel):
@@ -106,7 +154,12 @@ class _RagBudgetUsage(BaseModel):
 
 
 class RagEvaluationArtifactV1(BaseModel):
-    """LocalAgent RAG evaluation artifact 的严格消费侧视图。"""
+    """LocalAgent RAG evaluation artifact 的严格消费侧视图。
+
+    WP1：同时接受 ``rag-evaluation-artifact.v1`` 与 ``rag-evaluation-artifact.v2``
+    （v2 为 v1 的超集，新增 snapshot 级 ``retrieval_strategy``/``provenance_sha256``
+    与 BM25/RRF 通道/评分语义）。v1 payload 无新增字段仍可解析。
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -130,11 +183,13 @@ class RagEvaluationArtifactV1(BaseModel):
     degradation_reasons: list[StrictStr]
     error: _RagError | None = None
     budget_usage: _RagBudgetUsage
+    retrieval_strategy: StrictStr | None = None
+    provenance_sha256: StrictStr | None = None
 
     @field_validator("schema_version")
     @classmethod
     def _schema_version(cls, value: str) -> str:
-        if value != RAG_ARTIFACT_SCHEMA_VERSION:
+        if value not in {RAG_ARTIFACT_SCHEMA_VERSION, RAG_ARTIFACT_SCHEMA_VERSION_V2}:
             raise ValueError(f"unsupported schema_version: {value}")
         return value
 
@@ -155,6 +210,18 @@ class RagEvaluationArtifactV1(BaseModel):
             raise ValueError("artifact_id does not match run_id/retrieval_id")
         if self.attempt_id != self.run_id:
             raise ValueError("attempt_id must equal run_id")
+
+        if self.schema_version == RAG_ARTIFACT_SCHEMA_VERSION_V2:
+            for item in (*self.retrieved_items, *self.ranked_items):
+                if item.retrieval_score_kind in _LEGACY_V1_SHORTHAND:
+                    raise ValueError("v2 does not accept legacy retrieval_score_kind shorthand")
+                if any(
+                    channel in _LEGACY_V1_SHORTHAND
+                    for channel in item.retrieval_channels
+                ):
+                    raise ValueError("v2 does not accept legacy retrieval_channels shorthand")
+                if item.rerank_score_kind in _LEGACY_V1_SHORTHAND:
+                    raise ValueError("v2 does not accept legacy rerank_score_kind shorthand")
 
         selected_ids = {(item.document_id, item.chunk_id) for item in self.selected_items}
         ranked_ids = {(item.document_id, item.chunk_id) for item in self.ranked_items}
@@ -199,6 +266,7 @@ __all__ = [
     "RAG_ARTIFACT_EVIDENCE_SCHEMA_VERSION",
     "RAG_ARTIFACT_MEDIA_TYPE",
     "RAG_ARTIFACT_SCHEMA_VERSION",
+    "RAG_ARTIFACT_SCHEMA_VERSION_V2",
     "RAG_EVALUATION_PROTOCOL_VERSION",
     "RagEvaluationArtifactV1",
     "build_rag_artifact_evidence",

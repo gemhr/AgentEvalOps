@@ -1,0 +1,16 @@
+---
+title: "Production-target paired evaluation"
+description: "Stage5-Phase6-WP3 的生产目标配对评估与 Candidate Gate。"
+---
+
+# Production-target paired evaluation
+
+WP3 用当前 LocalAgent production target 的 `/api/runtime/evaluation-execute/v2`，按 `BASELINE` 先跑、完全关闭后再跑 `HYBRID_RRF` 的串行流程。两侧必须使用同一个 generation pin、同一个 immutable rewrite fixture、同一个 canonical dataset、suite 和 target identity。
+
+正式数据集是 `rag-evaluation-dataset` `v1`，共 24 cases：20 个有 retrieval/ranking ground truth，4 个 no-answer generation-only cases。Recall@1、Recall@3、Recall@5、MRR、NDCG@3、NDCG@5 六项指标固定，NDCG@3 是 primary metric；no-answer cases 不进入这些检索指标，但仍计入执行可靠性和运行诊断。
+
+Candidate Gate 固定要求：同代/同语料/同 source、chunk、embedding 与 rewrite identity；两侧 24/24 且 execution failure 为 0；Hybrid degradation 增量不超过 10 个百分点；NDCG@3 不下降且至少一个 secondary macro delta 达到 `+0.05`；无 macro metric delta 小于 `-0.05`；严重逐案回归为 0、普通回归不超过 2/20；检索 artifact `total_latency_ms` 不超过 Baseline 的 `max(50 ms, 25%)` 预算。
+
+实验身份、artifact identity 或配对完整性无法证明时，结果是 `INCONCLUSIVE`，不是质量 `FAIL`。证据有效但违反质量、回归、可靠性或延迟合同才是 `FAIL`。只有六个 Gate 全部通过才是 `PASS`。
+
+WP3 不修改 canonical Ground Truth、Hybrid 参数或 `LOCAL_AGENT_RETRIEVAL_STRATEGY` 默认值。生产默认仍是 `BASELINE`；最终默认冻结属于 WP4。

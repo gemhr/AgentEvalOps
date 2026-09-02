@@ -190,6 +190,11 @@ class RagEvaluationArtifactV1(BaseModel):
     budget_usage: _RagBudgetUsage
     retrieval_strategy: StrictStr | None = None
     provenance_sha256: StrictStr | None = None
+    generation_id: StrictStr | None = None
+    identity_sha256: StrictStr | None = None
+    rewrite_fixture_id: StrictStr | None = None
+    query_digest: StrictStr | None = None
+    rewritten_query_digest: StrictStr | None = None
 
     @field_validator("schema_version")
     @classmethod

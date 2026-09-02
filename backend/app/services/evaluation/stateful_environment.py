@@ -33,6 +33,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from collections.abc import Callable, Mapping
 from typing import Protocol
 from uuid import uuid4
 
@@ -389,7 +390,12 @@ class LocalAgentSubprocessProvisioner:
             raise StatefulEnvironmentError(f"configured localagent_python_executable does not exist: {interpreter}")
         return interpreter
 
-    async def provision(self, scenario: StatefulMemoryScenario) -> ScenarioEnvironmentEvidence:
+    async def provision(
+        self,
+        scenario: StatefulMemoryScenario,
+        *,
+        extra_runtime_env_factory: Callable[[Path, int], Mapping[str, str]] | None = None,
+    ) -> ScenarioEnvironmentEvidence:
         """创建 fresh isolated DB/journal 并以配置的 interpreter 启动私有实例。"""
         interpreter = self._require_interpreter()
         scenario_dir = self._base_work_dir / f"{scenario.scenario_id}-{uuid4().hex[:8]}"
@@ -412,6 +418,8 @@ class LocalAgentSubprocessProvisioner:
         env[LOCALAGENT_ENVIRONMENT_ID_ENV] = token
         env[LOCALAGENT_ENVIRONMENT_PROFILE_ENV] = "TEST"
         env.update(self._subprocess_environment)
+        if extra_runtime_env_factory is not None:
+            env.update(dict(extra_runtime_env_factory(scenario_dir, port)))
         command = (
             str(interpreter),
             "-m",

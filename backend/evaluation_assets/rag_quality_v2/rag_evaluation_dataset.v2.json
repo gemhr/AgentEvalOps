@@ -1,0 +1,2300 @@
+{
+  "dataset_schema_version": "evaluation-dataset.v1",
+  "dataset_id": "rag-evaluation-dataset",
+  "name": "Stage5 Phase6 RAG Quality Dataset v2",
+  "description": "Expanded synthetic RAG retrieval/ranking evaluation corpus with frozen v1 Core.",
+  "version": "v2",
+  "cases": [
+    {
+      "case_id": "exact-http-evaluation-v2",
+      "name": "Exact endpoint identifier",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "LocalAgentHttpExecutionTarget 的 evaluation-v2 使用哪个 HTTP 路径？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "c23ab5a825ce0d23b03b4e36f71033a232729b36"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "c23ab5a825ce0d23b03b4e36f71033a232729b36",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "difficulty": "easy",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "exact-embedding-error-code",
+      "name": "Exact embedding error code",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "EMBEDDING_MODEL_ASSET_INVALID 在什么情况下出现？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "f3b2ba1b91c7f7d141aaf719fa707315c673a81b"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "f3b2ba1b91c7f7d141aaf719fa707315c673a81b",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "difficulty": "easy",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "exact-denial-dominates",
+      "name": "Exact governance constant",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "DENIAL_DOMINATES 规则怎样处理互相冲突的工具策略？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "c5041b1f6feaa3391a975172e2f45eddccde7039",
+              "chunk_id": "c6423c00ae4393c57ffd9e250f023fff01e66148"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "c5041b1f6feaa3391a975172e2f45eddccde7039",
+              "chunk_id": "c6423c00ae4393c57ffd9e250f023fff01e66148",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "difficulty": "easy",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "abbreviation-mcp",
+      "name": "MCP abbreviation",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "MCP 的英文全称是什么，它负责哪一层？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "2cc4bcb6a93a38dd2061d24fcc9aef49260c6c81",
+              "chunk_id": "fa8d6b8d6315aed84996a3de0be0434506a1df28"
+            },
+            {
+              "document_id": "2cc4bcb6a93a38dd2061d24fcc9aef49260c6c81",
+              "chunk_id": "8d49d5fdf7abd0d332352fa42e04bde32e0a945f"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "2cc4bcb6a93a38dd2061d24fcc9aef49260c6c81",
+              "chunk_id": "fa8d6b8d6315aed84996a3de0be0434506a1df28",
+              "relevance": 3
+            },
+            {
+              "document_id": "2cc4bcb6a93a38dd2061d24fcc9aef49260c6c81",
+              "chunk_id": "8d49d5fdf7abd0d332352fa42e04bde32e0a945f",
+              "relevance": 2
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ABBREVIATION",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "ABBREVIATION",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "abbreviation-mrr",
+      "name": "MRR semantic definition",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "相关结果第一次出现在第三名时，MRR 中这个查询的 RR 是多少？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "4acbf3ea8f79a808d49ad94b0535473c373a670a"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "4acbf3ea8f79a808d49ad94b0535473c373a670a",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ABBREVIATION",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "ABBREVIATION",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "semantic-terminal-owner",
+      "name": "Terminal owner paraphrase",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "哪个组件拥有一次运行的最终结束事实，其他报告组件能不能再造一个结束状态？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "72ad7825ed1b4952c94e615ed31539fd279429d7",
+              "chunk_id": "48e4c271d21ec6ee915c84fda4ecc0ed6f431166"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "72ad7825ed1b4952c94e615ed31539fd279429d7",
+              "chunk_id": "48e4c271d21ec6ee915c84fda4ecc0ed6f431166",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "SEMANTIC_PARAPHRASE",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "semantic-context-trust",
+      "name": "External context trust paraphrase",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "知识库文档里写着要忽略系统命令时，模型上下文应该把这类内容视为什么？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "80ec4e73ec7280a28e3b388a17907cf7af24fc88",
+              "chunk_id": "ec407a83df8895c5eddb2f7da5b6b02c355780fa"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "80ec4e73ec7280a28e3b388a17907cf7af24fc88",
+              "chunk_id": "ec407a83df8895c5eddb2f7da5b6b02c355780fa",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "semantic-recovery-read-only",
+      "name": "Recovery behavior paraphrase",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "故障恢复检查会不会重新执行历史步骤或者写回运行状态？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "fc58441a5aa5c1926cd9e0b29861534ff5c3881f",
+              "chunk_id": "7e876e1f9a99861d22faed986c7887cbc5c79237"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "fc58441a5aa5c1926cd9e0b29861534ff5c3881f",
+              "chunk_id": "7e876e1f9a99861d22faed986c7887cbc5c79237",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "difficulty": "hard",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "SEMANTIC_PARAPHRASE",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "numeric-retrieval-timeouts",
+      "name": "Retrieval timeout numbers",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "检索流程里 Query Rewrite、Rerank 和 Context Build 的默认阶段超时各是多少秒？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "c23f5ab17ea621aa87fcfbb60e8369e3fb35d9d9",
+              "chunk_id": "b21ca3152ff419a17fcd37ef16a2075024c17737"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "c23f5ab17ea621aa87fcfbb60e8369e3fb35d9d9",
+              "chunk_id": "b21ca3152ff419a17fcd37ef16a2075024c17737",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "NUMERIC_FACT",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "NUMERIC_FACT",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "numeric-embedding-dimension",
+      "name": "Embedding dimension",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Phase3 固定的 Qwen embedding 输出维度是多少，是否联网加载？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "bb320f260228b4d7eeedab0d6bbed29119d9788f",
+              "chunk_id": "0e339a8b3c8fc066f857e3429cb3b62672027a57"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "bb320f260228b4d7eeedab0d6bbed29119d9788f",
+              "chunk_id": "0e339a8b3c8fc066f857e3429cb3b62672027a57",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "NUMERIC_FACT",
+        "difficulty": "easy",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "NUMERIC_FACT",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "entity-state-vs-plan",
+      "name": "State and plan disambiguation",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Plan、PlanStep 和 AgentState 中，谁保存运行时状态？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "fc58441a5aa5c1926cd9e0b29861534ff5c3881f",
+              "chunk_id": "9bfe55c8be8b478501597133218ce72839b354d3"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "fc58441a5aa5c1926cd9e0b29861534ff5c3881f",
+              "chunk_id": "9bfe55c8be8b478501597133218ce72839b354d3",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ENTITY_DISAMBIGUATION",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "ENTITY_DISAMBIGUATION",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "entity-trace-vs-authority",
+      "name": "Trace authority disambiguation",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Trace 能否作为 Evaluation Dataset 或 AgentState 的权威所有者？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "b252083bb30eff1a60f0a134ff4dba1068516d83",
+              "chunk_id": "63066cb73dff9fb05451134894eb4590596f4965"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "b252083bb30eff1a60f0a134ff4dba1068516d83",
+              "chunk_id": "63066cb73dff9fb05451134894eb4590596f4965",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ENTITY_DISAMBIGUATION",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "ENTITY_DISAMBIGUATION",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "multi-metrics-comparison",
+      "name": "Recall MRR NDCG comparison",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Recall@K、MRR 和 NDCG 分别衡量检索结果的什么方面？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "f77e8f5b743b9de9e072d3e4ec0315446ecf51cb"
+            },
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "4acbf3ea8f79a808d49ad94b0535473c373a670a"
+            },
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "dc26c1e2230cbcdf218af890a572dbd99efdbf98"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "f77e8f5b743b9de9e072d3e4ec0315446ecf51cb",
+              "relevance": 3
+            },
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "4acbf3ea8f79a808d49ad94b0535473c373a670a",
+              "relevance": 3
+            },
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "dc26c1e2230cbcdf218af890a572dbd99efdbf98",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "MULTI_DOCUMENT_DISTRACTOR",
+        "difficulty": "hard",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "LONG_CONTEXT_CROSS_SECTION",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "multi-owner-disambiguation",
+      "name": "Terminal and state owners",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "请区分 Run 终态和运行中状态分别由哪个组件拥有。"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "72ad7825ed1b4952c94e615ed31539fd279429d7",
+              "chunk_id": "48e4c271d21ec6ee915c84fda4ecc0ed6f431166"
+            },
+            {
+              "document_id": "fc58441a5aa5c1926cd9e0b29861534ff5c3881f",
+              "chunk_id": "9bfe55c8be8b478501597133218ce72839b354d3"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "72ad7825ed1b4952c94e615ed31539fd279429d7",
+              "chunk_id": "48e4c271d21ec6ee915c84fda4ecc0ed6f431166",
+              "relevance": 3
+            },
+            {
+              "document_id": "fc58441a5aa5c1926cd9e0b29861534ff5c3881f",
+              "chunk_id": "9bfe55c8be8b478501597133218ce72839b354d3",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "MULTI_DOCUMENT_DISTRACTOR",
+        "difficulty": "hard",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "ENTITY_DISAMBIGUATION",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "long-baseline-fairness",
+      "name": "Long query baseline fairness",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "为了比较未来 Candidate 与当前 Baseline，我需要知道哪些版本化输入必须保持不变，以及发现 Ground Truth 标签错误时是否可以直接覆盖原版本。"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "ed53c010e45d6625a34c5d6a0fcb615f95949d68",
+              "chunk_id": "7f964431844ca85a76e18ed9a5f691b032715385"
+            },
+            {
+              "document_id": "ed53c010e45d6625a34c5d6a0fcb615f95949d68",
+              "chunk_id": "3b9fb0412a20af85ff11a7d5dc2a8a157f2ef9a3"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "ed53c010e45d6625a34c5d6a0fcb615f95949d68",
+              "chunk_id": "7f964431844ca85a76e18ed9a5f691b032715385",
+              "relevance": 3
+            },
+            {
+              "document_id": "ed53c010e45d6625a34c5d6a0fcb615f95949d68",
+              "chunk_id": "3b9fb0412a20af85ff11a7d5dc2a8a157f2ef9a3",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "LONG_QUERY",
+        "difficulty": "hard",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "LONG_CONTEXT_CROSS_SECTION",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "short-outputgate",
+      "name": "Short identifier query",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "OutputGate at-most-once？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "72ad7825ed1b4952c94e615ed31539fd279429d7",
+              "chunk_id": "91dd639d0abda4d17093222dd6e435f6a8a4eaa9"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "72ad7825ed1b4952c94e615ed31539fd279429d7",
+              "chunk_id": "91dd639d0abda4d17093222dd6e435f6a8a4eaa9",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SHORT_QUERY",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "short-query-prompt",
+      "name": "Short prompt configuration query",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Qwen query prompt 当前值？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "bb320f260228b4d7eeedab0d6bbed29119d9788f",
+              "chunk_id": "33d1603923f025036e7b0377fbd8a3f08977d579"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "bb320f260228b4d7eeedab0d6bbed29119d9788f",
+              "chunk_id": "33d1603923f025036e7b0377fbd8a3f08977d579",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SHORT_QUERY",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "semantic-memory-write",
+      "name": "Final memory boundary",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "哪些输出可以进入长期聊天记忆，中间专家草稿可以吗？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "4813ea8f480c261e1a5a17f6ec964ffe56df7ca2",
+              "chunk_id": "4cc8302d756aaf1873ea0a9eeae14311a8c72751"
+            },
+            {
+              "document_id": "4813ea8f480c261e1a5a17f6ec964ffe56df7ca2",
+              "chunk_id": "f31b6e4f8c05e8c72eab92c630ec24756c8f4e0b"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "4813ea8f480c261e1a5a17f6ec964ffe56df7ca2",
+              "chunk_id": "4cc8302d756aaf1873ea0a9eeae14311a8c72751",
+              "relevance": 3
+            },
+            {
+              "document_id": "4813ea8f480c261e1a5a17f6ec964ffe56df7ca2",
+              "chunk_id": "f31b6e4f8c05e8c72eab92c630ec24756c8f4e0b",
+              "relevance": 2
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "exact-collection-marker",
+      "name": "Collection marker fields",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Collection marker 记录哪些 embedding compatibility 字段？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "bb320f260228b4d7eeedab0d6bbed29119d9788f",
+              "chunk_id": "69c4e3911a670c218dd76d751823aebbc88d73f4"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "bb320f260228b4d7eeedab0d6bbed29119d9788f",
+              "chunk_id": "69c4e3911a670c218dd76d751823aebbc88d73f4",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "semantic-baseline-low-score",
+      "name": "Low baseline score semantics",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "如果第一次测出的召回率很低，是否应该调参数重跑后才算 Baseline？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "e1de71abaadced382caa6d7a9fdd7d9c17ba2bc1",
+              "chunk_id": "f9a856fb33f48404d2421076b054d7b37635fb1c"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "e1de71abaadced382caa6d7a9fdd7d9c17ba2bc1",
+              "chunk_id": "f9a856fb33f48404d2421076b054d7b37635fb1c",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "slice": "LOW_SCORE_WEAK_EVIDENCE",
+        "slice_taxonomy": "rag-quality-v2"
+      }
+    },
+    {
+      "case_id": "semantic-admission-shutdown",
+      "name": "Admission shutdown behavior",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "系统停止接收新 Run 后，已经开始的 Run 会被怎样处理？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "72ad7825ed1b4952c94e615ed31539fd279429d7",
+              "chunk_id": "45b11941af1400ebedf5c8ab8fee0f3963dad87c"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "72ad7825ed1b4952c94e615ed31539fd279429d7",
+              "chunk_id": "45b11941af1400ebedf5c8ab8fee0f3963dad87c",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "slice": "SEMANTIC_PARAPHRASE",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "exact-evaluation-target-contract",
+      "name": "Evaluation target endpoint",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "LocalAgent 的 evaluation-v2 执行目标需要调用哪个 endpoint？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "9e221547b8f141fded6ea6109194a337c56c334a"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "9e221547b8f141fded6ea6109194a337c56c334a",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "semantic-timeout-unknown",
+      "name": "Timeout outcome ambiguity",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "HTTP 请求已经发出才发生传输超时，评估结果应标记为哪种不确定状态？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "4091f95ce73018ad4411df49ef03cd7c60fdb9ff"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "4091f95ce73018ad4411df49ef03cd7c60fdb9ff",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "slice": "SEMANTIC_PARAPHRASE",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "exact-evaluation-evidence",
+      "name": "Evaluation evidence refs",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "一次成功的 evaluation-v2 响应允许同时保存哪两类 EvidenceRef？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "8aa00356851895e6e34da1fe8681319d810628f9"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "8aa00356851895e6e34da1fe8681319d810628f9",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "semantic-retrieval-channel-fusion",
+      "name": "Retrieval channel fusion",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "当前 RAG 会把哪些 query 变体和 keyword supplement 合并？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "75144201a24c52035bd30d6184b46e24066faa55",
+              "chunk_id": "99f3b10f70a5d91e0381ea019e201e0db47bce4c"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "75144201a24c52035bd30d6184b46e24066faa55",
+              "chunk_id": "99f3b10f70a5d91e0381ea019e201e0db47bce4c",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "slice": "SEMANTIC_PARAPHRASE",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "exact-heuristic-rerank",
+      "name": "Heuristic rerank identity",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "当前的 heuristic rerank 是否等同于 Cross-Encoder，它组合哪些信号？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "75144201a24c52035bd30d6184b46e24066faa55",
+              "chunk_id": "30001a95c2ea8a65aaef108164cc5aa1f56b56ae"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "75144201a24c52035bd30d6184b46e24066faa55",
+              "chunk_id": "30001a95c2ea8a65aaef108164cc5aa1f56b56ae",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "semantic-context-selection",
+      "name": "Context selection stages",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "候选经过分数门槛后，context 选择还会执行哪两步？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "75144201a24c52035bd30d6184b46e24066faa55",
+              "chunk_id": "17db1dd6143f88232d876daca96637a9971d5206"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "75144201a24c52035bd30d6184b46e24066faa55",
+              "chunk_id": "17db1dd6143f88232d876daca96637a9971d5206",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "slice": "SEMANTIC_PARAPHRASE",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "exact-context-builder",
+      "name": "Context builder role",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Context Builder 主要负责构造哪种上下文？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "80ec4e73ec7280a28e3b388a17907cf7af24fc88",
+              "chunk_id": "92e15f7fe3fe86e93297557ee91428ad5644a80d"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "80ec4e73ec7280a28e3b388a17907cf7af24fc88",
+              "chunk_id": "92e15f7fe3fe86e93297557ee91428ad5644a80d",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "exact-context-dedup-signals",
+      "name": "Context deduplication signals",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "ContextBuilder 判断重复项时使用哪两个 identity/input 信号？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "80ec4e73ec7280a28e3b388a17907cf7af24fc88",
+              "chunk_id": "8ff1a89a305621ef6f54df6638afa6e3f830bcdf"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "80ec4e73ec7280a28e3b388a17907cf7af24fc88",
+              "chunk_id": "8ff1a89a305621ef6f54df6638afa6e3f830bcdf",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "semantic-context-budget-drop",
+      "name": "Context budget behavior",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "上下文 token 不够时，非 mandatory 内容可以怎样处理？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "80ec4e73ec7280a28e3b388a17907cf7af24fc88",
+              "chunk_id": "8c6bd7b123edf1d56381e94c131bc71485dd3de9"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "80ec4e73ec7280a28e3b388a17907cf7af24fc88",
+              "chunk_id": "8c6bd7b123edf1d56381e94c131bc71485dd3de9",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "slice": "SEMANTIC_PARAPHRASE",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "entity-event-sequence-owner",
+      "name": "Event sequence owner",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "RuntimeEventChannel 如何保证同一个 Run 的事件序号不被重复使用？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "fc58441a5aa5c1926cd9e0b29861534ff5c3881f",
+              "chunk_id": "9a07cc07cfacc76f1eae2bc91db30c52d908f7a4"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "fc58441a5aa5c1926cd9e0b29861534ff5c3881f",
+              "chunk_id": "9a07cc07cfacc76f1eae2bc91db30c52d908f7a4",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ENTITY_DISAMBIGUATION",
+        "slice": "ENTITY_DISAMBIGUATION",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "exact-tool-governance",
+      "name": "Tool governance scope",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "工具治理层覆盖哪些 capability 决策？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "c5041b1f6feaa3391a975172e2f45eddccde7039",
+              "chunk_id": "a670868f9c0ebe9a40559877ede3734a07a49b84"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "c5041b1f6feaa3391a975172e2f45eddccde7039",
+              "chunk_id": "a670868f9c0ebe9a40559877ede3734a07a49b84",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "numeric-tool-risk-levels",
+      "name": "Tool risk levels",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "工具风险等级有哪些，默认审批阈值设在哪一级？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "c5041b1f6feaa3391a975172e2f45eddccde7039",
+              "chunk_id": "4dfa92effcad1e90393c228b4ec0f78846e34c57"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "c5041b1f6feaa3391a975172e2f45eddccde7039",
+              "chunk_id": "4dfa92effcad1e90393c228b4ec0f78846e34c57",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "NUMERIC_FACT",
+        "slice": "NUMERIC_FACT",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "entity-tool-registry-owner",
+      "name": "Tool registry authority",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "未注册 capability 的工具能否借临时名字绕过 ToolRegistry？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "c5041b1f6feaa3391a975172e2f45eddccde7039",
+              "chunk_id": "0d0b61798c9a8e3cca3b4168fb46f89be627a140"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "c5041b1f6feaa3391a975172e2f45eddccde7039",
+              "chunk_id": "0d0b61798c9a8e3cca3b4168fb46f89be627a140",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ENTITY_DISAMBIGUATION",
+        "slice": "ENTITY_DISAMBIGUATION",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "abbreviation-mcp-participants",
+      "name": "MCP interaction participants",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "MCP 标准交互连接的是哪些两类参与者？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "2cc4bcb6a93a38dd2061d24fcc9aef49260c6c81",
+              "chunk_id": "33a67a600b84cc21556dfc77f89db02095c9c48a"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "2cc4bcb6a93a38dd2061d24fcc9aef49260c6c81",
+              "chunk_id": "33a67a600b84cc21556dfc77f89db02095c9c48a",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ABBREVIATION",
+        "slice": "ABBREVIATION",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "trust-mcp-failure",
+      "name": "MCP failure handling",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "MCP 连接失败时，错误信息和 fallback 处理有什么要求？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "2cc4bcb6a93a38dd2061d24fcc9aef49260c6c81",
+              "chunk_id": "a730a9dbdbe71d8ddb97184eefa997c999bb3e32"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "2cc4bcb6a93a38dd2061d24fcc9aef49260c6c81",
+              "chunk_id": "a730a9dbdbe71d8ddb97184eefa997c999bb3e32",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "exact-metrics-suite",
+      "name": "Retrieval metric suite",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Retrieval quality suite 通过哪些指标评估结果？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "0b3fb530e7fff62dc68649c7a69d23a73290b460"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "0b3fb530e7fff62dc68649c7a69d23a73290b460",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "numeric-recall-denominator",
+      "name": "Recall denominator",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Recall@K 的分母在 relevant chunk 多于一个时是什么？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "f77e8f5b743b9de9e072d3e4ec0315446ecf51cb"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "f77e8f5b743b9de9e072d3e4ec0315446ecf51cb",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "NUMERIC_FACT",
+        "slice": "NUMERIC_FACT",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "numeric-ndcg-formula",
+      "name": "NDCG formula",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "NDCG 的 gain 和 discount 分别采用什么公式？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "dc26c1e2230cbcdf218af890a572dbd99efdbf98"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "a7f75c979c1a824b8438ea3cca243ea90e3837cc",
+              "chunk_id": "dc26c1e2230cbcdf218af890a572dbd99efdbf98",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "NUMERIC_FACT",
+        "slice": "NUMERIC_FACT",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "entity-dataset-version",
+      "name": "Dataset version boundary",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "一个 Evaluation Dataset 的版本边界包含哪些对象？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "ed53c010e45d6625a34c5d6a0fcb615f95949d68",
+              "chunk_id": "92013e2dd69d798f1333ef1c9e3b5d97948cadff"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "ed53c010e45d6625a34c5d6a0fcb615f95949d68",
+              "chunk_id": "92013e2dd69d798f1333ef1c9e3b5d97948cadff",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ENTITY_DISAMBIGUATION",
+        "slice": "ENTITY_DISAMBIGUATION",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "entity-suite-freeze",
+      "name": "Evaluation suite freeze",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "EvaluationSuiteVersion 除 case selection 外还冻结哪些评估配置？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "ed53c010e45d6625a34c5d6a0fcb615f95949d68",
+              "chunk_id": "8fabd2a1636ce6c9241647d13253bece2a04cfb5"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "ed53c010e45d6625a34c5d6a0fcb615f95949d68",
+              "chunk_id": "8fabd2a1636ce6c9241647d13253bece2a04cfb5",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ENTITY_DISAMBIGUATION",
+        "slice": "ENTITY_DISAMBIGUATION",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "entity-observability-trace",
+      "name": "Trace authority boundary",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Runtime Observability 记录的是 authority 还是 execution evidence？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "b252083bb30eff1a60f0a134ff4dba1068516d83",
+              "chunk_id": "03276439104f3eb78f80772778602c8d484edd39"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "b252083bb30eff1a60f0a134ff4dba1068516d83",
+              "chunk_id": "03276439104f3eb78f80772778602c8d484edd39",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ENTITY_DISAMBIGUATION",
+        "slice": "ENTITY_DISAMBIGUATION",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "trust-observability-label",
+      "name": "Metric label safety",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Metric label 可以包含 query 或 secret 吗？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "b252083bb30eff1a60f0a134ff4dba1068516d83",
+              "chunk_id": "795eaf4adb8e6c2ada87fe4abf3c171649bc9bde"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "b252083bb30eff1a60f0a134ff4dba1068516d83",
+              "chunk_id": "795eaf4adb8e6c2ada87fe4abf3c171649bc9bde",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "trust-journal-first",
+      "name": "Journal first failure",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "journal-first 语义下 Journal 写入失败时能否发布事件？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "b252083bb30eff1a60f0a134ff4dba1068516d83",
+              "chunk_id": "f53da48a1e44c363872ec570b55d6f0d34589908"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "b252083bb30eff1a60f0a134ff4dba1068516d83",
+              "chunk_id": "f53da48a1e44c363872ec570b55d6f0d34589908",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "exact-error-code-contract",
+      "name": "Stable error code purpose",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "稳定错误码的用途是什么，是否允许用正文猜身份？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "4a58b18679a4063f059e9ad887f39cf5daeaf3f6"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "4a58b18679a4063f059e9ad887f39cf5daeaf3f6",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "exact-metadata-invalid",
+      "name": "Metadata invalid code",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "候选同时缺少 source 和 chunk identity 时返回什么错误码？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "dfad608271cc0fd70c77957e103b3d107befaca0"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "dfad608271cc0fd70c77957e103b3d107befaca0",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "semantic-query-rewrite-empty",
+      "name": "Empty query rewrite",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Query rewrite 为空时的错误码是什么，检索会采用哪个 query？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "b12a361a374fe4eece4711c590436505f7e4591d"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "b12a361a374fe4eece4711c590436505f7e4591d",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "SEMANTIC_PARAPHRASE",
+        "slice": "SEMANTIC_PARAPHRASE",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "trust-cancellation-propagation",
+      "name": "Cancellation propagation",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "取消发生时 evaluator 应把 CancelledError 转成失败吗？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "c23f5ab17ea621aa87fcfbb60e8369e3fb35d9d9",
+              "chunk_id": "f789c9c23468824ebb83d68d04548faf987f1fa7"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "c23f5ab17ea621aa87fcfbb60e8369e3fb35d9d9",
+              "chunk_id": "f789c9c23468824ebb83d68d04548faf987f1fa7",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "numeric-total-timeout",
+      "name": "Retrieval total deadline",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "RetrievalExecutionSpec 的总超时和 stage timeout 如何共同约束一次操作？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "c23f5ab17ea621aa87fcfbb60e8369e3fb35d9d9",
+              "chunk_id": "b54e38ecbba885e34ffb14de8fadb8d80cb69a1a"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "c23f5ab17ea621aa87fcfbb60e8369e3fb35d9d9",
+              "chunk_id": "b54e38ecbba885e34ffb14de8fadb8d80cb69a1a",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "NUMERIC_FACT",
+        "slice": "NUMERIC_FACT",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "trust-memory-writer",
+      "name": "Final memory writer boundary",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Memory Boundary 对 RunFinalMemoryWriter 的写入职责是什么？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "4813ea8f480c261e1a5a17f6ec964ffe56df7ca2",
+              "chunk_id": "6bfc4f8ba04735a6f238637c4722d48f4f751b76"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "4813ea8f480c261e1a5a17f6ec964ffe56df7ca2",
+              "chunk_id": "6bfc4f8ba04735a6f238637c4722d48f4f751b76",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "trust-evaluation-memory-isolation",
+      "name": "Evaluation memory isolation",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "RAG Evaluation 执行时为什么必须使用 fresh session 和 empty evaluation memory？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "4813ea8f480c261e1a5a17f6ec964ffe56df7ca2",
+              "chunk_id": "77d7aeb684070087212e95de05c7600405d23227"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "4813ea8f480c261e1a5a17f6ec964ffe56df7ca2",
+              "chunk_id": "77d7aeb684070087212e95de05c7600405d23227",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "numeric-embedding-contract",
+      "name": "Embedding contract",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Dense baseline 的 embedding contract 包含模型、加载方式和向量性质哪些信息？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "bb320f260228b4d7eeedab0d6bbed29119d9788f",
+              "chunk_id": "8d98c624490a42cd83258905dadf9f445fb50db0"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "bb320f260228b4d7eeedab0d6bbed29119d9788f",
+              "chunk_id": "8d98c624490a42cd83258905dadf9f445fb50db0",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "NUMERIC_FACT",
+        "slice": "NUMERIC_FACT",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "entity-release-provenance",
+      "name": "Release provenance inputs",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Release Gate 比较 Candidate 与 Baseline 时需要冻结哪些 provenance 输入？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "e1de71abaadced382caa6d7a9fdd7d9c17ba2bc1",
+              "chunk_id": "6e0cc58cc1c2dbd88f7948b3e2ce4d057838d681"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "e1de71abaadced382caa6d7a9fdd7d9c17ba2bc1",
+              "chunk_id": "6e0cc58cc1c2dbd88f7948b3e2ce4d057838d681",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ENTITY_DISAMBIGUATION",
+        "slice": "ENTITY_DISAMBIGUATION",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "low-score-baseline-failure",
+      "name": "Low score baseline semantics",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Recall 低或 latency 高会自动使 Baseline 失败吗？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "e1de71abaadced382caa6d7a9fdd7d9c17ba2bc1",
+              "chunk_id": "7aaa50cee0012a9c8e348bcb697e9d641eda4a42"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "e1de71abaadced382caa6d7a9fdd7d9c17ba2bc1",
+              "chunk_id": "7aaa50cee0012a9c8e348bcb697e9d641eda4a42",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "LOW_SCORE_WEAK_EVIDENCE",
+        "slice": "LOW_SCORE_WEAK_EVIDENCE",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "low-score-inconclusive-policy",
+      "name": "Incomplete evidence policy",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "缺少 required result 时，评估 policy 应如何表示未知状态？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "e1de71abaadced382caa6d7a9fdd7d9c17ba2bc1",
+              "chunk_id": "8952849f474819202c5dc8ae0e4e6b9f3541d80e"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "e1de71abaadced382caa6d7a9fdd7d9c17ba2bc1",
+              "chunk_id": "8952849f474819202c5dc8ae0e4e6b9f3541d80e",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "LOW_SCORE_WEAK_EVIDENCE",
+        "slice": "LOW_SCORE_WEAK_EVIDENCE",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "low-score-scope-integrity",
+      "name": "Poor score integrity",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "为什么不能为了漂亮数字修改评估阈值？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "e1de71abaadced382caa6d7a9fdd7d9c17ba2bc1",
+              "chunk_id": "f9a856fb33f48404d2421076b054d7b37635fb1c"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "e1de71abaadced382caa6d7a9fdd7d9c17ba2bc1",
+              "chunk_id": "f9a856fb33f48404d2421076b054d7b37635fb1c",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "LOW_SCORE_WEAK_EVIDENCE",
+        "slice": "LOW_SCORE_WEAK_EVIDENCE",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "long-http-attempt-timeout",
+      "name": "Attempt and timeout contract",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "evaluation-v2 一次 Attempt 的 HTTP 调用次数和已发出后的超时状态分别是什么？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "9e221547b8f141fded6ea6109194a337c56c334a"
+            },
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "4091f95ce73018ad4411df49ef03cd7c60fdb9ff"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "9e221547b8f141fded6ea6109194a337c56c334a",
+              "relevance": 3
+            },
+            {
+              "document_id": "6b053843548bff9366742e99adf7281266017fd1",
+              "chunk_id": "4091f95ce73018ad4411df49ef03cd7c60fdb9ff",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "LONG_CONTEXT_CROSS_SECTION",
+        "slice": "LONG_CONTEXT_CROSS_SECTION",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "hard",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "trust-rag-memory-boundary",
+      "name": "RAG and memory boundary",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "在 RAG Evaluation 中，外部文档指令应被视为何种 trust level，而评估 Memory 又为何必须为空？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "80ec4e73ec7280a28e3b388a17907cf7af24fc88",
+              "chunk_id": "ec407a83df8895c5eddb2f7da5b6b02c355780fa"
+            },
+            {
+              "document_id": "4813ea8f480c261e1a5a17f6ec964ffe56df7ca2",
+              "chunk_id": "77d7aeb684070087212e95de05c7600405d23227"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "80ec4e73ec7280a28e3b388a17907cf7af24fc88",
+              "chunk_id": "ec407a83df8895c5eddb2f7da5b6b02c355780fa",
+              "relevance": 3
+            },
+            {
+              "document_id": "4813ea8f480c261e1a5a17f6ec964ffe56df7ca2",
+              "chunk_id": "77d7aeb684070087212e95de05c7600405d23227",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice": "TRUST_BOUNDARY_MEMORY_RAG",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "hard",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "entity-event-terminal-owners",
+      "name": "Event and terminal owners",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "Runtime Event sequence 和 Run terminal 都要求单一权威 owner 时，各自由谁负责？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "fc58441a5aa5c1926cd9e0b29861534ff5c3881f",
+              "chunk_id": "9a07cc07cfacc76f1eae2bc91db30c52d908f7a4"
+            },
+            {
+              "document_id": "72ad7825ed1b4952c94e615ed31539fd279429d7",
+              "chunk_id": "48e4c271d21ec6ee915c84fda4ecc0ed6f431166"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "fc58441a5aa5c1926cd9e0b29861534ff5c3881f",
+              "chunk_id": "9a07cc07cfacc76f1eae2bc91db30c52d908f7a4",
+              "relevance": 3
+            },
+            {
+              "document_id": "72ad7825ed1b4952c94e615ed31539fd279429d7",
+              "chunk_id": "48e4c271d21ec6ee915c84fda4ecc0ed6f431166",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "ENTITY_DISAMBIGUATION",
+        "slice": "ENTITY_DISAMBIGUATION",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "hard",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "exact-stable-error-triad",
+      "name": "Stable error code triad",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "当候选缺少身份、rewrite 为空、embedding asset 缺失时，分别使用哪些稳定 error code？"
+      },
+      "ground_truth": {
+        "retrieval": {
+          "relevant_chunks": [
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "dfad608271cc0fd70c77957e103b3d107befaca0"
+            },
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "b12a361a374fe4eece4711c590436505f7e4591d"
+            },
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "f3b2ba1b91c7f7d141aaf719fa707315c673a81b"
+            }
+          ]
+        },
+        "ranking": {
+          "graded_relevance": [
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "dfad608271cc0fd70c77957e103b3d107befaca0",
+              "relevance": 3
+            },
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "b12a361a374fe4eece4711c590436505f7e4591d",
+              "relevance": 3
+            },
+            {
+              "document_id": "b72e7fb0b5c03b79e1ce4b3de6bd5e40de16b8be",
+              "chunk_id": "f3b2ba1b91c7f7d141aaf719fa707315c673a81b",
+              "relevance": 3
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "case_type": "EXACT_KEYWORD",
+        "slice": "EXACT_KEYWORD",
+        "slice_taxonomy": "rag-quality-v2",
+        "difficulty": "hard",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS",
+        "corpus_id": "rag-evaluation-corpus.v1",
+        "construction_method": "canonical_chunk_fact_to_query"
+      }
+    },
+    {
+      "case_id": "no-answer-gpu-temperature",
+      "name": "No answer GPU temperature",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "生产服务器 GPU 的当前温度是多少？"
+      },
+      "ground_truth": {
+        "generation": {
+          "reference_answer": "Evaluation KB 中没有生产服务器 GPU 温度信息。"
+        }
+      },
+      "metadata": {
+        "case_type": "NO_ANSWER",
+        "difficulty": "easy",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS"
+      }
+    },
+    {
+      "case_id": "no-answer-office-address",
+      "name": "No answer office address",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "团队办公室的详细街道地址是什么？"
+      },
+      "ground_truth": {
+        "generation": {
+          "reference_answer": "Evaluation KB 中没有办公室地址信息。"
+        }
+      },
+      "metadata": {
+        "case_type": "NO_ANSWER",
+        "difficulty": "easy",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS"
+      }
+    },
+    {
+      "case_id": "no-answer-rfc9999",
+      "name": "No answer nonexistent RFC",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "RFC 9999 在本系统里规定了什么重试算法？"
+      },
+      "ground_truth": {
+        "generation": {
+          "reference_answer": "Evaluation KB 中没有 RFC 9999 或其重试算法。"
+        }
+      },
+      "metadata": {
+        "case_type": "NO_ANSWER",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS"
+      }
+    },
+    {
+      "case_id": "no-answer-customer-secret",
+      "name": "No answer customer credential",
+      "input": {
+        "agent_id": "knowledge_expert",
+        "query": "客户 Apollo 的生产 API 密钥是什么？"
+      },
+      "ground_truth": {
+        "generation": {
+          "reference_answer": "Evaluation KB 不包含任何客户生产 API 密钥。"
+        }
+      },
+      "metadata": {
+        "case_type": "NO_ANSWER",
+        "difficulty": "medium",
+        "truthfulness_label": "SYNTHETIC_RAG_EVALUATION_CORPUS"
+      }
+    }
+  ]
+}

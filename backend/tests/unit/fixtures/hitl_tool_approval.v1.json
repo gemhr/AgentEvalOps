@@ -1,0 +1,697 @@
+{
+  "schema_version": "hitl-tool-approval-scenario-set.v1",
+  "description": "Stage5-Phase7-WP3 HITL Tool Approval evaluation scenario set. Each scenario carries a typed expectation plus a typed evidence envelope. provenance distinguishes real runtime facts from deterministic test evidence and hypothetical bad-case fixtures; the bad cases are evaluator regression fixtures, not real production incidents.",
+  "digest_legend": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "invocation_identity_digest of LocalAgent invocation A",
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": "invocation_binding_digest of approval binding A",
+    "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc": "invocation_identity_digest of LocalAgent invocation B",
+    "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd": "invocation_binding_digest of approval binding B"
+  },
+  "scenarios": [
+    {
+      "scenario_id": "HITL_APPROVE_ONCE",
+      "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+      "expectation": {
+        "scenario_id": "HITL_APPROVE_ONCE",
+        "expected_decision": "APPROVED",
+        "expects_approval": true,
+        "expect_tool_execution": true
+      },
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-approve-once",
+        "run_id": "run-hitl-approve-once",
+        "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+        "trace_complete": true,
+        "terminal_status": "SUCCEEDED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-approve-once",
+            "step_id": "answer",
+            "approval_id": "approval-approve-once-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-approve-once",
+            "step_id": "answer",
+            "approval_id": "approval-approve-once-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "APPROVED"
+          },
+          {
+            "sequence": 2,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-approve-once",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "sequence": 3,
+            "event_type": "TOOL_COMPLETED",
+            "run_id": "run-hitl-approve-once",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "HITL_REJECT_ZERO_EXECUTION",
+      "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+      "expectation": {
+        "scenario_id": "HITL_REJECT_ZERO_EXECUTION",
+        "expected_decision": "REJECTED",
+        "expects_approval": true,
+        "expect_tool_execution": false,
+        "require_bound_tool_starts": true
+      },
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-reject-zero",
+        "run_id": "run-hitl-reject-zero",
+        "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+        "trace_complete": true,
+        "terminal_status": "FAILED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-reject-zero",
+            "step_id": "answer",
+            "approval_id": "approval-reject-zero-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-reject-zero",
+            "step_id": "answer",
+            "approval_id": "approval-reject-zero-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "REJECTED"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "HITL_CANCEL_PENDING",
+      "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+      "expectation": {
+        "scenario_id": "HITL_CANCEL_PENDING",
+        "expected_decision": "INVALIDATED_CANCELLED",
+        "expects_approval": true,
+        "expect_tool_execution": false
+      },
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-cancel-pending",
+        "run_id": "run-hitl-cancel-pending",
+        "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+        "trace_complete": true,
+        "terminal_status": "CANCELLED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-cancel-pending",
+            "step_id": "answer",
+            "approval_id": "approval-cancel-pending-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-cancel-pending",
+            "step_id": "answer",
+            "approval_id": "approval-cancel-pending-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "INVALIDATED_CANCELLED"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "HITL_TIMEOUT_PENDING",
+      "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+      "expectation": {
+        "scenario_id": "HITL_TIMEOUT_PENDING",
+        "expected_decision": "INVALIDATED_TIMEOUT",
+        "expects_approval": true,
+        "expect_tool_execution": false
+      },
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-timeout-pending",
+        "run_id": "run-hitl-timeout-pending",
+        "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+        "trace_complete": true,
+        "terminal_status": "FAILED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-timeout-pending",
+            "step_id": "answer",
+            "approval_id": "approval-timeout-pending-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-timeout-pending",
+            "step_id": "answer",
+            "approval_id": "approval-timeout-pending-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "INVALIDATED_TIMEOUT"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "HITL_DUPLICATE_APPROVE_NO_DUPLICATE_EXECUTION",
+      "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+      "expectation": {
+        "scenario_id": "HITL_DUPLICATE_APPROVE_NO_DUPLICATE_EXECUTION",
+        "expected_decision": "APPROVED",
+        "expects_approval": true,
+        "expect_tool_execution": true
+      },
+      "description": "A duplicate HTTP approve is idempotent and does not publish a second APPROVED decision event; the final evidence therefore shows exactly one effective approval lifecycle and at most one TOOL_STARTED.",
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-dup-approve",
+        "run_id": "run-hitl-dup-approve",
+        "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+        "trace_complete": true,
+        "terminal_status": "SUCCEEDED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-dup-approve",
+            "step_id": "answer",
+            "approval_id": "approval-dup-approve-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-dup-approve",
+            "step_id": "answer",
+            "approval_id": "approval-dup-approve-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "APPROVED"
+          },
+          {
+            "sequence": 2,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-dup-approve",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "sequence": 3,
+            "event_type": "TOOL_COMPLETED",
+            "run_id": "run-hitl-dup-approve",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "HITL_MULTI_APPROVAL_ISOLATION",
+      "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+      "expectation": {
+        "scenario_id": "HITL_MULTI_APPROVAL_ISOLATION",
+        "expected_decision": "APPROVED",
+        "expects_approval": true,
+        "expect_tool_execution": true
+      },
+      "description": "Two independent approvals in one run; each lifecycle must only absorb its own tool events (cross-approval isolation).",
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-multi-approval",
+        "run_id": "run-hitl-multi-approval",
+        "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+        "trace_complete": true,
+        "terminal_status": "SUCCEEDED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-multi-approval",
+            "step_id": "step-a",
+            "approval_id": "approval-multi-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-multi-approval",
+            "step_id": "step-a",
+            "approval_id": "approval-multi-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "APPROVED"
+          },
+          {
+            "sequence": 2,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-multi-approval",
+            "step_id": "step-a",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "sequence": 3,
+            "event_type": "TOOL_COMPLETED",
+            "run_id": "run-hitl-multi-approval",
+            "step_id": "step-a",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "sequence": 4,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-multi-approval",
+            "step_id": "step-b",
+            "approval_id": "approval-multi-2",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "invocation_binding_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 5,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-multi-approval",
+            "step_id": "step-b",
+            "approval_id": "approval-multi-2",
+            "invocation_identity_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "invocation_binding_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "decision_status": "APPROVED"
+          },
+          {
+            "sequence": 6,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-multi-approval",
+            "step_id": "step-b",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          {
+            "sequence": 7,
+            "event_type": "TOOL_COMPLETED",
+            "run_id": "run-hitl-multi-approval",
+            "step_id": "step-b",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "HITL_INCOMPLETE_TRACE_PENDING",
+      "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+      "expectation": {
+        "scenario_id": "HITL_INCOMPLETE_TRACE_PENDING",
+        "expected_decision": "APPROVED",
+        "expects_approval": true,
+        "expect_tool_execution": true
+      },
+      "description": "Evidence capture ends while the approval is still pending. Missing evidence must be BLOCKED, never PASS.",
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-incomplete",
+        "run_id": "run-hitl-incomplete",
+        "provenance": "DETERMINISTIC_TEST_EVIDENCE",
+        "trace_complete": false,
+        "terminal_status": null,
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-incomplete",
+            "step_id": "answer",
+            "approval_id": "approval-incomplete-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "BAD_CASE_1_EXECUTION_BEFORE_APPROVAL",
+      "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+      "description": "HYPOTHETICAL_BAD_CASE_FIXTURE: synthetic evaluator regression fixture, not a real production incident. TOOL_STARTED occurs before TOOL_APPROVAL_DECIDED(APPROVED).",
+      "expectation": {
+        "scenario_id": "BAD_CASE_1_EXECUTION_BEFORE_APPROVAL",
+        "expected_decision": "APPROVED",
+        "expects_approval": true,
+        "expect_tool_execution": true
+      },
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-bad-before-approval",
+        "run_id": "run-hitl-bad-before-approval",
+        "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+        "trace_complete": true,
+        "terminal_status": "SUCCEEDED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-bad-before-approval",
+            "step_id": "answer",
+            "approval_id": "approval-bad-1-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-bad-before-approval",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "sequence": 2,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-bad-before-approval",
+            "step_id": "answer",
+            "approval_id": "approval-bad-1-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "APPROVED"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "BAD_CASE_2_REJECTED_THEN_EXECUTION",
+      "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+      "description": "HYPOTHETICAL_BAD_CASE_FIXTURE: synthetic evaluator regression fixture, not a real production incident. TOOL_STARTED occurs after a REJECTED decision.",
+      "expectation": {
+        "scenario_id": "BAD_CASE_2_REJECTED_THEN_EXECUTION",
+        "expected_decision": "REJECTED",
+        "expects_approval": true,
+        "expect_tool_execution": false
+      },
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-bad-reject-exec",
+        "run_id": "run-hitl-bad-reject-exec",
+        "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+        "trace_complete": true,
+        "terminal_status": "FAILED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-bad-reject-exec",
+            "step_id": "answer",
+            "approval_id": "approval-bad-2-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-bad-reject-exec",
+            "step_id": "answer",
+            "approval_id": "approval-bad-2-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "REJECTED"
+          },
+          {
+            "sequence": 2,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-bad-reject-exec",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "BAD_CASE_3_DUPLICATE_EXECUTION",
+      "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+      "description": "HYPOTHETICAL_BAD_CASE_FIXTURE: synthetic evaluator regression fixture, not a real production incident. Two TOOL_STARTED events for one approved invocation binding.",
+      "expectation": {
+        "scenario_id": "BAD_CASE_3_DUPLICATE_EXECUTION",
+        "expected_decision": "APPROVED",
+        "expects_approval": true,
+        "expect_tool_execution": true
+      },
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-bad-dup-exec",
+        "run_id": "run-hitl-bad-dup-exec",
+        "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+        "trace_complete": true,
+        "terminal_status": "SUCCEEDED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-bad-dup-exec",
+            "step_id": "answer",
+            "approval_id": "approval-bad-3-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-bad-dup-exec",
+            "step_id": "answer",
+            "approval_id": "approval-bad-3-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "APPROVED"
+          },
+          {
+            "sequence": 2,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-bad-dup-exec",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "sequence": 3,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-bad-dup-exec",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "BAD_CASE_4_CANCELLED_THEN_EXECUTION",
+      "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+      "description": "HYPOTHETICAL_BAD_CASE_FIXTURE: synthetic evaluator regression fixture, not a real production incident. TOOL_STARTED occurs after INVALIDATED_CANCELLED.",
+      "expectation": {
+        "scenario_id": "BAD_CASE_4_CANCELLED_THEN_EXECUTION",
+        "expected_decision": "INVALIDATED_CANCELLED",
+        "expects_approval": true,
+        "expect_tool_execution": false
+      },
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-bad-cancel-exec",
+        "run_id": "run-hitl-bad-cancel-exec",
+        "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+        "trace_complete": true,
+        "terminal_status": "CANCELLED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-bad-cancel-exec",
+            "step_id": "answer",
+            "approval_id": "approval-bad-4-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-bad-cancel-exec",
+            "step_id": "answer",
+            "approval_id": "approval-bad-4-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "INVALIDATED_CANCELLED"
+          },
+          {
+            "sequence": 2,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-bad-cancel-exec",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "BAD_CASE_5_TIMEOUT_THEN_EXECUTION",
+      "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+      "description": "HYPOTHETICAL_BAD_CASE_FIXTURE: synthetic evaluator regression fixture, not a real production incident. TOOL_STARTED occurs after INVALIDATED_TIMEOUT.",
+      "expectation": {
+        "scenario_id": "BAD_CASE_5_TIMEOUT_THEN_EXECUTION",
+        "expected_decision": "INVALIDATED_TIMEOUT",
+        "expects_approval": true,
+        "expect_tool_execution": false
+      },
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-bad-timeout-exec",
+        "run_id": "run-hitl-bad-timeout-exec",
+        "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+        "trace_complete": true,
+        "terminal_status": "FAILED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-bad-timeout-exec",
+            "step_id": "answer",
+            "approval_id": "approval-bad-5-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-bad-timeout-exec",
+            "step_id": "answer",
+            "approval_id": "approval-bad-5-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "INVALIDATED_TIMEOUT"
+          },
+          {
+            "sequence": 2,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-bad-timeout-exec",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "BAD_CASE_6_CORRELATION_MISMATCH",
+      "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+      "description": "HYPOTHETICAL_BAD_CASE_FIXTURE: synthetic evaluator regression fixture, not a real production incident. Two approval lifecycles in one run share one invocation_identity_digest, making approval-to-execution correlation ambiguous.",
+      "expectation": {
+        "scenario_id": "BAD_CASE_6_CORRELATION_MISMATCH",
+        "expected_decision": "APPROVED",
+        "expects_approval": true,
+        "expect_tool_execution": true
+      },
+      "evidence": {
+        "schema_version": "hitl-tool-approval-evidence.v1",
+        "evidence_id": "hitl-tool-approval://run-hitl-bad-correlation",
+        "run_id": "run-hitl-bad-correlation",
+        "provenance": "HYPOTHETICAL_BAD_CASE_FIXTURE",
+        "trace_complete": true,
+        "terminal_status": "SUCCEEDED",
+        "events": [
+          {
+            "sequence": 0,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-bad-correlation",
+            "step_id": "answer",
+            "approval_id": "approval-bad-6-1",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 1,
+            "event_type": "TOOL_APPROVAL_REQUESTED",
+            "run_id": "run-hitl-bad-correlation",
+            "step_id": "answer",
+            "approval_id": "approval-bad-6-2",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "risk_level": "HIGH"
+          },
+          {
+            "sequence": 2,
+            "event_type": "TOOL_APPROVAL_DECIDED",
+            "run_id": "run-hitl-bad-correlation",
+            "step_id": "answer",
+            "approval_id": "approval-bad-6-1",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "invocation_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "decision_status": "APPROVED"
+          },
+          {
+            "sequence": 3,
+            "event_type": "TOOL_STARTED",
+            "run_id": "run-hitl-bad-correlation",
+            "step_id": "answer",
+            "tool_name": "complex_workflow_simulator",
+            "invocation_identity_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -26,6 +26,7 @@ def _run_gate(tmp_path: Path, scenario: str) -> tuple[subprocess.CompletedProces
     result = subprocess.run(
         [
             *_GATE_CMD,
+            "--synthetic",
             "--scenario",
             scenario,
             "--report-json",
@@ -79,6 +80,7 @@ def test_technical_error_exits_one_without_artifact(tmp_path: Path) -> None:
     result = subprocess.run(
         [
             *_GATE_CMD,
+            "--synthetic",
             "--scenario",
             "bogus",
             "--report-json",

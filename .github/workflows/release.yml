@@ -9,8 +9,17 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # A real persisted baseline/candidate comparison must pass before any
+  # release image is built or published.
+  candidate-gate:
+    uses: ./.github/workflows/evaluation-release-gate.yml
+    secrets: inherit
+    permissions:
+      contents: read
+
   # ── Build each component on native runners per platform ───────────────────
   build:
+    needs: candidate-gate
     strategy:
       fail-fast: true
       matrix:

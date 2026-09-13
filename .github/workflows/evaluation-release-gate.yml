@@ -1,37 +1,16 @@
-# AgentEvalOps Evaluation Release Gate
+# AgentEvalOps Evaluation Candidate Gate
 #
-# DEMO / SYNTHETIC gate integration.  This workflow proves that the frozen
-# ReleaseDecision (PASS/FAIL) can be mapped to a GitHub Actions job status:
-#   - scenario "pass" -> ReleaseDecision.PASS -> CLI exit 0   -> job PASS
-#   - scenario "fail" -> ReleaseDecision.FAIL  -> CLI exit 2   -> job FAIL
-#
-# It is NOT a production deployment gate: baseline/candidate are deterministic
-# synthetic fixtures, and this workflow does not gate the production image
-# release (release.yml is untouched).  Real baseline/candidate selection must
-# be connected before this adapter protects any production pipeline.
-#
-# PostgreSQL uses ephemeral CI trust auth (POSTGRES_HOST_AUTH_METHOD=trust):
-# no database password appears anywhere in this file.
+# This is the canonical release candidate gate. The selected integration
+# node starts a real LocalAgent production composition, creates persisted
+# baseline/good-candidate and baseline/known-bad-candidate runs, and invokes
+# scripts.ci.release_gate with those persisted IDs. The workflow intentionally
+# does not provide a fixture input or accept caller-supplied run IDs.
 
-name: AgentEvalOps Evaluation Release Gate
+name: AgentEvalOps Evaluation Candidate Gate
 
 on:
   workflow_dispatch:
-    inputs:
-      scenario:
-        description: "Deterministic SYNTHETIC gate scenario (pass = gate PASS / exit 0, fail = gate FAIL / exit 2)"
-        type: choice
-        options:
-          - pass
-          - fail
-        default: pass
   workflow_call:
-    inputs:
-      scenario:
-        description: "Deterministic SYNTHETIC gate scenario"
-        type: string
-        required: false
-        default: pass
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,7 +18,7 @@ concurrency:
 
 jobs:
   evaluation-release-gate:
-    name: Synthetic Evaluation Release Gate
+    name: Real LocalAgent Evaluation Candidate Gate
     runs-on: ubuntu-latest
 
     services:
@@ -47,56 +26,147 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: postgres
-          POSTGRES_DB: pandaprobe_ci
+          POSTGRES_DB: postgres
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
 
+    permissions:
+      contents: read
+
     env:
-      # Ephemeral CI trust auth: username only, no password.
-      AGENTEVALOPS_DEMO_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/pandaprobe_ci
+      # Separate databases and Redis namespaces keep the two real stacks
+      # isolated while sharing the ephemeral CI services.
+      AGENTEVALOPS_GATE_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/pandaprobe_ci
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: pandaprobe_ci
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ""
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
 
     steps:
       - uses: actions/checkout@v6
 
+      - name: Checkout LocalAgent production runtime
+        uses: actions/checkout@v6
+        with:
+          repository: gemhr/Local_Agent
+          ref: main
+          path: localagent
+          token: ${{ secrets.LOCALAGENT_REPO_TOKEN || github.token }}
+          persist-credentials: false
+
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          cache-dependency-glob: "backend/uv.lock"
+          cache-dependency-glob: |
+            backend/uv.lock
+            localagent/uv.lock
 
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Install AgentEvalOps dependencies
         run: make backend-install
 
-      - name: Prepare schema (alembic upgrade head)
+      - name: Install LocalAgent dependencies
+        working-directory: localagent
+        run: uv sync --frozen
+
+      - name: Create isolated candidate-gate databases
+        env:
+          PGPASSWORD: ""
+        run: |
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE pandaprobe_ci"
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE localagent_ci"
+
+      - name: Prepare AgentEvalOps schema
         working-directory: backend
         run: uv run alembic upgrade head
+
+      - name: Prepare LocalAgent schema
+        working-directory: localagent
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_DB: pandaprobe_ci
+          LOCAL_AGENT_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/localagent_ci
+          LOCAL_AGENT_ENVIRONMENT_PROFILE: TEST
+          LOCAL_AGENT_LLM_BACKEND: scripted
+          LOCAL_AGENT_RUNTIME_PROFILE: EPISODIC_EVALUATION_LAYER1
+          LOCAL_AGENT_REDIS_URL: redis://localhost:6379/1
+        run: uv run alembic upgrade head
 
-      # The gate step intentionally has no error suppression: the real process
-      # exit code (0 / 2 / 1) must propagate to the GitHub Actions job status.
-      - name: Run evaluation release gate (deterministic synthetic gate)
+      - name: Create ephemeral LocalAgent service identity
+        shell: bash
+        env:
+          LOCAL_AGENT_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/localagent_ci
+          LOCAL_AGENT_ENVIRONMENT_PROFILE: TEST
+          LOCAL_AGENT_LLM_BACKEND: scripted
+          LOCAL_AGENT_RUNTIME_PROFILE: EPISODIC_EVALUATION_LAYER1
+          LOCAL_AGENT_REDIS_URL: redis://localhost:6379/1
+        run: |
+          set -euo pipefail
+          private_key="$RUNNER_TEMP/localagent-jwt-private.pem"
+          public_key="$RUNNER_TEMP/localagent-jwt-public.pem"
+          openssl genpkey -algorithm Ed25519 -out "$private_key"
+          openssl pkey -in "$private_key" -pubout -out "$public_key"
+          export LOCAL_AGENT_JWT_PRIVATE_KEY="$(cat "$private_key")"
+          export LOCALAGENT_E2E_JWT_PUBLIC_KEY="$(cat "$public_key")"
+          export LOCAL_AGENT_JWT_PUBLIC_KEY="$LOCALAGENT_E2E_JWT_PUBLIC_KEY"
+          {
+            echo 'LOCALAGENT_E2E_JWT_PUBLIC_KEY<<LOCALAGENT_PUBLIC_KEY'
+            echo "$LOCALAGENT_E2E_JWT_PUBLIC_KEY"
+            echo 'LOCALAGENT_PUBLIC_KEY'
+          } >> "$GITHUB_ENV"
+          service_id="$(uv run python -m scripts.manage_identity create-service \
+            --display-name ci-candidate-gate)"
+          service_token="$(uv run python -m scripts.manage_identity issue-test-token "$service_id" --ttl 900)"
+          echo "::add-mask::$service_token"
+          {
+            echo 'LOCALAGENT_E2E_SERVICE_TOKEN<<LOCALAGENT_SERVICE_TOKEN'
+            echo "$service_token"
+            echo 'LOCALAGENT_SERVICE_TOKEN'
+          } >> "$GITHUB_ENV"
+
+      - name: Run real persisted candidate gate
         working-directory: backend
-        run: uv run python -m scripts.ci.release_gate --scenario "${{ inputs.scenario }}" --report-json artifacts/release-gate.json
+        env:
+          AGENTEVALOPS_RUN_LOCALAGENT_PRODUCTION_E2E: "1"
+          AGENTEVALOPS_GATE_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/pandaprobe_ci
+          LOCALAGENT_E2E_REPO: ${{ github.workspace }}/localagent
+          LOCALAGENT_E2E_PYTHON_EXECUTABLE: ${{ github.workspace }}/localagent/.venv/bin/python
+          LOCALAGENT_E2E_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/localagent_ci
+          LOCALAGENT_E2E_REDIS_URL: redis://localhost:6379/1
+          LOCALAGENT_E2E_HEALTH_TIMEOUT: "120"
+          AGENTEVALOPS_CANDIDATE_GATE_RUN_IDS_PATH: ${{ github.workspace }}/backend/artifacts/candidate-gate-run-ids.json
+          AGENTEVALOPS_CANDIDATE_GATE_REPORT_DIR: ${{ github.workspace }}/backend/artifacts
+        run: >-
+          uv run pytest
+          tests/integration/test_localagent_production_e2e.py::test_real_known_bad_candidate_fails_canonical_gate
+          -q
 
-      # Upload the gate report even when the gate fails (exit 2), so the
-      # reason for the block is available in CI artifacts.  Only the report
-      # file is uploaded — never .env, database files or the workspace.
-      - name: Upload gate report
+      - name: Upload candidate-gate evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: release-gate-report
-          path: backend/artifacts/release-gate.json
+          name: evaluation-candidate-gate
+          path: backend/artifacts/
           if-no-files-found: error

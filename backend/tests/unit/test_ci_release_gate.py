@@ -46,6 +46,7 @@ _AUTH_WITH_SECRET = re.compile(r"://[^/\s]*:[^/@\s]*@")
 _WORKFLOW_PATH = (
     Path(__file__).resolve().parents[3] / ".github" / "workflows" / "evaluation-release-gate.yml"
 )
+_RELEASE_WORKFLOW_PATH = Path(__file__).resolve().parents[3] / ".github" / "workflows" / "release.yml"
 
 
 def _report(decision: ReleaseDecision) -> RegressionReport:
@@ -196,13 +197,32 @@ def test_workflow_static_gate() -> None:
     text = _WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "workflow_dispatch" in text
     assert "workflow_call" in text
-    assert "scenario" in text
     assert "POSTGRES_HOST_AUTH_METHOD: trust" in text
-    assert "pandaprobe_ci" in text
-    assert "alembic upgrade head" in text
+    assert "repository: gemhr/Local_Agent" in text
+    assert "uv sync --frozen" in text
+    assert "LOCAL_AGENT_DATABASE_URL" in text
+    assert "LOCALAGENT_E2E_JWT_PUBLIC_KEY" in text
+    assert "LOCALAGENT_E2E_SERVICE_TOKEN" in text
+    assert "AGENTEVALOPS_RUN_LOCALAGENT_PRODUCTION_E2E" in text
+    assert (
+        "tests/integration/test_localagent_production_e2e.py::"
+        "test_real_known_bad_candidate_fails_canonical_gate"
+    ) in text
+    assert "AGENTEVALOPS_CANDIDATE_GATE_RUN_IDS_PATH" in text
+    assert "AGENTEVALOPS_CANDIDATE_GATE_REPORT_DIR" in text
     assert "scripts.ci.release_gate" in text
+    assert "alembic upgrade head" in text
+    assert "--synthetic" not in text
+    assert "scenario" not in text
     assert "continue-on-error" not in text
     assert "|| true" not in text
     assert "if: always()" in text
     assert "upload-artifact" in text
+    assert "if-no-files-found: error" in text
     assert _AUTH_WITH_SECRET.search(text) is None
+
+    release_text = _RELEASE_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "candidate-gate:" in release_text
+    assert "uses: ./.github/workflows/evaluation-release-gate.yml" in release_text
+    assert "secrets: inherit" in release_text
+    assert re.search(r"build:\s+needs:\s+candidate-gate", release_text)

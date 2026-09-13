@@ -5,6 +5,7 @@
 import asyncio
 import sqlite3
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -196,6 +197,32 @@ def test_t3_scenario_env_overrides_are_applied(monkeypatch, tmp_path):
     assert env[LOCALAGENT_ENVIRONMENT_PROFILE_ENV] == "TEST"
     assert env[LOCALAGENT_HOST_ENV] == "127.0.0.1"
     assert str(evidence.memory_db_path).startswith(str(tmp_path / "work"))
+
+
+def test_evaluation_service_bearer_is_injected_into_subprocess_target(tmp_path):
+    provisioner = LocalAgentSubprocessProvisioner(
+        localagent_repo=tmp_path,
+        base_work_dir=tmp_path / "work",
+        localagent_python_executable=tmp_path / "python.exe",
+        service_bearer_token="short-lived-service-token",
+    )
+    evidence = ScenarioEnvironmentEvidence(
+        scenario_id="scenario",
+        scenario_environment_id="environment",
+        scenario_token="token",
+        work_dir=tmp_path,
+        memory_db_path=tmp_path / "memory.db",
+        journal_db_path=tmp_path / "journal.db",
+        target_instance_ref="instance",
+        localagent_base_url="http://127.0.0.1:8000",
+        fixture_seeded=False,
+        provisioned_at=datetime.now(UTC),
+    )
+    target = provisioner.build_target(evidence)
+    try:
+        assert target._bearer_token == "short-lived-service-token"
+    finally:
+        asyncio.run(target.aclose())
 
 
 # ---------------------------------------------------------------- T4

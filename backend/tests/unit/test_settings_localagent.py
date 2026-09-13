@@ -21,6 +21,12 @@ def test_valid_https_base_url_is_accepted() -> None:
     assert settings.LOCALAGENT_HTTP_BASE_URL == "https://localagent.test"
 
 
+def test_service_bearer_token_is_secret() -> None:
+    settings = Settings(LOCALAGENT_SERVICE_BEARER_TOKEN="short-lived-token", _env_file=None)
+    assert settings.LOCALAGENT_SERVICE_BEARER_TOKEN.get_secret_value() == "short-lived-token"
+    assert "short-lived-token" not in repr(settings)
+
+
 @pytest.mark.parametrize(
     "value",
     [

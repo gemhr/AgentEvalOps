@@ -43,4 +43,8 @@ class LocalAgentHttpExecutionTargetResolver:
             raise ValueError(
                 f"unsupported LOCALAGENT_HTTP target version: {target_ref.target_version_ref}"
             )
-        return LocalAgentHttpExecutionTarget(target_ref, self._base_url)
+        return LocalAgentHttpExecutionTarget(
+            target_ref,
+            self._base_url,
+            bearer_token=settings.LOCALAGENT_SERVICE_BEARER_TOKEN.get_secret_value(),
+        )

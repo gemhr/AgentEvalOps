@@ -145,16 +145,18 @@ def _now() -> datetime:
 class LocalAgentHttpExecutionTarget:
     """通过 LocalAgent structured Coordinated endpoint 执行一个 Attempt。"""
 
-    __slots__ = ("_target_ref", "_base_url", "_client", "_owns_client")
+    __slots__ = ("_target_ref", "_base_url", "_bearer_token", "_client", "_owns_client")
 
     def __init__(
         self,
         target_ref: ExecutionTargetRef,
         base_url: str,
+        bearer_token: str = "",
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._validate_target_ref(target_ref)
         self._base_url = self._validate_base_url(base_url)
+        self._bearer_token = bearer_token.strip()
         self._target_ref = target_ref
         # 此 adapter 的 production owner 是 LocalAgent loopback execution target；
         # 不读取 HTTP_PROXY/HTTPS_PROXY/ALL_PROXY，避免控制面请求被转发到 provider proxy。
@@ -272,16 +274,18 @@ class LocalAgentHttpExecutionTarget:
         )
         try:
             async with asyncio.timeout(remaining):
-                return await self._client.post(
-                    self._url(self._execute_path()),
-                    json={
+                kwargs = {
+                    "json": {
                         "agent_id": payload["agent_id"],
                         "query": payload["query"],
                         "run_id": run_id,
                         "timeout_seconds": timeout_seconds,
                     },
-                    timeout=timeout,
-                )
+                    "timeout": timeout,
+                }
+                if self._bearer_token:
+                    kwargs["headers"] = self._auth_headers()
+                return await self._client.post(self._url(self._execute_path()), **kwargs)
         except TimeoutError as error:
             raise _RuntimeDeadlineExceeded from error
 
@@ -308,10 +312,10 @@ class LocalAgentHttpExecutionTarget:
     async def _cancel_remote(self, run_id: str) -> str:
         """调用现有 cancel endpoint，只返回 bounded status。"""
         try:
-            response = await self._client.post(
-                self._url(_CANCEL_PATH.format(run_id=run_id)),
-                timeout=httpx.Timeout(_CLEANUP_TIMEOUT_SECONDS),
-            )
+            kwargs = {"timeout": httpx.Timeout(_CLEANUP_TIMEOUT_SECONDS)}
+            if self._bearer_token:
+                kwargs["headers"] = self._auth_headers()
+            response = await self._client.post(self._url(_CANCEL_PATH.format(run_id=run_id)), **kwargs)
         except Exception as error:
             raise _RemoteCleanupError(type(error).__name__) from None
 
@@ -806,6 +810,10 @@ class LocalAgentHttpExecutionTarget:
 
     def _url(self, path: str) -> str:
         return f"{self._base_url}{path}"
+
+    def _auth_headers(self) -> dict[str, str]:
+        """返回跨仓 service-to-service 认证头；空 token 不做匿名 fallback。"""
+        return {"Authorization": f"Bearer {self._bearer_token}"} if self._bearer_token else {}
 
     @staticmethod
     def _remaining(deadline: float) -> float:

@@ -135,10 +135,10 @@ def response(payload: dict[str, object], status_code: int = 200) -> httpx.Respon
 class _FakeClient:
     def __init__(self, result) -> None:
         self.result = result
-        self.calls: list[tuple[str, dict[str, object] | None]] = []
+        self.calls: list[tuple[str, dict[str, object] | None, dict[str, str] | None]] = []
 
-    async def post(self, url: str, *, json=None, timeout=None) -> httpx.Response:
-        self.calls.append((url, json))
+    async def post(self, url: str, *, json=None, timeout=None, headers=None) -> httpx.Response:
+        self.calls.append((url, json, headers))
         return await self.result(url, json)
 
     async def aclose(self) -> None:
@@ -172,7 +172,6 @@ async def test_evaluation_endpoint_used_and_success_complete_maps_artifacts() ->
     assert len(client.calls) == 1
     assert client.calls[0][0] == EVALUATION_URL
     assert client.calls[0][1]["run_id"] == ATTEMPT_ID
-
     assert outcome.kind is OutcomeKind.SUCCESS
     assert outcome.output_artifact_ref is not None
     assert outcome.output_artifact_ref.artifact_id == f"localagent-run://{ATTEMPT_ID}"
@@ -185,6 +184,21 @@ async def test_evaluation_endpoint_used_and_success_complete_maps_artifacts() ->
     assert artifact_ref.metadata["payload"]["artifact_id"] == f"rag-eval://{ATTEMPT_ID}/r1"
     assert outcome.metadata["rag_evaluation_capture_status"] == "COMPLETE"
     assert "rag_evaluation_capture_error_code" not in outcome.metadata
+
+
+@pytest.mark.asyncio
+async def test_service_bearer_is_sent_to_evaluation_endpoint() -> None:
+    async def result(url: str, payload: dict[str, object] | None) -> httpx.Response:
+        return response(evaluation_body())
+
+    client = _FakeClient(result)
+    target = LocalAgentHttpExecutionTarget(
+        target_ref(), "http://localagent.test", bearer_token="short-lived", client=client  # type: ignore[arg-type]
+    )
+    await target.execute(request())
+
+    assert client.calls[0][2] == {"Authorization": "Bearer short-lived"}
+
 
 
 @pytest.mark.asyncio

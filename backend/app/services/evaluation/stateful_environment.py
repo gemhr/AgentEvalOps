@@ -353,6 +353,7 @@ class LocalAgentSubprocessProvisioner:
         localagent_repo: Path,
         base_work_dir: Path,
         localagent_python_executable: str | Path | None = None,
+        service_bearer_token: str | None = None,
         health_timeout_seconds: float = 60.0,
         health_poll_seconds: float = 1.0,
         subprocess_environment: dict[str, str] | None = None,
@@ -364,6 +365,12 @@ class LocalAgentSubprocessProvisioner:
         self._subprocess_environment = dict(subprocess_environment or {})
         self._processes: dict[str, asyncio.subprocess.Process] = {}
         self._localagent_python_executable = self._resolve_interpreter(localagent_python_executable)
+        configured_token = getattr(settings, "LOCALAGENT_SERVICE_BEARER_TOKEN", "")
+        if hasattr(configured_token, "get_secret_value"):
+            configured_token = configured_token.get_secret_value()
+        self._service_bearer_token = (
+            str(service_bearer_token if service_bearer_token is not None else configured_token).strip()
+        )
 
     @staticmethod
     def _resolve_interpreter(
@@ -573,7 +580,11 @@ class LocalAgentSubprocessProvisioner:
             target_version_ref=LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION,
             config_ref=LOCALAGENT_HTTP_EVALUATION_V2_CONFIG,
         )
-        return LocalAgentHttpExecutionTarget(target_ref, evidence.localagent_base_url)
+        return LocalAgentHttpExecutionTarget(
+            target_ref,
+            evidence.localagent_base_url,
+            bearer_token=self._service_bearer_token,
+        )
 
     async def cleanup(self, evidence: ScenarioEnvironmentEvidence, *, preserve: bool) -> None:
         """终止实例；preserve=False 时删除 scenario DB/journal/token 文件。"""

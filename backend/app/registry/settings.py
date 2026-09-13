@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import computed_field, field_validator
+from pydantic import SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 import httpx
@@ -166,6 +166,10 @@ class Settings(BaseSettings):
     # EvaluationLoopService resolves a LOCALAGENT_HTTP ExecutionTarget.
     # Must be an absolute http(s) URL with no query/fragment when set.
     LOCALAGENT_HTTP_BASE_URL: str = ""
+
+    # Short-lived service credential injected by deployment secrets. SecretStr
+    # prevents accidental exposure through Settings repr/validation errors.
+    LOCALAGENT_SERVICE_BEARER_TOKEN: SecretStr = SecretStr("")
 
     # -- LocalAgent evaluation-environment interpreter ------------------------
     # AgentEvalOps-owned path to the Python executable that must launch an

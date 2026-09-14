@@ -26,6 +26,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-id", type=UUID, required=True)
     parser.add_argument("--localagent-base-url", required=True)
+    parser.add_argument("--localagent-bearer-token", required=True)
     parser.add_argument(
         "--beir-dataset-root",
         type=Path,
@@ -66,6 +67,7 @@ async def _run(args) -> dict[str, object]:
         project_id=args.project_id,
         asset=asset,
         base_url=args.localagent_base_url,
+        bearer_token=args.localagent_bearer_token,
         document_projection=projection,
         dense_index_cache={
             "identity": cache_metadata["cache_key"],

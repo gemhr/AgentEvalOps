@@ -222,7 +222,12 @@ def scenario(role: str) -> StatefulMemoryScenario:
     )
 
 
-async def post_case(client: httpx.AsyncClient, base_url: str, case: EvaluationCase) -> Observation:
+async def post_case(
+    client: httpx.AsyncClient,
+    base_url: str,
+    case: EvaluationCase,
+    bearer_token: str,
+) -> Observation:
     run_id = str(uuid4())
     query = case_query(case)
     agent_id = str(case.input.get("agent_id", "knowledge_expert"))
@@ -230,6 +235,7 @@ async def post_case(client: httpx.AsyncClient, base_url: str, case: EvaluationCa
         response = await client.post(
             f"{base_url}/api/runtime/evaluation-execute/v2",
             json={"agent_id": agent_id, "query": query, "run_id": run_id, "timeout_seconds": 120.0},
+            headers={"Authorization": f"Bearer {bearer_token}"},
             timeout=httpx.Timeout(180.0),
         )
         payload = response.json()
@@ -261,6 +267,7 @@ async def run_http(
     identity_sha: str,
     profile_path: Path | None,
     work_dir: Path,
+    bearer_token: str,
     capture_only: bool = False,
 ) -> tuple[str, list[Observation], dict[str, object]]:
     run_id = str(uuid4())
@@ -289,7 +296,9 @@ async def run_http(
     observations: list[Observation] = []
     async with httpx.AsyncClient(trust_env=False) as client:
         for case in cases:
-            observations.append(await post_case(client, evidence.localagent_base_url or "", case))
+            observations.append(
+                await post_case(client, evidence.localagent_base_url or "", case, bearer_token)
+            )
     await provisioner.cleanup(evidence, preserve=True)
     return run_id, observations, {
         "role": role,
@@ -522,6 +531,7 @@ async def async_main(args: argparse.Namespace) -> int:
         localagent_repo=args.localagent_repo, provisioner=capture_provisioner, role="REWRITE_CAPTURE", cases=capture_cases, strategy="BASELINE",
         generation_pin=generation_pin, fixture=Path("unused"), identity_sha=dataset_hash,
         profile_path=None, work_dir=evidence_dir, capture_only=True,
+        bearer_token=args.localagent_bearer_token,
     )
     fixture_payload = build_rewrite_fixture(capture_cases, capture_obs, fixture_version="wp5-formal-v1")
     write_json(capture_fixture_path, fixture_payload)
@@ -544,6 +554,7 @@ async def async_main(args: argparse.Namespace) -> int:
         profile_path=None,
         work_dir=evidence_dir,
         capture_only=True,
+        bearer_token=args.localagent_bearer_token,
     )
     dev_fixture_payload = build_rewrite_fixture(dev_capture_cases, dev_capture_obs, fixture_version="wp5-dev-v1")
     write_json(dev_capture_fixture_path, dev_fixture_payload)
@@ -559,6 +570,7 @@ async def async_main(args: argparse.Namespace) -> int:
         localagent_repo=args.localagent_repo, provisioner=diagnostic_provisioner, role="HYBRID_V1_DIAGNOSTIC", cases=[next(case for case in core if case.case_id == case_id) for case_id in ("abbreviation-mcp", "multi-owner-disambiguation", "semantic-baseline-low-score", "semantic-memory-write")], strategy="HYBRID_RRF",
         generation_pin=generation_pin, fixture=dev_capture_fixture_path, identity_sha=dataset_hash,
         profile_path=None, work_dir=evidence_dir,
+        bearer_token=args.localagent_bearer_token,
     )
     root_rows = []
     diagnostics_by_id = {item.case_id: item for item in diagnostic_obs}
@@ -585,6 +597,7 @@ async def async_main(args: argparse.Namespace) -> int:
         localagent_repo=args.localagent_repo, provisioner=base_provisioner, role="HYBRID_V1_OFFLINE_CONTROL", cases=offline_cases, strategy="HYBRID_RRF",
         generation_pin=generation_pin, fixture=dev_capture_fixture_path, identity_sha=dataset_hash,
         profile_path=None, work_dir=evidence_dir,
+        bearer_token=args.localagent_bearer_token,
     )
     # This narrow wrapper imports the production owner; no fusion is reimplemented here.
     sys.path.insert(0, str(args.localagent_repo))
@@ -737,11 +750,11 @@ async def async_main(args: argparse.Namespace) -> int:
     invariant = {"dataset_content_sha256": dataset_hash, "formal_case_manifest_sha256": formal_manifest["formal_case_manifest_sha256"], "split_manifest_sha256": split["split_manifest_sha256"], "candidate_profile_sha256": candidate_profile["candidate_profile_sha256"], "localagent_head": local_identity["head"], "working_tree_diff_sha256": local_identity["working_tree_diff_sha256"], "generation_id": GENERATION_ID, "generation_pin_sha256": sha256_file(generation_pin), "rewrite_fixture_id": fixture_id, "target_contract": "POST /api/runtime/evaluation-execute/v2", "evaluated_settings_profile": "TEST/evaluation_mode/COORDINATED"}
 
     baseline_provisioner = LocalAgentSubprocessProvisioner(localagent_repo=args.localagent_repo, base_work_dir=evidence_dir / "processes" / "formal-baseline", localagent_python_executable=args.localagent_python, health_timeout_seconds=120, subprocess_environment=localagent_runtime_env())
-    baseline_id, baseline_obs, baseline_meta = await run_http(localagent_repo=args.localagent_repo, provisioner=baseline_provisioner, role="BASELINE", cases=formal_cases, strategy="BASELINE", generation_pin=generation_pin, fixture=capture_fixture_path, identity_sha=dataset_hash, profile_path=None, work_dir=evidence_dir)
+    baseline_id, baseline_obs, baseline_meta = await run_http(localagent_repo=args.localagent_repo, provisioner=baseline_provisioner, role="BASELINE", cases=formal_cases, strategy="BASELINE", generation_pin=generation_pin, fixture=capture_fixture_path, identity_sha=dataset_hash, profile_path=None, work_dir=evidence_dir, bearer_token=args.localagent_bearer_token)
     if any(item.artifact is None for item in baseline_obs) or len(baseline_obs) != 44 or not baseline_meta["port_released"]:
         raise RuntimeError("formal baseline incomplete or not cleanly shut down")
     candidate_provisioner = LocalAgentSubprocessProvisioner(localagent_repo=args.localagent_repo, base_work_dir=evidence_dir / "processes" / "formal-hybrid-v2", localagent_python_executable=args.localagent_python, health_timeout_seconds=120, subprocess_environment=localagent_runtime_env())
-    candidate_run_id, candidate_obs, candidate_meta = await run_http(localagent_repo=args.localagent_repo, provisioner=candidate_provisioner, role="HYBRID_V2", cases=formal_cases, strategy="HYBRID_RRF", generation_pin=generation_pin, fixture=capture_fixture_path, identity_sha=dataset_hash, profile_path=profile_path, work_dir=evidence_dir)
+    candidate_run_id, candidate_obs, candidate_meta = await run_http(localagent_repo=args.localagent_repo, provisioner=candidate_provisioner, role="HYBRID_V2", cases=formal_cases, strategy="HYBRID_RRF", generation_pin=generation_pin, fixture=capture_fixture_path, identity_sha=dataset_hash, profile_path=profile_path, work_dir=evidence_dir, bearer_token=args.localagent_bearer_token)
     comparison = formal_comparison(core + holdout, [item for item in baseline_obs if item.case_id in {case.case_id for case in core + holdout}], [item for item in candidate_obs if item.case_id in {case.case_id for case in core + holdout}])
     formal_metrics = {"baseline": aggregate(core + holdout, baseline_obs), "hybrid_v2": aggregate(core + holdout, candidate_obs), "delta": comparison["aggregate_delta"]}
     degraded_base = sum(bool(item.artifact and item.artifact.degraded) for item in baseline_obs) / 44
@@ -1063,6 +1076,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--localagent-repo", type=Path, default=LOCALAGENT_DEFAULT)
     parser.add_argument("--localagent-python", type=Path, default=LOCALAGENT_DEFAULT / ".venv" / "Scripts" / "python.exe")
+    parser.add_argument("--localagent-bearer-token", required=True)
     parser.add_argument("--dataset", type=Path, default=DATASET_DEFAULT)
     parser.add_argument("--old-dataset", type=Path, default=ROOT / "evaluation_assets" / "rag_quality_v1" / "rag_evaluation_dataset.v1.json")
     parser.add_argument("--generation-pin", type=Path, default=PIN_DEFAULT)

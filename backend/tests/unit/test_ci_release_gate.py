@@ -1,8 +1,7 @@
 """Unit tests for the CI Release Gate adapter (no DB required).
 
 Covers the exit-code contract, the artifact serializer (truth source = the
-frozen RegressionReport), the credential boundary, the "scenario never decides
-the exit" invariant, and the workflow static gate.
+frozen RegressionReport), the credential boundary, and the workflow static gate.
 """
 
 # ruff: noqa: D101, D102, D105, D415
@@ -24,7 +23,6 @@ from app.core.evaluation.comparison import (
 from app.core.evaluation.report import RegressionReport, ReleaseDecision
 from app.core.evaluation.references import CaseVersionRef
 from scripts.ci.release_gate import (
-    EXIT_ERROR,
     EXIT_GATE_FAIL,
     EXIT_PASS,
     _build_parser,
@@ -134,7 +132,7 @@ def test_exit_code_for_decision_unknown_raises_never_defaults_pass() -> None:
 
 def test_finalize_pass_writes_artifact_then_exits_zero(tmp_path: Path) -> None:
     report_path = tmp_path / "release-gate.json"
-    code = finalize(str(report_path), _report(ReleaseDecision.PASS), scenario="pass")
+    code = finalize(str(report_path), _report(ReleaseDecision.PASS))
     assert code == EXIT_PASS
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload["release_decision"] == "PASS"
@@ -142,7 +140,7 @@ def test_finalize_pass_writes_artifact_then_exits_zero(tmp_path: Path) -> None:
 
 def test_finalize_fail_writes_artifact_before_exit_two(tmp_path: Path) -> None:
     report_path = tmp_path / "release-gate.json"
-    code = finalize(str(report_path), _report(ReleaseDecision.FAIL), scenario="fail")
+    code = finalize(str(report_path), _report(ReleaseDecision.FAIL))
     assert code == EXIT_GATE_FAIL
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload["release_decision"] == "FAIL"
@@ -150,16 +148,14 @@ def test_finalize_fail_writes_artifact_before_exit_two(tmp_path: Path) -> None:
     assert payload["critical_blockers"][0]["classification"] == "REGRESSION"
 
 
-def test_exit_comes_from_report_decision_not_scenario_label() -> None:
-    # A "pass" scenario label with a FAIL report must still exit 2, and vice versa:
-    # the scenario only labels the artifact; the exit code comes from the decision.
-    assert finalize(None, _report(ReleaseDecision.FAIL), scenario="pass") == EXIT_GATE_FAIL
-    assert finalize(None, _report(ReleaseDecision.PASS), scenario="fail") == EXIT_PASS
+def test_exit_comes_from_report_decision() -> None:
+    assert finalize(None, _report(ReleaseDecision.FAIL)) == EXIT_GATE_FAIL
+    assert finalize(None, _report(ReleaseDecision.PASS)) == EXIT_PASS
 
 
 def test_serialize_report_matches_report_truth() -> None:
     report = _report(ReleaseDecision.FAIL)
-    payload = serialize_report(report, scenario="fail")
+    payload = serialize_report(report)
     assert payload["release_decision"] == report.release_decision.value
     counts = payload["comparison_counts"]
     assert counts == {
@@ -174,7 +170,7 @@ def test_serialize_report_matches_report_truth() -> None:
 
 
 def test_serialize_report_contains_no_credentials() -> None:
-    payload_text = json.dumps(serialize_report(_report(ReleaseDecision.FAIL), scenario="fail"))
+    payload_text = json.dumps(serialize_report(_report(ReleaseDecision.FAIL)))
     assert "postgresql" not in payload_text
     assert "@" not in payload_text
     assert "password" not in payload_text
@@ -187,10 +183,6 @@ def test_cli_help_documents_exit_contract_without_credentials() -> None:
     assert "1 = execution / configuration / contract error" in help_text
     assert _AUTH_WITH_SECRET.search(help_text) is None
     assert "postgresql://" not in help_text
-
-
-def test_invalid_scenario_is_technical_error_not_gate_fail() -> None:
-    assert main(["--scenario", "bogus"]) == EXIT_ERROR
 
 
 def test_workflow_static_gate() -> None:

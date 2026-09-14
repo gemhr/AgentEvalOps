@@ -31,6 +31,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-id", type=UUID, required=True)
     parser.add_argument("--scifact-base-url", required=True)
     parser.add_argument("--synthetic-base-url", required=True)
+    parser.add_argument("--localagent-bearer-token", required=True)
     parser.add_argument("--beir-dataset-root", type=Path, required=True)
     parser.add_argument("--dense-manifest", type=Path, required=True)
     parser.add_argument("--dense-cache-metadata", type=Path, required=True)
@@ -96,6 +97,7 @@ async def _run(args) -> tuple[dict[str, object], dict[str, object], dict[str, ob
         project_id=args.project_id,
         asset=load_beir_scifact_asset(args.beir_dataset_root),
         base_url=args.scifact_base_url,
+        bearer_token=args.localagent_bearer_token,
         document_projection=projection,
         dense_index_cache=dense_cache,
         sparse_index_cache=sparse_cache,
@@ -105,6 +107,7 @@ async def _run(args) -> tuple[dict[str, object], dict[str, object], dict[str, ob
         project_id=args.project_id,
         dataset=load_dataset(args.synthetic_dataset),
         base_url=args.synthetic_base_url,
+        bearer_token=args.localagent_bearer_token,
     )
     current = json.loads(args.current_report.read_text(encoding="utf-8"))
     bm25 = json.loads(args.bm25_report.read_text(encoding="utf-8"))

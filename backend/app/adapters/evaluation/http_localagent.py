@@ -25,7 +25,6 @@ from app.core.evaluation.generation_evidence import (
     build_final_answer_evidence,
 )
 from app.core.evaluation.rag_artifact import (
-    RAG_EVALUATION_PROTOCOL_VERSION,
     RagEvaluationArtifactV1,
     build_rag_artifact_evidence,
     validate_capture_status,
@@ -35,22 +34,6 @@ from app.core.evaluation.references import ArtifactRef, EvidenceRef, VersionRef
 
 LOCALAGENT_HTTP_TARGET_ID = "localagent-coordinated-http"
 LOCALAGENT_HTTP_TARGET_KIND = "LOCALAGENT_HTTP"
-LOCALAGENT_HTTP_TARGET_VERSION = VersionRef(
-    kind="localagent_http_execution_target",
-    opaque_value="v1",
-)
-LOCALAGENT_HTTP_CONFIG = VersionRef(
-    kind="localagent_http_config",
-    opaque_value="localagent-coordinated-v1",
-)
-LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION = VersionRef(
-    kind="localagent_http_execution_target",
-    opaque_value="evaluation-v1",
-)
-LOCALAGENT_HTTP_EVALUATION_CONFIG = VersionRef(
-    kind="localagent_http_config",
-    opaque_value="localagent-evaluation-v1",
-)
 LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION = VersionRef(
     kind="localagent_http_execution_target",
     opaque_value="evaluation-v2",
@@ -63,8 +46,6 @@ LOCALAGENT_HTTP_EVALUATION_V2_CONFIG = VersionRef(
 _MAX_PROVIDER_TIMEOUT_SECONDS = 3600.0
 _CLEANUP_TIMEOUT_SECONDS = 1.0
 _MAX_REASON_LENGTH = 500
-_EXECUTE_PATH = "/api/runtime/execute"
-_EVALUATION_EXECUTE_PATH = "/api/runtime/evaluation-execute/v1"
 _EVALUATION_EXECUTE_V2_PATH = "/api/runtime/evaluation-execute/v2"
 _CANCEL_PATH = "/api/runtime/runs/{run_id}/cancel"
 _EVALUATION_V2_PROTOCOL_VERSION = "localagent-evaluation-execute.v2"
@@ -87,20 +68,8 @@ _STOP_REASONS = frozenset(
 _CANCELLED_STOP_REASONS = frozenset({"USER_CANCELLED", "CLIENT_DISCONNECTED", "SYSTEM_SHUTDOWN"})
 
 
-class RuntimeExecuteResponse(BaseModel):
-    """LocalAgent structured terminal response wire DTO。"""
-
-    model_config = ConfigDict(extra="forbid")
-
-    run_id: StrictStr
-    status: Literal["SUCCEEDED", "FAILED", "CANCELLED"]
-    stop_reason: StrictStr
-    error_code: StrictStr | None
-    safe_message: StrictStr | None
-
-
-class RuntimeEvaluationExecuteResponse(BaseModel):
-    """LocalAgent RAG evaluation execution response wire DTO（content + evidence）。"""
+class RuntimeEvaluationExecuteV2Response(BaseModel):
+    """LocalAgent evaluation-v2 response wire DTO（RAG + final answer evidence）。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -113,11 +82,6 @@ class RuntimeEvaluationExecuteResponse(BaseModel):
     capture_status: Literal["COMPLETE", "PARTIAL", "FAILED"]
     capture_error_code: StrictStr | None
     rag_evaluation_artifacts: list[dict[str, object]]
-
-
-class RuntimeEvaluationExecuteV2Response(RuntimeEvaluationExecuteResponse):
-    """LocalAgent v2 evaluation response，含独立 final answer capture。"""
-
     final_answer_capture_status: Literal["COMPLETE", "FAILED"]
     final_answer_capture_error_code: StrictStr | None
     final_answer_evidence: dict[str, object] | None
@@ -151,12 +115,12 @@ class LocalAgentHttpExecutionTarget:
         self,
         target_ref: ExecutionTargetRef,
         base_url: str,
-        bearer_token: str = "",
+        bearer_token: str,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._validate_target_ref(target_ref)
         self._base_url = self._validate_base_url(base_url)
-        self._bearer_token = bearer_token.strip()
+        self._bearer_token = self._validate_bearer_token(bearer_token)
         self._target_ref = target_ref
         # 此 adapter 的 production owner 是 LocalAgent loopback execution target；
         # 不读取 HTTP_PROXY/HTTPS_PROXY/ALL_PROXY，避免控制面请求被转发到 provider proxy。
@@ -283,8 +247,7 @@ class LocalAgentHttpExecutionTarget:
                     },
                     "timeout": timeout,
                 }
-                if self._bearer_token:
-                    kwargs["headers"] = self._auth_headers()
+                kwargs["headers"] = self._auth_headers()
                 return await self._client.post(self._url(self._execute_path()), **kwargs)
         except TimeoutError as error:
             raise _RuntimeDeadlineExceeded from error
@@ -313,8 +276,7 @@ class LocalAgentHttpExecutionTarget:
         """调用现有 cancel endpoint，只返回 bounded status。"""
         try:
             kwargs = {"timeout": httpx.Timeout(_CLEANUP_TIMEOUT_SECONDS)}
-            if self._bearer_token:
-                kwargs["headers"] = self._auth_headers()
+            kwargs["headers"] = self._auth_headers()
             response = await self._client.post(self._url(_CANCEL_PATH.format(run_id=run_id)), **kwargs)
         except Exception as error:
             raise _RemoteCleanupError(type(error).__name__) from None
@@ -368,149 +330,31 @@ class LocalAgentHttpExecutionTarget:
                 kind=OutcomeKind.OUTCOME_UNKNOWN,
                 evidence=True,
             )
-        if self._evaluation_v2_mode:
-            return self._map_evaluation_v2_body(request, started_at, run_id, response)
-        if self._evaluation_mode:
-            return self._map_evaluation_body(request, started_at, run_id, response)
-        return self._map_legacy_body(request, started_at, run_id, response)
+        return self._map_evaluation_v2_body(request, started_at, run_id, response)
 
-    def _map_legacy_body(
+    def _map_evaluation_artifacts(
         self,
         request: ExecutionRequest,
         started_at: datetime,
         run_id: str,
         response: httpx.Response,
     ) -> ExecutionOutcome:
+        """解析 evaluation-v2 response，把 artifact 映射为 EvidenceRef 并保留终态。"""
         try:
-            wire = RuntimeExecuteResponse.model_validate(response.json())
+            wire = RuntimeEvaluationExecuteV2Response.model_validate(response.json())
         except (TypeError, ValueError):
             return self._failure_outcome(
                 request,
                 started_at,
                 run_id,
                 "PROTOCOL_MALFORMED",
-                "LocalAgent structured response is invalid",
-                kind=OutcomeKind.OUTCOME_UNKNOWN,
-                evidence=True,
-            )
-
-        if wire.run_id != run_id or wire.stop_reason not in _STOP_REASONS:
-            return self._failure_outcome(
-                request,
-                started_at,
-                run_id,
-                "PROTOCOL_MALFORMED",
-                "LocalAgent structured response identity or enum is invalid",
-                kind=OutcomeKind.OUTCOME_UNKNOWN,
-                evidence=True,
-            )
-
-        if wire.status == "SUCCEEDED":
-            if wire.stop_reason != "COMPLETED" or wire.error_code is not None:
-                return self._failure_outcome(
-                    request,
-                    started_at,
-                    run_id,
-                    "PROTOCOL_MALFORMED",
-                    "LocalAgent success terminal fact is inconsistent",
-                    kind=OutcomeKind.OUTCOME_UNKNOWN,
-                    evidence=True,
-                )
-            return ExecutionOutcome(
-                request_id=request.request_id,
-                kind=OutcomeKind.SUCCESS,
-                started_at=started_at,
-                finished_at=_now(),
-                output_artifact_ref=ArtifactRef(
-                    artifact_id=f"localagent-run://{run_id}",
-                    media_type="application/vnd.localagent.execution-ref+json",
-                ),
-                evidence_refs=(self._run_evidence(run_id),),
-                metadata=self._metadata(request, run_id, wire),
-            )
-
-        if wire.status == "FAILED":
-            if wire.stop_reason in _CANCELLED_STOP_REASONS | {"COMPLETED"}:
-                return self._failure_outcome(
-                    request,
-                    started_at,
-                    run_id,
-                    "PROTOCOL_MALFORMED",
-                    "LocalAgent failure terminal fact is inconsistent",
-                    kind=OutcomeKind.OUTCOME_UNKNOWN,
-                    evidence=True,
-                    wire=wire,
-                )
-            if wire.stop_reason == "DEADLINE_EXCEEDED":
-                return self._timeout_outcome(
-                    request,
-                    started_at,
-                    run_id,
-                    "LOCALAGENT_RUNTIME_TIMEOUT",
-                    _safe_text(wire.error_code, wire.safe_message, wire.stop_reason),
-                    evidence=True,
-                    wire=wire,
-                )
-            return self._failure_outcome(
-                request,
-                started_at,
-                run_id,
-                "LOCALAGENT_RUNTIME_FAILURE",
-                _safe_text(wire.error_code, wire.safe_message, wire.stop_reason),
-                evidence=True,
-                wire=wire,
-            )
-
-        if wire.stop_reason not in _CANCELLED_STOP_REASONS:
-            return self._failure_outcome(
-                request,
-                started_at,
-                run_id,
-                "PROTOCOL_MALFORMED",
-                "LocalAgent cancellation terminal fact is inconsistent",
-                kind=OutcomeKind.OUTCOME_UNKNOWN,
-                evidence=True,
-                wire=wire,
-            )
-        category = (
-            "LOCALAGENT_CLIENT_DISCONNECTED"
-            if wire.stop_reason == "CLIENT_DISCONNECTED"
-            else "LOCALAGENT_REMOTE_CANCELLED"
-        )
-        return self._failure_outcome(
-            request,
-            started_at,
-            run_id,
-            category,
-            _safe_text(wire.error_code, wire.safe_message, wire.stop_reason),
-            kind=OutcomeKind.CANCELLED,
-            evidence=True,
-            wire=wire,
-        )
-
-    def _map_evaluation_body(
-        self,
-        request: ExecutionRequest,
-        started_at: datetime,
-        run_id: str,
-        response: httpx.Response,
-    ) -> ExecutionOutcome:
-        """解析 RAG evaluation response，把 artifact 映射为 EvidenceRef 并保留 Runtime 终态。"""
-        try:
-            wire = RuntimeEvaluationExecuteResponse.model_validate(response.json())
-        except (TypeError, ValueError):
-            return self._failure_outcome(
-                request,
-                started_at,
-                run_id,
-                "PROTOCOL_MALFORMED",
-                "LocalAgent evaluation response is invalid",
+                "LocalAgent evaluation v2 response is invalid",
                 kind=OutcomeKind.OUTCOME_UNKNOWN,
                 evidence=True,
             )
 
         if (
-            wire.protocol_version != RAG_EVALUATION_PROTOCOL_VERSION
+            wire.protocol_version != _EVALUATION_V2_PROTOCOL_VERSION
             or wire.run_id != run_id
             or wire.stop_reason not in _STOP_REASONS
             or wire.capture_status not in {"COMPLETE", "PARTIAL", "FAILED"}
@@ -520,7 +364,7 @@ class LocalAgentHttpExecutionTarget:
                 started_at,
                 run_id,
                 "PROTOCOL_MALFORMED",
-                "LocalAgent evaluation response identity, version or enum is invalid",
+                "LocalAgent evaluation v2 response identity, version or enum is invalid",
                 kind=OutcomeKind.OUTCOME_UNKNOWN,
                 evidence=True,
             )
@@ -646,6 +490,7 @@ class LocalAgentHttpExecutionTarget:
             **capture_meta,
         )
 
+
     def _map_evaluation_v2_body(
         self,
         request: ExecutionRequest,
@@ -700,19 +545,12 @@ class LocalAgentHttpExecutionTarget:
         ):
             return self._final_answer_protocol_failure(request, started_at, run_id)
 
-        v1_payload = wire.model_dump(mode="json")
-        for key in (
-            "final_answer_capture_status",
-            "final_answer_capture_error_code",
-            "final_answer_evidence",
-        ):
-            v1_payload.pop(key)
-        v1_payload["protocol_version"] = RAG_EVALUATION_PROTOCOL_VERSION
-        base = self._map_evaluation_body(
+        v2_payload = wire.model_dump(mode="json")
+        base = self._map_evaluation_artifacts(
             request,
             started_at,
             run_id,
-            httpx.Response(200, json=v1_payload, request=response.request),
+            httpx.Response(200, json=v2_payload, request=response.request),
         )
         if base.kind is OutcomeKind.OUTCOME_UNKNOWN:
             return base
@@ -759,45 +597,17 @@ class LocalAgentHttpExecutionTarget:
 
     @staticmethod
     def _validate_target_ref(target_ref: ExecutionTargetRef) -> None:
-        legacy = ExecutionTargetRef(
-            target_id=LOCALAGENT_HTTP_TARGET_ID,
-            target_kind=LOCALAGENT_HTTP_TARGET_KIND,
-            target_version_ref=LOCALAGENT_HTTP_TARGET_VERSION,
-            config_ref=LOCALAGENT_HTTP_CONFIG,
-        )
-        evaluation = ExecutionTargetRef(
-            target_id=LOCALAGENT_HTTP_TARGET_ID,
-            target_kind=LOCALAGENT_HTTP_TARGET_KIND,
-            target_version_ref=LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION,
-            config_ref=LOCALAGENT_HTTP_EVALUATION_CONFIG,
-        )
         evaluation_v2 = ExecutionTargetRef(
             target_id=LOCALAGENT_HTTP_TARGET_ID,
             target_kind=LOCALAGENT_HTTP_TARGET_KIND,
             target_version_ref=LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION,
             config_ref=LOCALAGENT_HTTP_EVALUATION_V2_CONFIG,
         )
-        if target_ref not in (legacy, evaluation, evaluation_v2):
+        if target_ref != evaluation_v2:
             raise ValueError("unsupported LocalAgent target identity/version/config")
 
-    @property
-    def _evaluation_mode(self) -> bool:
-        return (
-            self._target_ref.target_version_ref == LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION
-            and self._target_ref.config_ref == LOCALAGENT_HTTP_EVALUATION_CONFIG
-        )
-
-    @property
-    def _evaluation_v2_mode(self) -> bool:
-        return (
-            self._target_ref.target_version_ref == LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION
-            and self._target_ref.config_ref == LOCALAGENT_HTTP_EVALUATION_V2_CONFIG
-        )
-
     def _execute_path(self) -> str:
-        if self._evaluation_v2_mode:
-            return _EVALUATION_EXECUTE_V2_PATH
-        return _EVALUATION_EXECUTE_PATH if self._evaluation_mode else _EXECUTE_PATH
+        return _EVALUATION_EXECUTE_V2_PATH
 
     @staticmethod
     def _validate_base_url(base_url: str) -> str:
@@ -812,8 +622,14 @@ class LocalAgentHttpExecutionTarget:
         return f"{self._base_url}{path}"
 
     def _auth_headers(self) -> dict[str, str]:
-        """返回跨仓 service-to-service 认证头；空 token 不做匿名 fallback。"""
-        return {"Authorization": f"Bearer {self._bearer_token}"} if self._bearer_token else {}
+        """返回跨仓 service-to-service 认证头。"""
+        return {"Authorization": f"Bearer {self._bearer_token}"}
+
+    @staticmethod
+    def _validate_bearer_token(value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("bearer_token must be a non-empty string")
+        return value.strip()
 
     @staticmethod
     def _remaining(deadline: float) -> float:
@@ -827,9 +643,7 @@ class LocalAgentHttpExecutionTarget:
     def _metadata(
         request: ExecutionRequest,
         run_id: str,
-        wire: RuntimeExecuteResponse
-        | RuntimeEvaluationExecuteResponse
-        | RuntimeEvaluationExecuteV2Response
+        wire: RuntimeEvaluationExecuteV2Response
         | None = None,
         **extra: object,
     ) -> dict[str, object]:
@@ -857,9 +671,7 @@ class LocalAgentHttpExecutionTarget:
         *,
         kind: OutcomeKind = OutcomeKind.FAILURE,
         evidence: bool,
-        wire: RuntimeExecuteResponse
-        | RuntimeEvaluationExecuteResponse
-        | RuntimeEvaluationExecuteV2Response
+        wire: RuntimeEvaluationExecuteV2Response
         | None = None,
         extra_evidence: tuple[EvidenceRef, ...] = (),
         **extra: object,
@@ -885,7 +697,7 @@ class LocalAgentHttpExecutionTarget:
         *,
         evidence: bool,
         cleanup_status: str | None = None,
-        wire: RuntimeExecuteResponse | RuntimeEvaluationExecuteResponse | None = None,
+        wire: RuntimeEvaluationExecuteV2Response | None = None,
         extra_evidence: tuple[EvidenceRef, ...] = (),
     ) -> ExecutionOutcome:
         extra = {"remote_cancel_attempted": cleanup_status is not None}

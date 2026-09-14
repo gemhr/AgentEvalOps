@@ -10,15 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from app.adapters.evaluation.http_localagent import (
-    LOCALAGENT_HTTP_CONFIG,
-    LOCALAGENT_HTTP_TARGET_ID,
-    LOCALAGENT_HTTP_TARGET_KIND,
-    LOCALAGENT_HTTP_TARGET_VERSION,
-    LocalAgentHttpExecutionTarget,
-)
-from app.core.evaluation.execution import ExecutionRequest, ExecutionTargetRef, OutcomeKind
-from app.core.evaluation.references import CaseVersionRef
 from app.services.evaluation.stateful_environment import (
     MAX_STARTUP_DIAGNOSTIC_BYTES,
     LocalAgentSubprocessProvisioner,
@@ -104,27 +95,6 @@ def _hostile_proxy(monkeypatch: pytest.MonkeyPatch) -> dict[str, str | None]:
     return before
 
 
-def _target_ref() -> ExecutionTargetRef:
-    return ExecutionTargetRef(
-        target_id=LOCALAGENT_HTTP_TARGET_ID,
-        target_kind=LOCALAGENT_HTTP_TARGET_KIND,
-        target_version_ref=LOCALAGENT_HTTP_TARGET_VERSION,
-        config_ref=LOCALAGENT_HTTP_CONFIG,
-    )
-
-
-def _request() -> ExecutionRequest:
-    return ExecutionRequest(
-        request_id="request-1",
-        run_id="22222222-2222-4222-8222-222222222222",
-        attempt_id=_ATTEMPT_ID,
-        case_ref=CaseVersionRef("case-1", "v1"),
-        input_payload={"agent_id": "core_router", "query": "health-free execution"},
-        timeout=timedelta(seconds=5),
-        idempotency_key="idempotency-1",
-    )
-
-
 def test_hostile_proxy_does_not_intercept_loopback_health(monkeypatch, tmp_path):
     """Health client is dedicated and does not depend on NO_PROXY."""
     original = _hostile_proxy(monkeypatch)
@@ -152,26 +122,6 @@ def test_hostile_proxy_does_not_intercept_loopback_health(monkeypatch, tmp_path)
         name: "http://127.0.0.1:9" for name in _PROXY_ENV_NAMES
     }
     assert original  # explicitly retain the pre-test snapshot; monkeypatch restores it after the test
-
-
-def test_hostile_proxy_does_not_intercept_loopback_execution(monkeypatch):
-    """Production ExecutionTarget POST uses its own trust_env=False client."""
-    _hostile_proxy(monkeypatch)
-
-    async def run() -> None:
-        server, base_url, requests = await _loopback_server()
-        target = LocalAgentHttpExecutionTarget(_target_ref(), base_url)
-        try:
-            outcome = await target.execute(_request())
-            assert outcome.kind is OutcomeKind.SUCCESS
-            assert requests == [("POST", "/api/runtime/execute")]
-            assert target._client._trust_env is False
-        finally:
-            await target.aclose()
-            server.close()
-            await server.wait_closed()
-
-    asyncio.run(run())
 
 
 def test_cleanup_still_terminates_process_without_global_proxy_mutation(tmp_path):

@@ -1,27 +1,38 @@
 """Focused tests for the production LOCALAGENT_HTTP ExecutionTargetResolver."""
 
 import pytest
+from pydantic import SecretStr
 
 from app.adapters.evaluation import (
-    LOCALAGENT_HTTP_CONFIG,
+    LOCALAGENT_HTTP_EVALUATION_V2_CONFIG,
+    LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION,
     LOCALAGENT_HTTP_TARGET_ID,
     LOCALAGENT_HTTP_TARGET_KIND,
-    LOCALAGENT_HTTP_TARGET_VERSION,
     LocalAgentHttpExecutionTarget,
     LocalAgentHttpExecutionTargetResolver,
 )
 from app.core.evaluation import ExecutionTargetRef, VersionRef
+from app.adapters.evaluation import localagent_resolver as resolver_module
 
 
 BASE_URL = "http://localagent.test"
+
+
+@pytest.fixture(autouse=True)
+def service_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        resolver_module.settings,
+        "LOCALAGENT_SERVICE_BEARER_TOKEN",
+        SecretStr("test-service-token"),
+    )
 
 
 def authoritative_ref(**changes: object) -> ExecutionTargetRef:
     values: dict[str, object] = {
         "target_id": LOCALAGENT_HTTP_TARGET_ID,
         "target_kind": LOCALAGENT_HTTP_TARGET_KIND,
-        "target_version_ref": LOCALAGENT_HTTP_TARGET_VERSION,
-        "config_ref": LOCALAGENT_HTTP_CONFIG,
+        "target_version_ref": LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION,
+        "config_ref": LOCALAGENT_HTTP_EVALUATION_V2_CONFIG,
     }
     values.update(changes)
     return ExecutionTargetRef(**values)  # type: ignore[arg-type]
@@ -42,8 +53,8 @@ def test_resolved_target_ref_matches_authoritative_for_loop_validation() -> None
     # _validate_resolved_target in the loop requires strict equality.
     assert target.target_ref == authoritative_ref()
     assert target.target_ref.target_kind == LOCALAGENT_HTTP_TARGET_KIND
-    assert target.target_ref.target_version_ref == LOCALAGENT_HTTP_TARGET_VERSION
-    assert target.target_ref.config_ref == LOCALAGENT_HTTP_CONFIG
+    assert target.target_ref.target_version_ref == LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION
+    assert target.target_ref.config_ref == LOCALAGENT_HTTP_EVALUATION_V2_CONFIG
 
 
 @pytest.mark.parametrize(
@@ -51,7 +62,7 @@ def test_resolved_target_ref_matches_authoritative_for_loop_validation() -> None
     [
         {"target_kind": "FIXTURE"},
         {"target_id": "other"},
-        {"target_version_ref": VersionRef("localagent_http_execution_target", "v2")},
+        {"target_version_ref": VersionRef("localagent_http_execution_target", "v1")},
         {"config_ref": VersionRef("localagent_http_config", "other-v1")},
     ],
     ids=["wrong-kind", "wrong-id", "wrong-version", "wrong-config"],

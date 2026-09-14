@@ -151,6 +151,7 @@ async def test_bm25_scifact_and_synthetic_real_execution() -> None:
             project_id=TEST_PROJECT_ID,
             asset=load_beir_scifact_asset(BEIR_ROOT),
             base_url=base_url,
+            bearer_token="test-service-token",
             document_projection=projection,
             sparse_index_cache={
                 "identity": sparse_metadata["cache_key"],
@@ -168,6 +169,7 @@ async def test_bm25_scifact_and_synthetic_real_execution() -> None:
             project_id=TEST_PROJECT_ID,
             dataset=load_dataset(dataset_path),
             base_url=base_url,
+            bearer_token="test-service-token",
         )
 
     current = json.loads(

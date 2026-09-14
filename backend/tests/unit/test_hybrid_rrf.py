@@ -143,6 +143,7 @@ async def test_wrappers_reuse_existing_evaluation_domain(monkeypatch) -> None:
         project_id=uuid4(),
         asset=marker,
         base_url="http://localhost",
+        bearer_token="test-service-token",
         document_projection=marker,
         dense_index_cache={"identity": "dense"},
         sparse_index_cache={"identity": "bm25"},
@@ -152,6 +153,7 @@ async def test_wrappers_reuse_existing_evaluation_domain(monkeypatch) -> None:
         project_id=uuid4(),
         dataset=marker,
         base_url="http://localhost",
+        bearer_token="test-service-token",
     ) == {"kind": "synthetic"}
     metadata = scifact.await_args.kwargs["report_metadata"]
     assert metadata["rrf_k"] == 60

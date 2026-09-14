@@ -5,9 +5,6 @@ PostgreSQL, then delegates comparison and release policy to the existing
 ``EvaluationComparisonService`` and ``RegressionReportService``. The JSON
 written by this command is CI evidence only; it is not a second authority.
 
-``--synthetic --scenario`` is retained solely for fast unit/integration
-fixtures. The canonical workflow does not use that path.
-
 Exit contract: ``0`` = PASS, ``2`` = business gate FAIL, ``1`` = technical
 error.
 """
@@ -37,7 +34,6 @@ EXIT_GATE_FAIL = 2
 EXIT_ERROR = 1
 REPORT_SCHEMA_VERSION = 1
 GATE_DATABASE_URL_ENV = "AGENTEVALOPS_GATE_DATABASE_URL"
-SYNTHETIC_SCENARIOS = ("fail", "pass")
 
 
 def exit_code_for_decision(decision: ReleaseDecision) -> int:
@@ -51,16 +47,11 @@ def exit_code_for_decision(decision: ReleaseDecision) -> int:
 
 def serialize_report(
     report: RegressionReport,
-    *,
-    scenario: str | None = None,
-    synthetic: bool = False,
 ) -> dict[str, object]:
     """Serialize the existing RegressionReport without recomputing its truth."""
     payload: dict[str, object] = {
         "schema_version": REPORT_SCHEMA_VERSION,
         "authority": "RegressionReportService",
-        "demo": synthetic,
-        "synthetic": synthetic,
         "project_id": str(report.project_id),
         "baseline_run_id": str(report.baseline_run_id),
         "candidate_run_id": str(report.candidate_run_id),
@@ -85,23 +76,18 @@ def serialize_report(
             for item in (*report.critical_regressions, *report.critical_not_comparable)
         ],
     }
-    if scenario is not None:
-        payload["scenario"] = scenario
     return payload
 
 
 def write_report_artifact(
     path: str,
     report: RegressionReport,
-    *,
-    scenario: str | None = None,
-    synthetic: bool = False,
 ) -> Path:
     """Write ephemeral CI evidence (never durable evaluation authority)."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
-        json.dumps(serialize_report(report, scenario=scenario, synthetic=synthetic), indent=2) + "\n",
+        json.dumps(serialize_report(report), indent=2) + "\n",
         encoding="utf-8",
     )
     return target
@@ -110,13 +96,10 @@ def write_report_artifact(
 def finalize(
     report_json_path: str | None,
     report: RegressionReport,
-    *,
-    scenario: str | None = None,
-    synthetic: bool = False,
 ) -> int:
     """Write evidence first, then map the existing decision to process status."""
     if report_json_path:
-        write_report_artifact(report_json_path, report, scenario=scenario, synthetic=synthetic)
+        write_report_artifact(report_json_path, report)
     return exit_code_for_decision(report.release_decision)
 
 
@@ -145,17 +128,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="CASE_ID@VERSION",
         help="Caller-supplied critical case reference; repeat for multiple cases.",
-    )
-    parser.add_argument(
-        "--synthetic",
-        action="store_true",
-        help="Use synthetic fixture mode (tests only; never production authority).",
-    )
-    parser.add_argument(
-        "--scenario",
-        default=None,
-        metavar="{pass,fail}",
-        help="Synthetic fixture scenario; requires --synthetic and is not a production input.",
     )
     parser.add_argument(
         "--report-json",
@@ -216,39 +188,14 @@ async def _run_persisted_gate(args: argparse.Namespace) -> int:
             args.project_id, args.baseline_run_id, args.candidate_run_id
         )
         report = RegressionReportService().build_report(comparison, _critical_case_refs(args.critical_case))
-        return finalize(args.report_json, report, scenario="real", synthetic=False)
-    finally:
-        if dispose_engine:
-            await engine.dispose()
-
-
-async def _run_synthetic_gate(args: argparse.Namespace) -> int:
-    """Run the legacy fixture only when explicitly requested by tests."""
-    # Avoid an incidental network fetch while importing the test-only demo.
-    os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
-    os.environ.setdefault("LITELLM_LOG", "ERROR")
-    from scripts.demo.closed_loop_demo import run_closed_loop_demo
-
-    engine, dispose_engine = _engine_for_dsn(_resolve_dsn(args.dsn))
-    try:
-        session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
-        uow_factory = partial(PostgresEvaluationPersistenceUnitOfWork, session_factory)
-        async with session_factory() as session:
-            result = await run_closed_loop_demo(session, uow_factory=uow_factory, scenario=args.scenario)
-        return finalize(args.report_json, result.report, scenario=result.scenario, synthetic=True)
+        return finalize(args.report_json, report)
     finally:
         if dispose_engine:
             await engine.dispose()
 
 
 async def _run_gate(args: argparse.Namespace) -> int:
-    """Dispatch canonical persisted mode or explicit test fixture mode."""
-    if args.synthetic:
-        if args.scenario not in SYNTHETIC_SCENARIOS:
-            raise ValueError("--synthetic requires --scenario pass or fail")
-        return await _run_synthetic_gate(args)
-    if args.scenario is not None:
-        raise ValueError("--scenario is only available with explicit --synthetic")
+    """Run the canonical persisted gate."""
     return await _run_persisted_gate(args)
 
 

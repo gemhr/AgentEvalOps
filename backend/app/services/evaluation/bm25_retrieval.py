@@ -42,6 +42,7 @@ async def execute_beir_scifact_bm25(
     project_id: UUID,
     asset: BeirScifactAsset,
     base_url: str,
+    bearer_token: str,
     document_projection: DocumentProjection,
     sparse_index_cache: Mapping[str, object],
 ) -> dict[str, object]:
@@ -52,6 +53,7 @@ async def execute_beir_scifact_bm25(
         project_id=project_id,
         asset=asset,
         base_url=base_url,
+        bearer_token=bearer_token,
         document_projection=document_projection,
         baseline_ref=BM25_SCIFACT_REF,
         run_metadata={**metadata, "sparse_index_cache": dict(sparse_index_cache)},
@@ -66,6 +68,7 @@ async def execute_synthetic_bm25(
     project_id: UUID,
     dataset: EvaluationDataset,
     base_url: str,
+    bearer_token: str,
 ) -> dict[str, object]:
     """复用现有 synthetic EvaluationLoop 执行 BM25 smoke/regression."""
     metadata = _contract_metadata()
@@ -74,6 +77,7 @@ async def execute_synthetic_bm25(
         project_id=project_id,
         dataset=dataset,
         base_url=base_url,
+        bearer_token=bearer_token,
         baseline_ref=BM25_SYNTHETIC_REF,
         run_metadata=metadata,
         report_metadata=metadata,

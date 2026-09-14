@@ -3,21 +3,13 @@
 from __future__ import annotations
 
 from app.adapters.evaluation.http_localagent import (
-    LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION,
     LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION,
     LOCALAGENT_HTTP_TARGET_ID,
     LOCALAGENT_HTTP_TARGET_KIND,
-    LOCALAGENT_HTTP_TARGET_VERSION,
     LocalAgentHttpExecutionTarget,
 )
 from app.core.evaluation.execution import ExecutionTarget, ExecutionTargetRef
 from app.registry.settings import settings
-
-_SUPPORTED_TARGET_VERSIONS = (
-    LOCALAGENT_HTTP_TARGET_VERSION,
-    LOCALAGENT_HTTP_EVALUATION_TARGET_VERSION,
-    LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION,
-)
 
 
 class LocalAgentHttpExecutionTargetResolver:
@@ -39,7 +31,7 @@ class LocalAgentHttpExecutionTargetResolver:
             raise ValueError(f"unsupported execution target kind: {target_ref.target_kind}")
         if target_ref.target_id != LOCALAGENT_HTTP_TARGET_ID:
             raise ValueError(f"unsupported execution target id: {target_ref.target_id}")
-        if target_ref.target_version_ref not in _SUPPORTED_TARGET_VERSIONS:
+        if target_ref.target_version_ref != LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION:
             raise ValueError(
                 f"unsupported LOCALAGENT_HTTP target version: {target_ref.target_version_ref}"
             )

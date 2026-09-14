@@ -124,6 +124,7 @@ async def execute_rag_quality_baseline(
     project_id: UUID,
     dataset: EvaluationDataset,
     base_url: str,
+    bearer_token: str,
     baseline_ref: str = "stage5-phase3-rag-quality-baseline.v1",
     run_metadata: Mapping[str, object] | None = None,
     report_metadata: Mapping[str, object] | None = None,
@@ -143,7 +144,7 @@ async def execute_rag_quality_baseline(
         timeout=timedelta(seconds=60),
         metadata={"baseline_ref": baseline_ref, **dict(run_metadata or {})},
     )
-    target = LocalAgentHttpExecutionTarget(target_ref, base_url)
+    target = LocalAgentHttpExecutionTarget(target_ref, base_url, bearer_token=bearer_token)
     loop = EvaluationLoopService(
         persistence,
         _FixedTargetResolver(target),

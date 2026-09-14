@@ -165,6 +165,7 @@ async def test_full_beir_scifact_baseline_real_execution(tmp_path: Path) -> None
             project_id=TEST_PROJECT_ID,
             asset=asset,
             base_url=base_url,
+            bearer_token="test-service-token",
             document_projection=projection,
             dense_index_cache={
                 "identity": cache_metadata["cache_key"],

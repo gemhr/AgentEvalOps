@@ -52,6 +52,7 @@ async def execute_beir_scifact_hybrid_rrf(
     project_id: UUID,
     asset: BeirScifactAsset,
     base_url: str,
+    bearer_token: str,
     document_projection: DocumentProjection,
     dense_index_cache: Mapping[str, object],
     sparse_index_cache: Mapping[str, object],
@@ -67,6 +68,7 @@ async def execute_beir_scifact_hybrid_rrf(
         project_id=project_id,
         asset=asset,
         base_url=base_url,
+        bearer_token=bearer_token,
         document_projection=document_projection,
         baseline_ref=HYBRID_SCIFACT_REF,
         run_metadata=metadata,
@@ -81,6 +83,7 @@ async def execute_synthetic_hybrid_rrf(
     project_id: UUID,
     dataset: EvaluationDataset,
     base_url: str,
+    bearer_token: str,
 ) -> dict[str, object]:
     """复用 frozen synthetic Dataset 与现有聚合器."""
     metadata = _contract_metadata()
@@ -89,6 +92,7 @@ async def execute_synthetic_hybrid_rrf(
         project_id=project_id,
         dataset=dataset,
         base_url=base_url,
+        bearer_token=bearer_token,
         baseline_ref=HYBRID_SYNTHETIC_REF,
         run_metadata=metadata,
         report_metadata=metadata,

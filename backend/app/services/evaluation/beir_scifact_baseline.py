@@ -141,6 +141,7 @@ async def execute_beir_scifact_baseline(
     project_id: UUID,
     asset: BeirScifactAsset,
     base_url: str,
+    bearer_token: str,
     document_projection: DocumentProjection,
     dense_index_cache: Mapping[str, object] | None = None,
     baseline_ref: str = BASELINE_REF,
@@ -170,7 +171,7 @@ async def execute_beir_scifact_baseline(
             **dict(run_metadata or {}),
         },
     )
-    target = LocalAgentHttpExecutionTarget(_target_ref(), base_url)
+    target = LocalAgentHttpExecutionTarget(_target_ref(), base_url, bearer_token=bearer_token)
     loop = EvaluationLoopService(
         persistence,
         _FixedTargetResolver(target),

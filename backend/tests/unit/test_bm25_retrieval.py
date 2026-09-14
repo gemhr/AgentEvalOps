@@ -94,6 +94,7 @@ async def test_bm25_wrappers_reuse_existing_runners(monkeypatch) -> None:
         project_id=uuid4(),
         asset=marker,
         base_url="http://localhost",
+        bearer_token="test-service-token",
         document_projection=marker,
         sparse_index_cache={"identity": "cache"},
     ) == {"kind": "scifact"}
@@ -102,6 +103,7 @@ async def test_bm25_wrappers_reuse_existing_runners(monkeypatch) -> None:
         project_id=uuid4(),
         dataset=marker,
         base_url="http://localhost",
+        bearer_token="test-service-token",
     ) == {"kind": "synthetic"}
     assert scifact.await_args.kwargs["baseline_ref"] == bm25_retrieval.BM25_SCIFACT_REF
     assert synthetic.await_args.kwargs["baseline_ref"] == bm25_retrieval.BM25_SYNTHETIC_REF

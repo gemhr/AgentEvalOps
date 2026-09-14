@@ -72,6 +72,7 @@ class ProductionLocalAgent:
     bearer_token: str = field(repr=False)
     provisioner: LocalAgentSubprocessProvisioner | None = None
     evidence: object | None = None
+    provider_state: _SequencedProviderState | None = None
 
 
 class _SequencedProviderState:
@@ -80,6 +81,26 @@ class _SequencedProviderState:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._run_index = 0
+        self._request_count = 0
+        self._all_requests_streaming = True
+
+    def record_request(self, payload: Mapping[str, object]) -> None:
+        """记录并约束当前 production adapter 的原生流式请求合同."""
+        with self._lock:
+            self._request_count += 1
+            self._all_requests_streaming = (
+                self._all_requests_streaming and payload.get("stream") is True
+            )
+
+    @property
+    def request_count(self) -> int:
+        with self._lock:
+            return self._request_count
+
+    @property
+    def all_requests_streaming(self) -> bool:
+        with self._lock:
+            return self._all_requests_streaming
 
     def response_for(self, messages: list[dict[str, object]]) -> str:
         system = "\n".join(
@@ -120,24 +141,41 @@ class _DeterministicProviderHandler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length", "0"))
         payload = json.loads(self.rfile.read(length))
+        self.server.state.record_request(payload)
+        if payload.get("stream") is not True:
+            self.send_error(422)
+            return
         messages = payload.get("messages")
         if not isinstance(messages, list):
             self.send_error(422)
             return
         content = self.server.state.response_for(messages)
-        body = json.dumps(
+        delta = json.dumps(
             {
                 "choices": [
                     {
                         "index": 0,
-                        "message": {"role": "assistant", "content": content},
+                        "delta": {"content": content},
+                        "finish_reason": None,
+                    }
+                ]
+            }
+        )
+        finish = json.dumps(
+            {
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {},
                         "finish_reason": "stop",
                     }
                 ]
             }
-        ).encode("utf-8")
+        )
+        body = f"data: {delta}\n\ndata: {finish}\n\ndata: [DONE]\n\n".encode("utf-8")
         self.send_response(200)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -151,14 +189,14 @@ class _DeterministicProviderServer(ThreadingHTTPServer):
 
 
 @pytest.fixture
-def deterministic_provider() -> str:
+def deterministic_provider() -> tuple[str, _SequencedProviderState]:
     """启动 bounded local model provider，供真实 LocalAgent remote adapter 调用."""
     server = _DeterministicProviderServer(("127.0.0.1", 0), _DeterministicProviderHandler)
     server.state = _SequencedProviderState()
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield f"http://127.0.0.1:{server.server_port}"
+        yield f"http://127.0.0.1:{server.server_port}", server.state
     finally:
         server.shutdown()
         server.server_close()
@@ -226,13 +264,14 @@ async def production_localagent(tmp_path: Path) -> ProductionLocalAgent:
 @pytest.fixture
 async def sequenced_production_localagent(
     tmp_path: Path,
-    deterministic_provider: str,
+    deterministic_provider: tuple[str, _SequencedProviderState],
     monkeypatch: pytest.MonkeyPatch,
 ) -> ProductionLocalAgent:
     """同一真实 remote-provider profile 下提供可比较的 good/good/bad runs."""
     if os.getenv("AGENTEVALOPS_RUN_LOCALAGENT_PRODUCTION_E2E", "") != "1":
         pytest.skip("set AGENTEVALOPS_RUN_LOCALAGENT_PRODUCTION_E2E=1 for production E2E")
     token = _required("LOCALAGENT_E2E_SERVICE_TOKEN")
+    provider_url, provider_state = deterministic_provider
     monkeypatch.delenv("LOCAL_AGENT_RUNTIME_PROFILE", raising=False)
     monkeypatch.delenv("LOCAL_AGENT_EVALUATION_MODE", raising=False)
     localagent_repo = Path(os.getenv("LOCALAGENT_E2E_REPO", r"D:\PythonProject\Local_Agent")).resolve()
@@ -250,7 +289,7 @@ async def sequenced_production_localagent(
             "LOCAL_AGENT_JWT_PUBLIC_KEY": _required("LOCALAGENT_E2E_JWT_PUBLIC_KEY"),
             "LOCAL_AGENT_LLM_BACKEND": "remote",
             "LOCAL_AGENT_REMOTE_PROVIDER_KIND": "openai_compatible",
-            "LOCAL_AGENT_REMOTE_API_BASE_URL": deterministic_provider,
+            "LOCAL_AGENT_REMOTE_API_BASE_URL": provider_url,
             "LOCAL_AGENT_REMOTE_MODEL_NAME": "wp3-deterministic-provider-v1",
             "LOCAL_AGENT_REMOTE_CONTEXT_WINDOW": "8192",
             "LOCAL_AGENT_MODEL_MAX_TOKENS": "512",
@@ -265,7 +304,13 @@ async def sequenced_production_localagent(
     evidence = await provisioner.provision(SimpleNamespace(scenario_id="wp3-real-candidate-gate"))
     assert evidence.localagent_base_url is not None
     try:
-        yield ProductionLocalAgent(evidence.localagent_base_url, token, provisioner, evidence)
+        yield ProductionLocalAgent(
+            evidence.localagent_base_url,
+            token,
+            provisioner,
+            evidence,
+            provider_state,
+        )
     finally:
         await provisioner.cleanup(evidence, preserve=False)
 
@@ -711,6 +756,9 @@ async def test_real_known_bad_candidate_fails_canonical_gate(
     assert good_payload["release_decision"] == "PASS"
     assert bad_payload["release_decision"] == "FAIL"
     assert bad_payload["comparison_counts"]["regressions"] == 1
+    assert sequenced_production_localagent.provider_state is not None
+    assert sequenced_production_localagent.provider_state.request_count > 0
+    assert sequenced_production_localagent.provider_state.all_requests_streaming
 
 
 def test_validate_pair_identities_rejects_source_manifest_mismatch() -> None:

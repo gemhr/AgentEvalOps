@@ -199,6 +199,7 @@ async def test_hybrid_rrf_scifact_and_synthetic_real_execution(tmp_path: Path) -
             project_id=TEST_PROJECT_ID,
             dataset=load_dataset(dataset_path),
             base_url=hybrid_url,
+            bearer_token="test-service-token",
         )
 
     current = json.loads(

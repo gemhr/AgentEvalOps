@@ -47,6 +47,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-id", type=UUID, required=True)
     parser.add_argument("--ce-base-url", required=True)
     parser.add_argument("--synthetic-base-url", required=True)
+    parser.add_argument("--localagent-bearer-token", required=True)
     parser.add_argument("--beir-dataset-root", type=Path, required=True)
     parser.add_argument("--dense-manifest", type=Path, required=True)
     parser.add_argument("--dense-cache-metadata", type=Path, required=True)
@@ -157,6 +158,7 @@ async def _run(args) -> tuple[dict, dict, dict, dict, dict, dict, dict]:
         project_id=args.project_id,
         asset=load_beir_scifact_asset(args.beir_dataset_root),
         base_url=args.ce_base_url,
+        bearer_token=args.localagent_bearer_token,
         document_projection=projection,
         dense_index_cache={"identity": _cache(args.dense_cache_metadata)["cache_key"], "status": "CACHE_HIT"},
         sparse_index_cache={"identity": _cache(args.sparse_cache_metadata)["cache_key"], "status": "CACHE_HIT"},
@@ -166,6 +168,7 @@ async def _run(args) -> tuple[dict, dict, dict, dict, dict, dict, dict]:
         project_id=args.project_id,
         dataset=load_dataset(args.synthetic_dataset),
         base_url=args.synthetic_base_url,
+        bearer_token=args.localagent_bearer_token,
     )
     rrf_report = json.loads(args.rrf_report.read_text(encoding="utf-8"))
     rrf_synthetic = json.loads(args.rrf_synthetic_report.read_text(encoding="utf-8"))

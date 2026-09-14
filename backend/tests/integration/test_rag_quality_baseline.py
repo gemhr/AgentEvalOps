@@ -129,6 +129,7 @@ async def test_full_rag_quality_baseline_real_execution(tmp_path: Path) -> None:
             project_id=TEST_PROJECT_ID,
             dataset=dataset,
             base_url=base_url,
+            bearer_token="test-service-token",
         )
 
     manifest_identity = [
@@ -158,6 +159,7 @@ async def test_full_rag_quality_baseline_real_execution(tmp_path: Path) -> None:
             project_id=TEST_PROJECT_ID,
             dataset=dataset,
             base_url=base_url,
+            bearer_token="test-service-token",
         )
     rebuilt_identity = [
         (item["document_id"], item["chunk_id"], item["content_hash"])

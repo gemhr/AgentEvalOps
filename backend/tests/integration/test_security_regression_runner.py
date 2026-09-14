@@ -632,7 +632,7 @@ class LocalAgentResolver:
         self.targets: list[LocalAgentHttpExecutionTarget] = []
 
     def resolve(self, target_ref):
-        target = LocalAgentHttpExecutionTarget(target_ref, self.base_url)
+        target = LocalAgentHttpExecutionTarget(target_ref, self.base_url, bearer_token="test-service-token")
         self.targets.append(target)
         return target
 

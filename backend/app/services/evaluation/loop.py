@@ -159,7 +159,7 @@ def _validate_run_target_view(authoritative: ExecutionTargetRef, persisted: Exec
         or persisted.target_kind != authoritative.target_kind
         or persisted.target_version_ref != authoritative.target_version_ref
         or persisted.capabilities != authoritative.capabilities
-        or persisted.config_ref is not None
+        or (persisted.config_ref is not None and persisted.config_ref != authoritative.config_ref)
     ):
         raise EvaluationLoopContractError("persisted run execution target view mismatch")
 
@@ -188,6 +188,7 @@ def _evaluator_spec(value: object) -> EvaluatorSpec:
         field_name="evaluator",
         keys=frozenset(
             {
+                "result_schema_ref", "comparison_semantics", "required_artifact_kinds", "required_evidence_kinds",
                 "evaluator_id",
                 "evaluator_version",
                 "evaluator_kind",
@@ -220,6 +221,10 @@ def _evaluator_spec(value: object) -> EvaluatorSpec:
             comparison_tolerance=item["comparison_tolerance"],
             prompt_ref=_version(item["prompt_ref"], field_name="evaluator prompt"),
             required=item["required"],
+            result_schema_ref=_version(item["result_schema_ref"], field_name="result schema", required=True),
+            comparison_semantics=_text(item["comparison_semantics"], field_name="comparison semantics"),
+            required_artifact_kinds=tuple(item["required_artifact_kinds"]),
+            required_evidence_kinds=tuple(item["required_evidence_kinds"]),
         )
     except (TypeError, ValueError) as exc:
         raise EvaluationLoopContractError("invalid persisted evaluator snapshot") from exc
@@ -554,8 +559,11 @@ class EvaluationLoopService:
             raise EvaluationLoopContractError("run/attempt ownership mismatch")
         if attempt.case_ref != _test_case_ref(test_case):
             raise EvaluationLoopContractError("caller TestCase identity mismatch")
-        if attempt.execution_request.input_payload != test_case.input_payload:
-            raise EvaluationLoopContractError("caller TestCase input mismatch")
+        persisted_case = _case_from_attempt_snapshot(attempt)
+        if persisted_case.semantic_digest != test_case.semantic_digest:
+            raise EvaluationLoopContractError("caller TestCase semantic content mismatch")
+        if attempt.execution_request.input_payload != persisted_case.input_payload:
+            raise EvaluationLoopContractError("persisted TestCase input does not match execution request")
         authoritative_target = _target_ref(run.execution_target_snapshot)
         _validate_run_target_view(authoritative_target, run.execution_target_ref)
         _validate_attempt_target_view(authoritative_target, attempt.execution_target_ref)
@@ -566,6 +574,10 @@ class EvaluationLoopService:
         specs, policy = _suite(run.suite_snapshot)
         evaluators: list[ResolvedEvaluator] = []
         for spec in specs:
+            if spec.result_schema_ref != VersionRef("evaluation_result", "v1") or (
+                spec.comparison_semantics != "verdict_transition.v1"
+            ):
+                raise EvaluationLoopContractError("unsupported evaluator result schema or comparison semantics")
             binding = self._evaluator_resolver.resolve(spec)
             if (binding.evaluator_id, binding.evaluator_version) != (spec.evaluator_id, spec.evaluator_version):
                 raise EvaluationLoopContractError("resolved evaluator identity mismatch")
@@ -580,6 +592,17 @@ class EvaluationLoopService:
         judge_model: JudgeModelPort | None,
     ) -> EvaluationResultDraft:
         try:
+            if not set(spec.required_evidence_kinds).issubset({ref.kind for ref in input_value.evidence_refs}) or (
+                spec.required_artifact_kinds and (
+                    input_value.actual_artifact is None
+                    or input_value.actual_artifact.media_type not in spec.required_artifact_kinds
+                )
+            ):
+                return EvaluationResultDraft(
+                    evaluator_id=spec.evaluator_id, evaluator_version=spec.evaluator_version,
+                    config_ref=spec.config_ref, prompt_ref=spec.prompt_ref, verdict=EvaluationVerdict.ERROR,
+                    reason="required_evaluator_input_missing", metadata={"source_status": "REQUIRED_EVIDENCE_MISSING"},
+                )
             draft = await evaluator.evaluate(input_value, EvaluatorContext(spec, judge_model=judge_model))
         except Exception as exc:
             draft = EvaluationResultDraft(

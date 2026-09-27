@@ -22,6 +22,7 @@ from app.core.evaluation.document_metrics import (
 from app.core.evaluation.evaluators import EvaluationInput, EvaluatorContext
 from app.core.evaluation.rag_artifact import RAG_ARTIFACT_EVIDENCE_KIND, RagEvaluationArtifactV1
 from app.core.evaluation.ranking_metrics import calculate_ndcg_at_k
+from app.core.evaluation.references import VersionRef
 from app.core.evaluation.results import EvaluationResultDraft, EvaluationVerdict
 from app.core.evaluation.retrieval_metrics import calculate_mrr, calculate_recall_at_k
 from app.services.evaluation.loop import ResolvedEvaluator
@@ -234,6 +235,10 @@ class RagMetricEvaluatorResolver:
 
     def resolve(self, spec: EvaluatorSpec) -> ResolvedEvaluator:
         """把 suite spec 解析为对应的 deterministic evaluator."""
+        if spec.result_schema_ref != VersionRef("evaluation_result", "v1") or spec.comparison_semantics != "verdict_transition.v1":
+            raise ValueError("unsupported evaluator result schema or comparison semantics")
+        if RAG_ARTIFACT_EVIDENCE_KIND not in spec.required_evidence_kinds:
+            raise ValueError("evaluator descriptor omits required RAG artifact evidence")
         reverse_recall = {value: key for key, value in RECALL_IDS.items()}
         reverse_ndcg = {value: key for key, value in NDCG_IDS.items()}
         reverse_document_recall = {value: key for key, value in DOCUMENT_RECALL_IDS.items()}

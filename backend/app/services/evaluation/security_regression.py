@@ -251,6 +251,7 @@ class SecurityRegressionService:
         lease: timedelta,
         worker_ref: str | None = None,
         task_ref: str | None = None,
+        subject_ref: object | None = None,
     ) -> SecurityRunExecutionReceipt:
         """经既有 ``EvaluationLoopService`` 逐 attempt 执行；单 case 失败不中断 batch。"""
         run, attempts = await self._persistence.create_run(
@@ -260,6 +261,7 @@ class SecurityRegressionService:
             cases=dict(plan.cases),
             target=plan.target_ref,
             timeout=plan.timeout,
+            subject_ref=subject_ref,
         )
         loop = EvaluationLoopService(self._persistence, target_resolver, evaluator_resolver)
         records: list[SecurityAttemptRecord] = []

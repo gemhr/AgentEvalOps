@@ -5,7 +5,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+import hashlib
+import json
 from datetime import datetime
 from types import MappingProxyType
 
@@ -16,7 +18,7 @@ from app.core.evaluation.execution import (
     ExecutionTargetRef,
     OutcomeKind,
 )
-from app.core.evaluation.immutable import FrozenDict
+from app.core.evaluation.immutable import FrozenDict, json_compatible
 from app.core.evaluation.references import ArtifactRef, CaseVersionRef, EvidenceRef, freeze_metadata
 
 
@@ -68,6 +70,30 @@ class FixtureExecutionTarget:
     def target_ref(self) -> ExecutionTargetRef:
         """返回不可变 Target snapshot。"""
         return self._target_ref
+
+    @property
+    def subject_ref(self) -> dict[str, object]:
+        """创建 Run 时冻结实际 fixture 模板内容身份，排除执行时钟。"""
+        templates = []
+        for ref, fixture in sorted(self._fixtures.items()):
+            artifact = fixture.output_artifact_ref
+            content = {
+                "kind": fixture.kind.value,
+                "output_artifact_ref": None if artifact is None else {
+                    item.name: json_compatible(getattr(artifact, item.name)) for item in fields(artifact)
+                },
+                "evidence_refs": [
+                    {item.name: json_compatible(getattr(ref, item.name)) for item in fields(ref)}
+                    for ref in fixture.evidence_refs
+                ],
+                "error_category": fixture.error_category,
+                "reason": fixture.reason,
+                "metadata": json_compatible(fixture.metadata),
+            }
+            templates.append({"case_id": ref.case_id, "version": ref.version, "content": json_compatible(content)})
+        encoded = json.dumps(templates, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        return {"fixture_target_identity": self._target_ref.target_id,
+                "fixture_content_identity": "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()}
 
     async def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
         """确定性地把 Case 映射为预配置 terminal outcome。"""

@@ -4,12 +4,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 
-from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue, JsonValue, freeze_json, require_text
+from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue, JsonValue, freeze_json, json_compatible, require_text
 from app.core.evaluation.references import (
     ArtifactRef,
     CapabilityRequirement,
@@ -109,6 +111,32 @@ class TestCaseVersion:
         object.__setattr__(self, "tags", _freeze_unique_strings(self.tags, "tag"))
         object.__setattr__(self, "metadata", freeze_metadata(self.metadata))
 
+    @property
+    def semantic_digest(self) -> str:
+        """Evaluator 可消费内容的稳定 SHA-256 identity。"""
+        semantic = {
+            "input_payload": json_compatible(self.input_payload),
+            "expected_output": json_compatible(self.expected_output),
+            "assertion_specs": [
+                {"assertion_id": item.assertion_id, "kind": item.kind,
+                 "config": json_compatible(item.config), "required": item.required}
+                for item in self.assertion_specs
+            ],
+            "fixture_refs": [
+                {"artifact_id": item.artifact_id, "digest": item.digest,
+                 "media_type": item.media_type, "metadata": json_compatible(item.metadata)}
+                for item in self.fixture_refs
+            ],
+            "evidence_refs": [
+                {"kind": item.kind, "identifier": item.identifier, "media_type": item.media_type,
+                 "schema_version": item.schema_version, "metadata": json_compatible(item.metadata)}
+                for item in self.evidence_refs
+            ],
+            "metadata": json_compatible(self.metadata),
+        }
+        encoded = json.dumps(semantic, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
 
 class EvaluatorKind(StrEnum):
     """Evaluator 的最小稳定类别。"""
@@ -140,9 +168,20 @@ class EvaluatorSpec:
     comparison_tolerance: float | None = field(default=None, compare=False)
     prompt_ref: VersionRef | None = field(default=None, compare=False)
     required: bool = field(default=True, compare=False)
+    result_schema_ref: VersionRef = field(default=VersionRef("evaluation_result", "v1"), compare=False)
+    comparison_semantics: str = field(default="verdict_transition.v1", compare=False)
+    required_artifact_kinds: tuple[str, ...] = field(default=(), compare=False)
+    required_evidence_kinds: tuple[str, ...] = field(default=(), compare=False)
 
     def __post_init__(self) -> None:
         require_text(self.evaluator_id, "evaluator_id")
+        if not isinstance(self.result_schema_ref, VersionRef):
+            raise TypeError("result_schema_ref must be VersionRef")
+        require_text(self.comparison_semantics, "comparison_semantics")
+        object.__setattr__(self, "required_artifact_kinds", _freeze_unique_strings(
+            self.required_artifact_kinds, "required_artifact_kind"))
+        object.__setattr__(self, "required_evidence_kinds", _freeze_unique_strings(
+            self.required_evidence_kinds, "required_evidence_kind"))
         require_text(self.evaluator_version, "evaluator_version")
         if not isinstance(self.evaluator_kind, EvaluatorKind):
             raise ValueError("unknown evaluator_kind")
@@ -163,6 +202,31 @@ class EvaluatorSpec:
         if self.comparison_tolerance is not None:
             if not math.isfinite(self.comparison_tolerance) or self.comparison_tolerance < 0:
                 raise ValueError("comparison_tolerance must be finite and non-negative")
+
+    @property
+    def definition_digest(self) -> str:
+        """评分规则与输出语义字段的稳定 SHA-256 identity。"""
+        semantic = {
+            "evaluator_id": self.evaluator_id,
+            "evaluator_version": self.evaluator_version,
+            "evaluator_kind": self.evaluator_kind.value,
+            "config_ref": {"kind": self.config_ref.kind, "opaque_value": self.config_ref.opaque_value},
+            "config_snapshot": json_compatible(self.config_snapshot),
+            "threshold": self.threshold,
+            "score_direction": self.score_direction.value,
+            "score_range": self.score_range,
+            "comparison_tolerance": self.comparison_tolerance,
+            "prompt_ref": None if self.prompt_ref is None else {
+                "kind": self.prompt_ref.kind, "opaque_value": self.prompt_ref.opaque_value
+            },
+            "required": self.required,
+            "result_schema_ref": {"kind": self.result_schema_ref.kind, "opaque_value": self.result_schema_ref.opaque_value},
+            "comparison_semantics": self.comparison_semantics,
+            "required_artifact_kinds": self.required_artifact_kinds,
+            "required_evidence_kinds": self.required_evidence_kinds,
+        }
+        encoded = json.dumps(semantic, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 class PolicyDisposition(StrEnum):

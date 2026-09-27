@@ -4,7 +4,12 @@
 
 from __future__ import annotations
 
-from app.core.evaluation.comparison import EvaluationRunComparison, RegressionClassification
+from app.core.evaluation.comparison import (
+    AttemptAvailability,
+    ComparisonCompatibility,
+    EvaluationRunComparison,
+    RegressionClassification,
+)
 from app.core.evaluation.references import CaseVersionRef
 from app.core.evaluation.report import RegressionReport, RegressionReportContractError, ReleaseDecision
 
@@ -33,13 +38,44 @@ class RegressionReportService:
             item
             for item in comparisons
             if item.classification is RegressionClassification.REGRESSION
-            and (item.case_id, item.case_version) in critical
+            and bool(self._case_refs(item) & critical)
         )
         critical_not_comparable = tuple(
             item
             for item in comparisons
             if item.classification is RegressionClassification.NOT_COMPARABLE
-            and (item.case_id, item.case_version) in critical
+            and bool(self._case_refs(item) & critical)
+        )
+        incomplete_required_evidence = tuple(
+            item for item in comparisons
+            if item.candidate_required and (
+                item.candidate_attempt_outcome in {
+                    AttemptAvailability.MISSING,
+                    AttemptAvailability.FAILURE,
+                    AttemptAvailability.TIMEOUT,
+                    AttemptAvailability.CANCELLED,
+                    AttemptAvailability.OUTCOME_UNKNOWN,
+                }
+                or item.candidate_result_id is None
+                or any(code in item.reason_codes for code in (
+                    "EVALUATOR_ERROR", "EVALUATOR_INCONCLUSIVE", "INCONCLUSIVE_RESULT",
+                    "LEGACY_INSUFFICIENT_PROVENANCE", "INSUFFICIENT_SUBJECT_PROVENANCE",
+                    "INSUFFICIENT_EVALUATOR_PROVENANCE", "REQUIRED_EVIDENCE_MISSING",
+                    "JUDGE_BINDING_CHANGED",
+                ))
+                or item.compatibility is ComparisonCompatibility.INCOMPARABLE
+                and "TARGET_BINDING_DRIFT" in item.reason_codes
+                or (
+                    item.compatibility is ComparisonCompatibility.CONDITIONALLY_COMPARABLE
+                    and not (
+                        set(item.reason_codes)
+                        & {
+                            "CASE_VERSION_LABEL_DRIFT", "TARGET_BINDING_DRIFT", "SUBJECT_BINDING_DRIFT",
+                            "MODEL_REVISION_UNVERIFIABLE",
+                        }
+                    ).issubset(set(comparison.accepted_conditional_reasons))
+                )
+            )
         )
         total_count = len(comparisons)
         regression_count = len(regressions)
@@ -54,7 +90,8 @@ class RegressionReportService:
         )
         decision = (
             ReleaseDecision.FAIL
-            if critical_regressions or critical_not_comparable
+            if (not comparisons or not any(item.candidate_required for item in comparisons)
+                or critical_regressions or critical_not_comparable or incomplete_required_evidence)
             else ReleaseDecision.PASS
         )
         return RegressionReport(
@@ -74,7 +111,21 @@ class RegressionReportService:
             critical_regressions=critical_regressions,
             critical_not_comparable=critical_not_comparable,
             release_decision=decision,
+            comparison_contract_version=comparison.comparison_contract_version,
+            comparison_digest=comparison.semantic_digest,
+            baseline_reference=comparison.baseline_reference,
+            candidate_reference=comparison.candidate_reference,
+            incomplete_required_evidence=incomplete_required_evidence,
+            accepted_conditional_reasons=comparison.accepted_conditional_reasons,
+            computed_at=comparison.computed_at,
         )
+
+    @staticmethod
+    def _case_refs(item) -> set[tuple[str, str]]:
+        versions = (item.baseline_case_version, item.candidate_case_version)
+        return {(item.case_id, version) for version in versions if version is not None} or {
+            (item.case_id, item.case_version)
+        }
 
     @staticmethod
     def _validate_critical_refs(
@@ -93,7 +144,7 @@ class RegressionReportService:
                     "critical case refs are outside the empty comparison universe"
                 )
             return canonical
-        universe = {(item.case_id, item.case_version) for item in comparison.comparisons}
+        universe = set().union(*(RegressionReportService._case_refs(item) for item in comparison.comparisons))
         for ref in canonical:
             if (ref.case_id, ref.version) not in universe:
                 raise RegressionReportContractError(

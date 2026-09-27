@@ -313,7 +313,10 @@ class LiteLLMJudgeModel(JudgeModelPort):
             payload = json.loads(raw)
         except json.JSONDecodeError as exc:
             raise JudgeMalformedStructuredOutput() from exc
-        return JudgeModelResponse(payload=payload, model_ref=VersionRef("llm_model", model))
+        actual_model = getattr(response, "model", None)
+        if not isinstance(actual_model, str) or not actual_model.strip():
+            raise JudgeMalformedStructuredOutput()
+        return JudgeModelResponse(payload=payload, model_ref=VersionRef("llm_model", actual_model))
 
     @staticmethod
     def _config(config: FrozenJsonValue) -> tuple[str, float, str | None]:
@@ -402,6 +405,10 @@ class GenerationJudgeEvaluatorResolver:
         self._security = PromptInjectionSecurityEvaluator()
 
     def resolve(self, spec) -> ResolvedEvaluator:
+        if spec.result_schema_ref != VersionRef("evaluation_result", "v1") or spec.comparison_semantics != "verdict_transition.v1":
+            raise ValueError("unsupported evaluator result schema or comparison semantics")
+        if spec.evaluator_version != "v1":
+            raise ValueError(f"unsupported generation judge evaluator version: {spec.evaluator_version}")
         if spec.evaluator_id == GENERATION_CORRECTNESS:
             evaluator = self._correctness
         elif spec.evaluator_id == GENERATION_FAITHFULNESS:
@@ -410,6 +417,11 @@ class GenerationJudgeEvaluatorResolver:
             evaluator = self._security
         else:
             raise ValueError(f"unsupported generation judge evaluator: {spec.evaluator_id}")
+        required_kinds = {"final_answer"}
+        if spec.evaluator_id == GENERATION_FAITHFULNESS:
+            required_kinds.add("rag_evaluation_artifact")
+        if not required_kinds.issubset(spec.required_evidence_kinds):
+            raise ValueError("evaluator descriptor omits required input evidence kinds")
         return ResolvedEvaluator(spec.evaluator_id, spec.evaluator_version, evaluator, self._judge_model)
 
 

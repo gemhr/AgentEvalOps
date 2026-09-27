@@ -8,6 +8,7 @@ feedback fails closed; existing DatasetVersion stays immutable (NEW_VERSION).
 
 # ruff: noqa: D101, D102, D105, D415
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
@@ -41,6 +42,7 @@ from app.infrastructure.db.repositories.evaluation_persistence_repo import Postg
 from app.infrastructure.db.repositories.trace_repo import TraceRepository
 from app.registry.constants import SpanKind, SpanStatusCode, TraceStatus
 from app.services.evaluation import (
+    EvaluationLoopContractError,
     EvaluationLoopResult,
     EvaluationLoopService,
     EvaluationPersistenceService,
@@ -218,6 +220,13 @@ async def test_feedback_to_evaluation_result_preserves_trace_evidence(db_session
         TargetResolver(target),
         EvaluatorResolver(SimpleEvaluator(spec)),
     )
+    with pytest.raises(EvaluationLoopContractError, match="semantic content mismatch"):
+        await loop.execute_attempt(
+            TEST_PROJECT_ID,
+            attempt.attempt_id,
+            replace(test_case, expected_output={"answer": "caller override"}),
+            lease=timedelta(minutes=5),
+        )
     assert (
         await loop.execute_attempt(TEST_PROJECT_ID, attempt.attempt_id, test_case, lease=timedelta(minutes=5))
         is EvaluationLoopResult.PROGRESSED

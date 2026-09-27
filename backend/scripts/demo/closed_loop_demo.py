@@ -464,12 +464,15 @@ async def run_closed_loop_demo(
 
     persistence = EvaluationPersistenceService(uow_factory)
     suite = _suite(scenario, now=now)
+    baseline_target = FixtureExecutionTarget(TARGET_REF, _fixture_map("baseline", suite.case_selection))
+    candidate_target = FixtureExecutionTarget(TARGET_REF, _fixture_map("candidate", suite.case_selection))
     baseline_run, baseline_attempts = await persistence.create_run(
         project_id=project_id,
         dataset=dataset,
         suite=suite,
         cases=cases,
         target=TARGET_REF,
+        subject_ref=baseline_target.subject_ref,
         timeout=timedelta(seconds=30),
     )
     candidate_run, candidate_attempts = await persistence.create_run(
@@ -478,12 +481,11 @@ async def run_closed_loop_demo(
         suite=suite,
         cases=cases,
         target=TARGET_REF,
+        subject_ref=candidate_target.subject_ref,
         timeout=timedelta(seconds=30),
     )
 
     evaluator = DemoQualityEvaluator(EVALUATOR_SPEC, _verdict_tables(scenario))
-    baseline_target = FixtureExecutionTarget(TARGET_REF, _fixture_map("baseline", suite.case_selection))
-    candidate_target = FixtureExecutionTarget(TARGET_REF, _fixture_map("candidate", suite.case_selection))
     baseline_loop = EvaluationLoopService(
         persistence, DemoTargetResolver(baseline_target), DemoEvaluatorResolver(evaluator)
     )
@@ -499,7 +501,8 @@ async def run_closed_loop_demo(
     )
 
     comparison = await EvaluationComparisonService(persistence).compare_runs(
-        project_id, baseline_run.run_id, candidate_run.run_id
+        project_id, baseline_run.run_id, candidate_run.run_id,
+        accepted_conditional_reason_codes=("SUBJECT_BINDING_DRIFT",),
     )
     report = RegressionReportService().build_report(comparison, critical_case_refs=(CASE_REFS[CASE_TOOL_CONTRACT],))
     return DemoResult(

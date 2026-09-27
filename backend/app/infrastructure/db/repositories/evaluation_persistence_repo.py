@@ -70,12 +70,22 @@ def _version(kind: str | None, value: str | None) -> VersionRef | None:
 
 
 def _target(row: ExecutionAttemptModel | EvaluationRunModel) -> ExecutionTargetRef:
+    config_ref = (
+        row.execution_target_snapshot.get("config_ref")
+        if isinstance(row, EvaluationRunModel) else None
+    )
     return ExecutionTargetRef(
         target_id=row.execution_target_id,
         target_kind=row.execution_target_kind,
         target_version_ref=_version(row.target_version_kind, row.target_version_value),
         capabilities=tuple(row.execution_target_snapshot.get("capabilities", ())) if isinstance(row, EvaluationRunModel) else (),
-        config_ref=None if isinstance(row, EvaluationRunModel) else _version(row.target_config_kind, row.target_config_value),
+        config_ref=(
+            VersionRef(str(config_ref["kind"]), str(config_ref["opaque_value"]))
+            if isinstance(config_ref, Mapping) and isinstance(config_ref.get("kind"), str)
+            and isinstance(config_ref.get("opaque_value"), str)
+            else None if isinstance(row, EvaluationRunModel)
+            else _version(row.target_config_kind, row.target_config_value)
+        ),
     )
 
 

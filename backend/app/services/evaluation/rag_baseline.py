@@ -76,6 +76,7 @@ def _spec(evaluator_id: str, config: Mapping[str, object]) -> EvaluatorSpec:
         score_direction=ScoreDirection.HIGHER_IS_BETTER,
         config_snapshot=dict(config),
         score_range=(0.0, 1.0),
+        required_evidence_kinds=("rag_evaluation_artifact",),
     )
 
 

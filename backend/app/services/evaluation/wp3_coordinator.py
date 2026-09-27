@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 from app.adapters.evaluation.rag_metrics import RagMetricEvaluatorResolver
-from app.core.evaluation.comparison import RunsNotComparable
+from app.core.evaluation.comparison import RegressionClassification, RunsNotComparable
 from app.core.evaluation.dataset import EvaluationDataset
 from app.core.evaluation.dataset_bridge import bridge_dataset_to_catalog
 from app.core.evaluation.execution import ExecutionTarget, ExecutionTargetRef
@@ -28,7 +28,6 @@ from app.core.evaluation.wp3_candidate_gate import (
     WP3RunSummary,
     WP3_METRICS,
     WP3_TOTAL_CASE_COUNT,
-    classify_case,
     evaluate_candidate_gate,
     metrics_for_artifact,
     validate_pair_identities,
@@ -662,6 +661,7 @@ class WP3PairedCoordinator:
             isolation_valid = False
         if not candidate_receipt.shutdown_clean or not candidate_receipt.port_released:
             isolation_valid = False
+        comparison = None
         if self._comparison is not None and self._project_id is not None:
             try:
                 comparison = await self._comparison.compare_runs(
@@ -673,7 +673,13 @@ class WP3PairedCoordinator:
                     self._report.build_report(comparison, ())
             except RunsNotComparable:
                 pair_valid = False
-        counts, pair_valid = self._classify(baseline_receipt.cases, candidate_receipt.cases, pair_valid)
+        else:
+            pair_valid = False
+        if comparison is None:
+            counts = {item: 0 for item in WP3CaseClassification}
+            counts[WP3CaseClassification.NOT_COMPARABLE] = WP3_TOTAL_CASE_COUNT
+        else:
+            counts = self._canonical_classification_counts(comparison)
         experiment_valid = (
             pair_valid
             and provenance_valid
@@ -709,40 +715,25 @@ class WP3PairedCoordinator:
             )
         )
 
-    def _classify(
-        self,
-        baseline_cases: Sequence[WP3CaseObservation],
-        candidate_cases: Sequence[WP3CaseObservation],
-        pair_valid: bool,
-    ) -> tuple[dict[WP3CaseClassification, int], bool]:
+    @staticmethod
+    def _canonical_classification_counts(comparison) -> dict[WP3CaseClassification, int]:
+        """Aggregate per-case counts from canonical Comparison rows only."""
         counts = {item: 0 for item in WP3CaseClassification}
-        dataset_cases = {} if self._dataset is None else {item.case_id: item for item in self._dataset.cases}
-        baseline_map = {case.case_id: case for case in baseline_cases}
-        candidate_map = {case.case_id: case for case in candidate_cases}
-        for case_id in sorted(set(baseline_map) | set(candidate_map)):
-            left = baseline_map.get(case_id)
-            right = candidate_map.get(case_id)
-            if left is None or right is None:
+        rows_by_case: dict[str, list[object]] = {}
+        for row in comparison.comparisons:
+            rows_by_case.setdefault(row.case_id, []).append(row)
+        for rows in rows_by_case.values():
+            classifications = {row.classification for row in rows}
+            if RegressionClassification.NOT_COMPARABLE in classifications:
                 counts[WP3CaseClassification.NOT_COMPARABLE] += 1
-                continue
-            if left.metrics is None and right.metrics is None:
-                continue
-            if left.metrics is None or right.metrics is None or left.artifact is None or right.artifact is None:
-                counts[WP3CaseClassification.NOT_COMPARABLE] += 1
-                continue
-            if (
-                not left.identity_sha256
-                or not right.identity_sha256
-                or left.identity_sha256 != right.identity_sha256
-                or left.rewrite_fixture_id != right.rewrite_fixture_id
-                or left.generation_id != right.generation_id
-            ):
-                counts[WP3CaseClassification.NOT_COMPARABLE] += 1
-                pair_valid = False
-                continue
-            case = dataset_cases.get(case_id)
-            counts[classify_case(left.metrics, right.metrics, case=case, baseline_artifact=left.artifact, candidate_artifact=right.artifact)] += 1
-        return counts, pair_valid
+            elif RegressionClassification.REGRESSION in classifications:
+                counts[WP3CaseClassification.REGRESSION] += 1
+            elif RegressionClassification.IMPROVEMENT in classifications:
+                counts[WP3CaseClassification.IMPROVEMENT] += 1
+            else:
+                counts[WP3CaseClassification.UNCHANGED] += 1
+        counts[WP3CaseClassification.NOT_COMPARABLE] += max(WP3_TOTAL_CASE_COUNT - len(rows_by_case), 0)
+        return counts
 
     def _finish(self, result: WP3PairResult, *, error: Exception | None = None) -> WP3PairResult:
         if self.output_path is not None:

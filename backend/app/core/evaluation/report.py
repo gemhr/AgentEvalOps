@@ -4,11 +4,18 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from dataclasses import dataclass
 from enum import StrEnum
 from uuid import UUID
 
-from app.core.evaluation.comparison import AlignedResultComparison, RunComparisonProvenance
+from app.core.evaluation.comparison import (
+    AlignedResultComparison,
+    AttemptAvailability,
+    ComparisonCompatibility,
+    EvaluationRunReference,
+    RunComparisonProvenance,
+)
 from app.core.evaluation.references import CaseVersionRef
 
 
@@ -47,6 +54,13 @@ class RegressionReport:
     critical_regressions: tuple[AlignedResultComparison, ...]
     critical_not_comparable: tuple[AlignedResultComparison, ...]
     release_decision: ReleaseDecision
+    comparison_contract_version: str = "stage11.wp3.v1"
+    comparison_digest: str = ""
+    baseline_reference: EvaluationRunReference | None = None
+    candidate_reference: EvaluationRunReference | None = None
+    incomplete_required_evidence: tuple[AlignedResultComparison, ...] = ()
+    accepted_conditional_reasons: tuple[str, ...] = ()
+    computed_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.release_decision, ReleaseDecision):

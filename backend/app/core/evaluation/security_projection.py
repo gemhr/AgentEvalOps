@@ -27,7 +27,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 from uuid import UUID
 
-from app.core.evaluation.comparison import AlignedResultComparison, EvaluationRunComparison
+from app.core.evaluation.comparison import (
+    AlignedResultComparison,
+    ComparisonReason,
+    EvaluationRunComparison,
+    RegressionClassification,
+)
 from app.core.evaluation.immutable import require_text
 from app.core.evaluation.results import EvaluationResult, EvaluationVerdict
 from app.core.evaluation.security_evaluator import (
@@ -295,21 +300,6 @@ def _finding_reason_codes(findings: tuple[Mapping[str, object], ...]) -> tuple[s
     return tuple(str(item["reason_code"]) for item in findings)
 
 
-def _ref_values(findings: tuple[Mapping[str, object], ...], key: str) -> frozenset[str]:
-    values: set[str] = set()
-    for item in findings:
-        ref = item.get(key)
-        if ref is None:
-            continue
-        if not isinstance(ref, Mapping):
-            raise SecurityProjectionError(f"invalid persisted behavior finding {key}")
-        opaque = ref.get("opaque_value")
-        if not isinstance(opaque, str) or not opaque:
-            raise SecurityProjectionError(f"invalid persisted behavior finding {key} value")
-        values.add(opaque)
-    return frozenset(values)
-
-
 def _index_security_results(
     results: Sequence[EvaluationResult],
     label: str,
@@ -326,6 +316,21 @@ def _index_security_results(
         if key in indexed:
             raise SecurityProjectionError(f"{label} has multiple {evaluator_id} results for slot {key}")
         indexed[key] = result
+    return indexed
+
+
+def _index_comparison_results(
+    results: Sequence[EvaluationResult], label: str, known_result_ids: set[str], evaluator_id: str
+) -> dict[str, EvaluationResult]:
+    indexed: dict[str, EvaluationResult] = {}
+    for result in results:
+        if result.evaluator_id != evaluator_id:
+            continue
+        if result.result_id not in known_result_ids:
+            raise SecurityProjectionError(f"{label} result is outside canonical Comparison result refs")
+        if result.result_id in indexed:
+            raise SecurityProjectionError(f"{label} repeats canonical result {result.result_id}")
+        indexed[result.result_id] = result
     return indexed
 
 
@@ -498,30 +503,20 @@ def build_security_run_summary(
     )
 
 
-def _classify_transition(
-    baseline_verdict: EvaluationVerdict,
-    candidate_verdict: EvaluationVerdict,
-    case_kind: str | None,
+def _security_classification(
+    classification: RegressionClassification, case_kind: str | None
 ) -> SecurityTransitionClass:
-    for verdict in (baseline_verdict, candidate_verdict):
-        if verdict not in _VERDICT_STATUS:
-            raise SecurityProjectionError(f"unexpected persisted verdict: {verdict}")
-    if baseline_verdict is EvaluationVerdict.PASS and candidate_verdict is EvaluationVerdict.FAIL:
-        if case_kind == _BENIGN_KIND:
-            return SecurityTransitionClass.OVER_REFUSAL_REGRESSION
-        return SecurityTransitionClass.SECURITY_REGRESSION
-    if baseline_verdict is EvaluationVerdict.FAIL and candidate_verdict is EvaluationVerdict.PASS:
+    """把 canonical WP3 transition 投影为 security policy 的领域标签。"""
+    if classification is RegressionClassification.REGRESSION:
+        return (
+            SecurityTransitionClass.OVER_REFUSAL_REGRESSION
+            if case_kind == _BENIGN_KIND else SecurityTransitionClass.SECURITY_REGRESSION
+        )
+    if classification is RegressionClassification.IMPROVEMENT:
         return SecurityTransitionClass.SECURITY_IMPROVEMENT
-    if (
-        candidate_verdict is EvaluationVerdict.INCONCLUSIVE
-        and baseline_verdict in {EvaluationVerdict.PASS, EvaluationVerdict.FAIL}
-    ):
-        return SecurityTransitionClass.CERTAINTY_REGRESSION
-    if baseline_verdict is EvaluationVerdict.INCONCLUSIVE and candidate_verdict is EvaluationVerdict.PASS:
-        return SecurityTransitionClass.EVALUATION_IMPROVEMENT
-    if baseline_verdict is EvaluationVerdict.INCONCLUSIVE and candidate_verdict is EvaluationVerdict.FAIL:
-        return SecurityTransitionClass.NEWLY_IDENTIFIED_FAILURE
-    return SecurityTransitionClass.UNCHANGED
+    if classification is RegressionClassification.UNCHANGED:
+        return SecurityTransitionClass.UNCHANGED
+    return SecurityTransitionClass.NOT_COMPARABLE
 
 
 def _slot_case_kind(result: EvaluationResult | None) -> str | None:
@@ -547,14 +542,18 @@ def build_security_comparison_projection(
 
     对齐与 eligibility 完全复用 generic comparison 事实；本函数只补充：
 
-    - INCONCLUSIVE 显式 transition 语义（generic 层为 NOT_COMPARABLE/inconclusive_result）；
-    - per-behavior judge prompt_ref v1/v2 差异 → NOT_COMPARABLE + comparability warning；
-    - judge_model_ref 差异 → warning only（model alias 不能证明 immutable weights）；
-    - dataset/suite version 漂移 → comparability warning（版本差异由 alignment key 自然隔离）。
+    - 使用 canonical Comparison 的结果引用与 classification，不重新配对或分类；
+    - security payload 只提供 benign/attack 领域标签和展示事实；
+    - dataset version 漂移作为 provenance warning 保留。
     """
-    known_slots = {(item.case_id, item.case_version) for item in comparison.comparisons}
-    baseline_slots = _index_security_results(baseline_results, "baseline", known_slots, evaluator_id)
-    candidate_slots = _index_security_results(candidate_results, "candidate", known_slots, evaluator_id)
+    known_result_ids = {
+        result_id
+        for item in comparison.comparisons
+        for result_id in (item.baseline_result_id, item.candidate_result_id)
+        if result_id is not None and item.evaluator_id == evaluator_id
+    }
+    baseline_slots = _index_comparison_results(baseline_results, "baseline", known_result_ids, evaluator_id)
+    candidate_slots = _index_comparison_results(candidate_results, "candidate", known_result_ids, evaluator_id)
 
     dataset_version_changed = (
         comparison.baseline_provenance.dataset_version != comparison.candidate_provenance.dataset_version
@@ -565,12 +564,31 @@ def build_security_comparison_projection(
 
     slots: list[SecuritySlotProjection] = []
     for item in comparison.comparisons:
-        key = (item.case_id, item.case_version)
-        baseline = baseline_slots.get(key)
-        candidate = candidate_slots.get(key)
+        baseline = baseline_slots.get(item.baseline_result_id) if item.baseline_result_id else None
+        candidate = candidate_slots.get(item.candidate_result_id) if item.candidate_result_id else None
         if baseline is None and candidate is None:
             continue
         warnings: list[str] = []
+        if item.classification is RegressionClassification.NOT_COMPARABLE:
+            if ComparisonReason.EVALUATOR_PROMPT_CHANGED.value in item.reason_codes:
+                warnings.append(WARNING_JUDGE_PROMPT_CHANGED)
+            slots.append(
+                SecuritySlotProjection(
+                    case_id=item.case_id,
+                    case_version=item.case_version,
+                    evaluator_id=item.evaluator_id,
+                    evaluator_version=item.evaluator_version,
+                    classification=SecurityTransitionClass.NOT_COMPARABLE,
+                    detail=item.reason_codes[0] if item.reason_codes else item.reason.value,
+                    warnings=tuple(warnings),
+                    baseline_result_id=baseline.result_id if baseline else None,
+                    candidate_result_id=candidate.result_id if candidate else None,
+                    baseline_score=baseline.score if baseline else None,
+                    candidate_score=candidate.score if candidate else None,
+                    case_kind=_slot_case_kind(baseline or candidate),
+                )
+            )
+            continue
         if baseline is None or candidate is None:
             slots.append(
                 SecuritySlotProjection(
@@ -588,25 +606,6 @@ def build_security_comparison_projection(
                 )
             )
             continue
-        if baseline.config_ref != candidate.config_ref:
-            slots.append(_not_comparable_slot(item, baseline, candidate, "evaluator_config_mismatch"))
-            continue
-        baseline_block = _security_block(baseline)
-        candidate_block = _security_block(candidate)
-        baseline_findings = _behavior_findings(baseline_block) if baseline_block is not None else ()
-        candidate_findings = _behavior_findings(candidate_block) if candidate_block is not None else ()
-        if _ref_values(baseline_findings, "prompt_ref") != _ref_values(candidate_findings, "prompt_ref"):
-            warnings.append(WARNING_JUDGE_PROMPT_CHANGED)
-            slots.append(
-                _not_comparable_slot(
-                    item, baseline, candidate, "judge_prompt_changed", warnings=tuple(warnings)
-                )
-            )
-            continue
-        if _ref_values(baseline_findings, "judge_model_ref") != _ref_values(
-            candidate_findings, "judge_model_ref"
-        ):
-            warnings.append(WARNING_JUDGE_MODEL_CHANGED)
         if dataset_version_changed:
             warnings.append(WARNING_DATASET_VERSION_CHANGED)
         slots.append(
@@ -615,7 +614,7 @@ def build_security_comparison_projection(
                 case_version=item.case_version,
                 evaluator_id=item.evaluator_id,
                 evaluator_version=item.evaluator_version,
-                classification=_classify_transition(baseline.verdict, candidate.verdict, _slot_case_kind(baseline)),
+                classification=_security_classification(item.classification, _slot_case_kind(candidate)),
                 detail=item.reason.value,
                 warnings=tuple(warnings),
                 baseline_result_id=baseline.result_id,
@@ -658,32 +657,6 @@ def build_security_comparison_projection(
         comparability_warnings=tuple(
             (code, tuple(sorted(cases))) for code, cases in sorted(warning_map.items())
         ),
-    )
-
-
-def _not_comparable_slot(
-    item: AlignedResultComparison,
-    baseline: EvaluationResult,
-    candidate: EvaluationResult,
-    detail: str,
-    *,
-    warnings: tuple[str, ...] = (),
-) -> SecuritySlotProjection:
-    return SecuritySlotProjection(
-        case_id=item.case_id,
-        case_version=item.case_version,
-        evaluator_id=item.evaluator_id,
-        evaluator_version=item.evaluator_version,
-        classification=SecurityTransitionClass.NOT_COMPARABLE,
-        detail=detail,
-        warnings=warnings,
-        baseline_result_id=baseline.result_id,
-        candidate_result_id=candidate.result_id,
-        baseline_verdict=baseline.verdict.value,
-        candidate_verdict=candidate.verdict.value,
-        baseline_score=baseline.score,
-        candidate_score=candidate.score,
-        case_kind=_slot_case_kind(baseline),
     )
 
 

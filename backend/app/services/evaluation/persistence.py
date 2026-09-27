@@ -110,6 +110,10 @@ def _serialize_evaluator_spec(spec: EvaluatorSpec) -> dict[str, object]:
         "comparison_tolerance": spec.comparison_tolerance,
         "prompt_ref": _version(spec.prompt_ref),
         "required": spec.required,
+        "result_schema_ref": _version(spec.result_schema_ref),
+        "comparison_semantics": spec.comparison_semantics,
+        "required_artifact_kinds": list(spec.required_artifact_kinds),
+        "required_evidence_kinds": list(spec.required_evidence_kinds),
     }
     if set(snapshot) != {item.name for item in fields(EvaluatorSpec)}:
         raise RuntimeError("EvaluatorSpec snapshot serializer is out of sync with the domain")
@@ -211,6 +215,11 @@ class EvaluationPersistenceService:
         """列出指定 tenant Run 的全部 Attempts。"""
         async with self._uow_factory() as uow:
             return await uow.attempts.list_attempts(project_id, run_id)
+
+    async def list_latest_attempts(self, project_id: UUID, run_id: UUID) -> tuple[ExecutionAttempt, ...]:
+        """读取 WP1 Repository 定义的每 Case 权威 Attempt 视图。"""
+        async with self._uow_factory() as uow:
+            return await uow.attempts.list_latest_attempts(project_id, run_id)
 
     async def list_results(
         self,

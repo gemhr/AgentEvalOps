@@ -28,7 +28,12 @@ from app.core.evaluation.run_attempts import (
     ResultAlreadyFinalized,
     RunStatus,
 )
-from app.core.evaluation.wp3_candidate_gate import WP3GateStatus, WP3RunIdentity
+from app.core.evaluation.comparison import RegressionClassification
+from app.core.evaluation.wp3_candidate_gate import (
+    WP3CaseClassification,
+    WP3GateStatus,
+    WP3RunIdentity,
+)
 from app.services.evaluation.persistence import EvaluationPersistenceService
 from app.services.evaluation.wp3_coordinator import (
     WP3ExperimentDescriptor,
@@ -405,7 +410,9 @@ async def test_coordinator_runs_real_pair_and_keeps_writable_state_isolated(tmp_
         controller.isolation_for(controller._evidence["BASELINE"]),
         controller.isolation_for(controller._evidence["CANDIDATE"]),
     )
-    assert result.gates["HYBRID_CANDIDATE_GATE"] in {WP3GateStatus.PASS, WP3GateStatus.FAIL}
+    assert result.gates["HYBRID_CANDIDATE_GATE"] in {
+        WP3GateStatus.PASS, WP3GateStatus.FAIL, WP3GateStatus.INCONCLUSIVE
+    }
 
 
 class IdentitylessTarget(FakeTarget):
@@ -535,3 +542,22 @@ async def test_subprocess_controller_env_uses_existing_settings_keys(tmp_path: P
     assert env["LOCAL_AGENT_CHROMA_DIR"] == str(tmp_path / "chroma")
     assert "LOCAL_AGENT_SNAPSHOT_DB_PATH" in env
     assert evidence.localagent_base_url.endswith(":19001")
+
+
+def test_rag_coordinator_counts_only_canonical_comparison_classification() -> None:
+    from types import SimpleNamespace
+
+    comparison = SimpleNamespace(comparisons=(
+        SimpleNamespace(case_id="c1", classification=RegressionClassification.REGRESSION),
+        SimpleNamespace(case_id="c2", classification=RegressionClassification.REGRESSION),
+        SimpleNamespace(case_id="c2", classification=RegressionClassification.NOT_COMPARABLE),
+        SimpleNamespace(case_id="c3", classification=RegressionClassification.UNCHANGED),
+        SimpleNamespace(case_id="c4", classification=RegressionClassification.IMPROVEMENT),
+    ))
+
+    counts = WP3PairedCoordinator._canonical_classification_counts(comparison)
+
+    assert counts[WP3CaseClassification.REGRESSION] == 1
+    assert counts[WP3CaseClassification.UNCHANGED] == 1
+    assert counts[WP3CaseClassification.NOT_COMPARABLE] == 21
+    assert counts[WP3CaseClassification.IMPROVEMENT] == 1

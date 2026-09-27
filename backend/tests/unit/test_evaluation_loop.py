@@ -90,6 +90,10 @@ def serialize_spec(value: EvaluatorSpec) -> dict[str, object]:
             "opaque_value": value.prompt_ref.opaque_value,
         },
         "required": value.required,
+        "result_schema_ref": {"kind": value.result_schema_ref.kind, "opaque_value": value.result_schema_ref.opaque_value},
+        "comparison_semantics": value.comparison_semantics,
+        "required_artifact_kinds": value.required_artifact_kinds,
+        "required_evidence_kinds": value.required_evidence_kinds,
     }
 
 
@@ -198,6 +202,33 @@ def make_context(
         assertion_specs=(AssertionSpec("answer", "EXACT"),),
         evidence_refs=(CASE_EVIDENCE, CASE_EVIDENCE),
         metadata={"shared": "case", "case_only": True},
+    )
+    attempt = replace(
+        attempt,
+        request_snapshot={
+            **attempt.request_snapshot,
+            "case_snapshot": {
+                "case_id": test_case.case_id,
+                "version": test_case.version,
+                "name": test_case.name,
+                "input_payload": test_case.input_payload,
+                "expected_output": test_case.expected_output,
+                "created_at": test_case.created_at.isoformat(),
+                "assertion_specs": tuple(
+                    {"assertion_id": item.assertion_id, "kind": item.kind, "config": item.config,
+                     "required": item.required}
+                    for item in test_case.assertion_specs
+                ),
+                "fixture_refs": (),
+                "evidence_refs": tuple(
+                    {"kind": item.kind, "identifier": item.identifier, "media_type": item.media_type,
+                     "schema_version": item.schema_version, "metadata": item.metadata}
+                    for item in test_case.evidence_refs
+                ),
+                "tags": test_case.tags,
+                "metadata": test_case.metadata,
+            },
+        },
     )
     return run, attempt, test_case
 
@@ -716,7 +747,10 @@ async def test_invalid_draft_provenance_fails_closed_without_finalize(changes):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("failure", ["target_version", "case_ref", "case_input", "target_ref", "evaluator_binding"])
+@pytest.mark.parametrize(
+    "failure",
+    ["target_version", "case_ref", "case_input", "case_expected", "case_metadata", "target_ref", "evaluator_binding"],
+)
 async def test_deterministic_preflight_failures_do_not_claim_or_execute(failure):
     specs = (spec("eval"),)
     run, attempt, case = make_context(specs=specs, target_version=None if failure == "target_version" else VersionRef("git", "abc123"))
@@ -726,6 +760,10 @@ async def test_deterministic_preflight_failures_do_not_claim_or_execute(failure)
         case = replace(case, case_id="other")
     elif failure == "case_input":
         case = replace(case, input_payload={"different": True})
+    elif failure == "case_expected":
+        case = replace(case, expected_output={"answer": "caller override"})
+    elif failure == "case_metadata":
+        case = replace(case, metadata={"ground_truth": "caller override"})
     elif failure == "target_ref":
         target_override = RecordingTarget(replace(authoritative_target_ref(run), target_id="other"), OutcomeKind.SUCCESS)
     loop, persistence, target, _ = make_loop(

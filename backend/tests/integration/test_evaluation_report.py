@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.adapters.evaluation.fixture import FixtureExecution, FixtureExecutionTarget
 from app.core.evaluation import (
     ArtifactRef,
     CaseVersionRef,
@@ -51,7 +52,8 @@ async def seed_two_case_run(
     project_id: UUID,
     *,
     suite_id: str = "suite",
-    target_version: VersionRef = VersionRef("git", "abc"),
+    target_version: VersionRef = VersionRef("adapter", "fixture.v1"),
+    target_id: str = "target",
 ):
     ref_a = CaseVersionRef("case-a", "v1")
     ref_b = CaseVersionRef("case-b", "v1")
@@ -74,7 +76,12 @@ async def seed_two_case_run(
         dataset=dataset,
         suite=suite,
         cases={ref_a: case_a, ref_b: case_b},
-        target=ExecutionTargetRef("target", "FIXTURE", target_version),
+        target=ExecutionTargetRef(target_id, "FIXTURE", target_version, config_ref=VersionRef("target-config", "v1")),
+        subject_ref=FixtureExecutionTarget(
+            ExecutionTargetRef(target_id, "FIXTURE", target_version),
+            {ref: FixtureExecution(OutcomeKind.SUCCESS, NOW, NOW,
+                                  ArtifactRef("artifact", "sha256:abc", "application/json")) for ref in (ref_a, ref_b)},
+        ).subject_ref,
         timeout=timedelta(seconds=30),
     )
 
@@ -111,6 +118,7 @@ def result_for(
         target_version_ref=attempt.execution_target_ref.target_version_ref,
         output_artifact_ref=attempt.output_artifact_ref,
         score=score,
+        metadata={"policy_normalization": {"source": "UNCHANGED", "final_verdict": verdict.value}},
         created_at=NOW,
     )
 
@@ -154,7 +162,7 @@ async def seed_completed_pair(
     baseline_run, baseline_attempts = await seed_two_case_run(TEST_PROJECT_ID)
     candidate_run, candidate_attempts = await seed_two_case_run(
         TEST_PROJECT_ID,
-        target_version=VersionRef("git", "def"),
+        target_id="candidate-target",
     )
     await complete_run_with_verdicts(
         TEST_PROJECT_ID,
@@ -184,6 +192,7 @@ async def test_real_postgres_critical_regression_blocks_release(db_session) -> N
         TEST_PROJECT_ID,
         baseline_run.run_id,
         candidate_run.run_id,
+        accepted_conditional_reason_codes=("TARGET_BINDING_DRIFT", "SUBJECT_BINDING_DRIFT"),
     )
     report = RegressionReportService().build_report(
         comparison,
@@ -209,6 +218,7 @@ async def test_real_postgres_non_critical_regression_passes(db_session) -> None:
         TEST_PROJECT_ID,
         baseline_run.run_id,
         candidate_run.run_id,
+        accepted_conditional_reason_codes=("TARGET_BINDING_DRIFT", "SUBJECT_BINDING_DRIFT"),
     )
     report = RegressionReportService().build_report(
         comparison,

@@ -16,6 +16,7 @@ import asyncio
 import json
 import os
 import sys
+from dataclasses import fields, is_dataclass
 from functools import partial
 from pathlib import Path
 from uuid import UUID
@@ -23,6 +24,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.evaluation.references import CaseVersionRef
+from app.core.evaluation.immutable import json_compatible
 from app.core.evaluation.report import RegressionReport, ReleaseDecision
 from app.infrastructure.db.engine import engine as default_engine
 from app.infrastructure.db.repositories.evaluation_persistence_repo import (
@@ -32,7 +34,7 @@ from app.infrastructure.db.repositories.evaluation_persistence_repo import (
 EXIT_PASS = 0
 EXIT_GATE_FAIL = 2
 EXIT_ERROR = 1
-REPORT_SCHEMA_VERSION = 1
+REPORT_SCHEMA_VERSION = 2
 GATE_DATABASE_URL_ENV = "AGENTEVALOPS_GATE_DATABASE_URL"
 
 
@@ -52,9 +54,15 @@ def serialize_report(
     payload: dict[str, object] = {
         "schema_version": REPORT_SCHEMA_VERSION,
         "authority": "RegressionReportService",
+        "comparison_contract_version": report.comparison_contract_version,
+        "comparison_digest": report.comparison_digest,
+        "accepted_conditional_reasons": list(report.accepted_conditional_reasons),
+        "computed_at": _json_value(report.computed_at),
         "project_id": str(report.project_id),
         "baseline_run_id": str(report.baseline_run_id),
         "candidate_run_id": str(report.candidate_run_id),
+        "baseline_reference": _json_value(report.baseline_reference),
+        "candidate_reference": _json_value(report.candidate_reference),
         "release_decision": report.release_decision.value,
         "comparison_counts": {
             "total": report.total_count,
@@ -75,8 +83,27 @@ def serialize_report(
             }
             for item in (*report.critical_regressions, *report.critical_not_comparable)
         ],
+        "required_evidence_blockers": [
+            {
+                "case_id": item.case_id,
+                "evaluator_id": item.evaluator_id,
+                "reason_codes": list(item.reason_codes),
+            }
+            for item in report.incomplete_required_evidence
+        ],
+        "rows": [_json_value(item) for item in report.comparisons],
     }
     return payload
+
+
+def _json_value(value: object) -> object:
+    if is_dataclass(value):
+        return {item.name: _json_value(getattr(value, item.name)) for item in fields(value)}
+    if isinstance(value, dict) or hasattr(value, "items"):
+        return {str(key): _json_value(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_json_value(item) for item in value]
+    return json_compatible(value)
 
 
 def write_report_artifact(

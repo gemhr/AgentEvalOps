@@ -385,6 +385,7 @@ class TestDocumentMetricsEvaluator:
             config_ref=VersionRef("rag_document_metric_config", "test"),
             score_direction=ScoreDirection.HIGHER_IS_BETTER,
             config_snapshot={},
+            required_evidence_kinds=("rag_evaluation_artifact",),
             score_range=(0.0, 1.0),
         )
 

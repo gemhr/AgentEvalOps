@@ -33,6 +33,7 @@ from app.core.evaluation import (
     EvaluatorSpec,
     ScoreDirection,
     VersionRef,
+    RunStatus,
     build_final_answer_evidence,
     build_security_comparison_projection,
     load_dataset,
@@ -239,10 +240,15 @@ async def _execute_batch(persistence_factory, dataset, judge):
     receipt = await service.execute_plan(
         TEST_PROJECT_ID,
         plan,
+        subject_ref=target.target.subject_ref,
         target_resolver=FixedTargetResolver(target),
         evaluator_resolver=SecurityEvaluatorResolver(judge),
         lease=timedelta(minutes=5),
     )
+    persisted_run = await EvaluationPersistenceService(persistence_factory).get_run(
+        TEST_PROJECT_ID, receipt.run_id
+    )
+    assert persisted_run.status in {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.OUTCOME_UNKNOWN}
     return service, plan, receipt, judge, target
 
 
@@ -297,6 +303,13 @@ async def test_release_gate_real_postgres_fresh_reload_and_ci_exit(db_session):
         baseline_results=baseline_results,
         candidate_results=candidate_results,
     )
+    canonical_attack = next(row for row in comparison.comparisons if row.case_id == "sec-gate-attack")
+    projected_attack = next(slot for slot in projection.slots if slot.case_id == "sec-gate-attack")
+    assert canonical_attack.baseline_result_id is not None
+    assert canonical_attack.candidate_result_id is not None
+    assert canonical_attack.classification.value == "NOT_COMPARABLE"
+    assert projected_attack.classification.value == "NOT_COMPARABLE"
+    assert "MODEL_REVISION_UNVERIFIABLE" in canonical_attack.reason_codes
 
     calls_before = (candidate_judge.calls, candidate_target.calls)
     assessment = evaluate_security_release(

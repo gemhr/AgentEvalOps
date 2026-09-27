@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.adapters.evaluation.fixture import FixtureExecution, FixtureExecutionTarget
 from app.core.evaluation import (
     ArtifactRef,
     CaseVersionRef,
@@ -51,7 +52,8 @@ async def seed_two_case_run(
     *,
     dataset_id: str = "dataset",
     suite_id: str = "suite",
-    target_version: VersionRef = VersionRef("git", "abc"),
+    target_version: VersionRef = VersionRef("adapter", "fixture.v1"),
+    target_id: str = "target",
 ):
     ref_a = CaseVersionRef("case-a", "v1")
     ref_b = CaseVersionRef("case-b", "v1")
@@ -74,7 +76,12 @@ async def seed_two_case_run(
         dataset=dataset,
         suite=suite,
         cases={ref_a: case_a, ref_b: case_b},
-        target=ExecutionTargetRef("target", "FIXTURE", target_version),
+        target=ExecutionTargetRef(target_id, "FIXTURE", target_version, config_ref=VersionRef("target-config", "v1")),
+        subject_ref=FixtureExecutionTarget(
+            ExecutionTargetRef(target_id, "FIXTURE", target_version),
+            {ref: FixtureExecution(OutcomeKind.SUCCESS, NOW, NOW,
+                                  ArtifactRef("artifact", "sha256:abc", "application/json")) for ref in (ref_a, ref_b)},
+        ).subject_ref,
         timeout=timedelta(seconds=30),
     )
 
@@ -111,6 +118,7 @@ def result_for(
         target_version_ref=attempt.execution_target_ref.target_version_ref,
         output_artifact_ref=attempt.output_artifact_ref,
         score=score,
+        metadata={"policy_normalization": {"source": "UNCHANGED", "final_verdict": verdict.value}},
         created_at=NOW,
     )
 
@@ -152,7 +160,7 @@ async def test_real_postgres_comparison_loop(db_session) -> None:
     baseline_run, baseline_attempts = await seed_two_case_run(TEST_PROJECT_ID)
     candidate_run, candidate_attempts = await seed_two_case_run(
         TEST_PROJECT_ID,
-        target_version=VersionRef("git", "def"),
+        target_id="candidate-target",
     )
     await complete_run_with_verdicts(
         TEST_PROJECT_ID,
@@ -168,11 +176,31 @@ async def test_real_postgres_comparison_loop(db_session) -> None:
         {"case-a": EvaluationVerdict.FAIL, "case-b": EvaluationVerdict.PASS},
         {"case-a": 0.0, "case-b": 1.0},
     )
+    persistence = service()
+    before = (
+        await persistence.get_run(TEST_PROJECT_ID, baseline_run.run_id),
+        await persistence.list_latest_attempts(TEST_PROJECT_ID, baseline_run.run_id),
+        await persistence.list_results(TEST_PROJECT_ID, baseline_run.run_id),
+        await persistence.get_run(TEST_PROJECT_ID, candidate_run.run_id),
+        await persistence.list_latest_attempts(TEST_PROJECT_ID, candidate_run.run_id),
+        await persistence.list_results(TEST_PROJECT_ID, candidate_run.run_id),
+    )
     comparison = await EvaluationComparisonService(service()).compare_runs(
         TEST_PROJECT_ID,
         baseline_run.run_id,
         candidate_run.run_id,
+        accepted_conditional_reason_codes=("TARGET_BINDING_DRIFT", "SUBJECT_BINDING_DRIFT"),
     )
+    after = (
+        await persistence.get_run(TEST_PROJECT_ID, baseline_run.run_id),
+        await persistence.list_latest_attempts(TEST_PROJECT_ID, baseline_run.run_id),
+        await persistence.list_results(TEST_PROJECT_ID, baseline_run.run_id),
+        await persistence.get_run(TEST_PROJECT_ID, candidate_run.run_id),
+        await persistence.list_latest_attempts(TEST_PROJECT_ID, candidate_run.run_id),
+        await persistence.list_results(TEST_PROJECT_ID, candidate_run.run_id),
+    )
+    assert after == before
+    assert before[0].execution_target_ref.config_ref == VersionRef("target-config", "v1")
     by_key = {(item.case_id, item.evaluator_id): item for item in comparison.comparisons}
     assert len(comparison.comparisons) == 2
     assert by_key[("case-a", "eval")].classification is RegressionClassification.REGRESSION
@@ -180,8 +208,8 @@ async def test_real_postgres_comparison_loop(db_session) -> None:
     # Baseline 与 Candidate 的 attempt_id 必然不同；alignment 成功即证明 attempt_id 不参与键。
     assert by_key[("case-a", "eval")].baseline_result_id != by_key[("case-a", "eval")].candidate_result_id
     # 版本差异保留为 provenance。
-    assert comparison.baseline_provenance.target_version_ref == VersionRef("git", "abc")
-    assert comparison.candidate_provenance.target_version_ref == VersionRef("git", "def")
+    assert comparison.baseline_provenance.target_version_ref == VersionRef("adapter", "fixture.v1")
+    assert comparison.candidate_provenance.target_version_ref == VersionRef("adapter", "fixture.v1")
 
 
 @pytest.mark.asyncio
@@ -233,5 +261,5 @@ async def test_dataset_suite_mismatch_fails_closed(db_session) -> None:
         {"case-a": 1.0, "case-b": 0.0},
     )
     svc = EvaluationComparisonService(service())
-    with pytest.raises(RunsNotComparable, match="suite identity mismatch"):
+    with pytest.raises(RunsNotComparable, match="suite lineage mismatch"):
         await svc.compare_runs(TEST_PROJECT_ID, baseline_run.run_id, candidate_run.run_id)

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import random
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -21,6 +22,8 @@ from app.core.evaluation import (
     EvaluationVerdict,
     EvaluatorKind,
     EvaluatorSpec,
+    ExecutionRequest,
+    OutcomeKind,
     ProvenanceCompleteness,
     ScoreDirection,
     SecurityCaseFacts,
@@ -33,9 +36,16 @@ from app.core.evaluation import (
     build_security_run_summary,
     load_dataset,
 )
-from app.core.evaluation.comparison import ComparisonReason
+from app.core.evaluation.comparison import ComparisonReason, RegressionClassification
 from app.core.evaluation.execution import FIXTURE_TARGET_KIND, ExecutionTargetRef
-from app.core.evaluation.run_attempts import EvaluationEntityNotFound, EvaluationRun, RunStatus
+from app.core.evaluation.catalog import TestCaseVersion as CatalogCase
+from app.core.evaluation.run_attempts import (
+    AttemptStatus,
+    EvaluationEntityNotFound,
+    EvaluationRun,
+    ExecutionAttempt,
+    RunStatus,
+)
 from app.services.evaluation import EvaluationComparisonService
 from app.services.evaluation.security_regression import (
     GAP_AGENT_MESSAGE_BOUNDARY,
@@ -171,6 +181,13 @@ def make_security_result(
         score=resolved_score,
         created_at=NOW,
         metadata={
+            "policy_normalization": {
+                "source": {
+                    EvaluationVerdict.ERROR: "EVALUATOR_ERROR",
+                    EvaluationVerdict.INCONCLUSIVE: "EVALUATOR_INCONCLUSIVE",
+                }.get(verdict, "UNCHANGED"),
+                "final_verdict": verdict.value,
+            },
             "evaluator": {
                 "source_status": "SECURITY_EVALUATED",
                 "security": {
@@ -199,11 +216,15 @@ def serialize_spec(spec: EvaluatorSpec) -> dict[str, object]:
         "comparison_tolerance": spec.comparison_tolerance,
         "prompt_ref": None,
         "required": True,
+        "result_schema_ref": {"kind": spec.result_schema_ref.kind, "opaque_value": spec.result_schema_ref.opaque_value},
+        "comparison_semantics": spec.comparison_semantics,
+        "required_artifact_kinds": spec.required_artifact_kinds,
+        "required_evidence_kinds": spec.required_evidence_kinds,
     }
 
 
 def make_run(run_id: UUID, *, dataset_version: str = "v2") -> EvaluationRun:
-    target = localagent_target_ref()
+    target = fixture_target_ref()
     policy = EvaluationPolicy()
     return EvaluationRun(
         run_id=run_id,
@@ -238,6 +259,7 @@ def make_run(run_id: UUID, *, dataset_version: str = "v2") -> EvaluationRun:
             "config_ref": {"kind": target.config_ref.kind, "opaque_value": target.config_ref.opaque_value},
             "capabilities": list(target.capabilities),
         },
+        subject_ref={"fixture_target_identity": target.target_id, "fixture_content_identity": "sha256:" + "b" * 64},
         created_at=NOW,
         status=RunStatus.COMPLETED,
         finished_at=NOW,
@@ -247,7 +269,68 @@ def make_run(run_id: UUID, *, dataset_version: str = "v2") -> EvaluationRun:
 class FakePersistence:
     def __init__(self, runs: dict[UUID, EvaluationRun], results: dict[UUID, tuple[EvaluationResult, ...]]) -> None:
         self.runs = runs
-        self.results = results
+        self.results: dict[UUID, tuple[EvaluationResult, ...]] = {}
+        self.attempts: dict[UUID, tuple[ExecutionAttempt, ...]] = {}
+        for run_id, run in tuple(runs.items()):
+            run_results = tuple(item for item in results.get(run_id, ()) if item.evaluator_id == SECURITY_EVALUATOR_ID)
+            case_versions = {item.case_id: item.case_version for item in run_results}
+            attempt_ids = {case_id: uuid4() for case_id in case_versions}
+            normalized = tuple(
+                replace(
+                    item,
+                    run_id=str(run_id),
+                    attempt_id=str(attempt_ids[item.case_id]),
+                    dataset_id=str(run.dataset_snapshot["dataset_id"]),
+                    dataset_version=run.dataset_ref.opaque_value,
+                    suite_id=str(run.suite_snapshot["suite_id"]),
+                    suite_version=run.suite_ref.opaque_value,
+                    execution_target_id=run.execution_target_ref.target_id,
+                    target_version_ref=run.execution_target_ref.target_version_ref,
+                )
+                for item in run_results
+            )
+            self.results[run_id] = normalized
+            suite_snapshot = dict(run.suite_snapshot)
+            suite_snapshot["selected_cases"] = tuple(
+                {"case_id": case_id, "version": version} for case_id, version in sorted(case_versions.items())
+            )
+            self.runs[run_id] = replace(run, suite_snapshot=suite_snapshot)
+            attempts: list[ExecutionAttempt] = []
+            for case_id, version in sorted(case_versions.items()):
+                case = CatalogCase(case_id, version, "security-case", {}, NOW)
+                attempt_id = attempt_ids[case_id]
+                request = ExecutionRequest(
+                    str(uuid4()), str(run_id), str(attempt_id), CaseVersionRef(case_id, version), {},
+                    timedelta(seconds=30), str(uuid4()),
+                )
+                attempts.append(ExecutionAttempt(
+                    attempt_id=attempt_id,
+                    project_id=run.project_id,
+                    run_id=run_id,
+                    case_ref=CaseVersionRef(case_id, version),
+                    attempt_no=1,
+                    execution_target_ref=run.execution_target_ref,
+                    execution_request=request,
+                    request_snapshot={"case_snapshot": {
+                        "case_id": case.case_id,
+                        "version": case.version,
+                        "name": case.name,
+                        "input_payload": {},
+                        "expected_output": None,
+                        "created_at": NOW.isoformat(),
+                        "assertion_specs": [],
+                        "fixture_refs": [],
+                        "evidence_refs": [],
+                        "tags": [],
+                        "metadata": {},
+                    }},
+                    created_at=NOW,
+                    status=AttemptStatus.TERMINAL,
+                    claim_token=uuid4(),
+                    finished_at=NOW,
+                    execution_outcome_kind=OutcomeKind.SUCCESS,
+                ))
+            self.attempts[run_id] = tuple(attempts)
 
     async def get_run(self, project_id: UUID, run_id: UUID) -> EvaluationRun:
         run = self.runs.get(run_id)
@@ -256,7 +339,11 @@ class FakePersistence:
         return run
 
     async def list_results(self, project_id: UUID, run_id: UUID, attempt_id: UUID | None = None) -> tuple[EvaluationResult, ...]:
-        return tuple(item for item in self.results.get(run_id, ()))
+        values = self.results.get(run_id, ())
+        return tuple(item for item in values if attempt_id is None or item.attempt_id == str(attempt_id))
+
+    async def list_latest_attempts(self, project_id: UUID, run_id: UUID) -> tuple[ExecutionAttempt, ...]:
+        return self.attempts.get(run_id, ())
 
 
 async def compare_pair(
@@ -277,7 +364,10 @@ async def compare_pair(
         {baseline_run_id: baseline_results, candidate_run_id: candidate_results},
     )
     return await EvaluationComparisonService(persistence).compare_runs(
-        PROJECT_ID, baseline_run_id, candidate_run_id
+        PROJECT_ID,
+        baseline_run_id,
+        candidate_run_id,
+        accepted_conditional_reason_codes=("CASE_VERSION_LABEL_DRIFT", "MODEL_REVISION_UNVERIFIABLE"),
     )
 
 
@@ -782,22 +872,20 @@ async def test_projection_benign_over_refusal_regression():
 
 
 @pytest.mark.parametrize(
-    ("baseline_verdict", "candidate_verdict", "expected"),
+    ("baseline_verdict", "candidate_verdict"),
     [
-        (EvaluationVerdict.PASS, EvaluationVerdict.INCONCLUSIVE, SecurityTransitionClass.CERTAINTY_REGRESSION),
-        (EvaluationVerdict.FAIL, EvaluationVerdict.INCONCLUSIVE, SecurityTransitionClass.CERTAINTY_REGRESSION),
-        (EvaluationVerdict.INCONCLUSIVE, EvaluationVerdict.PASS, SecurityTransitionClass.EVALUATION_IMPROVEMENT),
-        (EvaluationVerdict.INCONCLUSIVE, EvaluationVerdict.FAIL, SecurityTransitionClass.NEWLY_IDENTIFIED_FAILURE),
+        (EvaluationVerdict.PASS, EvaluationVerdict.INCONCLUSIVE),
+        (EvaluationVerdict.FAIL, EvaluationVerdict.INCONCLUSIVE),
+        (EvaluationVerdict.INCONCLUSIVE, EvaluationVerdict.PASS),
+        (EvaluationVerdict.INCONCLUSIVE, EvaluationVerdict.FAIL),
     ],
 )
-async def test_projection_inconclusive_transitions_are_explicit(baseline_verdict, candidate_verdict, expected):
+async def test_projection_inconclusive_uses_canonical_not_comparable(baseline_verdict, candidate_verdict):
     baseline = (make_security_result(uuid4(), "sec-z", baseline_verdict),)
     candidate = (make_security_result(uuid4(), "sec-z", candidate_verdict),)
     comparison = await compare_pair(baseline, candidate)
     projection = build_security_comparison_projection(comparison=comparison, baseline_results=baseline, candidate_results=candidate)
-    assert projection.slots[0].classification is expected
-    assert projection.slots[0].baseline_verdict == baseline_verdict.value
-    assert projection.slots[0].candidate_verdict == candidate_verdict.value
+    assert projection.slots[0].classification is SecurityTransitionClass.NOT_COMPARABLE
 
 
 async def test_projection_prompt_version_mismatch_blocks_regression_attribution():
@@ -815,21 +903,42 @@ async def test_projection_prompt_version_mismatch_blocks_regression_attribution(
     projection = build_security_comparison_projection(comparison=comparison, baseline_results=baseline, candidate_results=candidate)
     slot = projection.slots[0]
     assert slot.classification is SecurityTransitionClass.NOT_COMPARABLE
-    assert slot.detail == "judge_prompt_changed"
+    assert slot.detail == ComparisonReason.EVALUATOR_PROMPT_CHANGED.value
     assert slot.warnings == ("judge_prompt_changed",)
     assert projection.security_regressions == ()
     assert ("judge_prompt_changed", ("sec-v",)) in projection.comparability_warnings
 
 
-async def test_projection_judge_model_change_warns_but_keeps_classification():
+async def test_projection_judge_model_change_uses_canonical_incomparability():
     baseline = (make_security_result(uuid4(), "sec-m", EvaluationVerdict.PASS, findings=(finding(model="judge/provider-a"),)),)
     candidate = (make_security_result(uuid4(), "sec-m", EvaluationVerdict.PASS, findings=(finding(model="judge/provider-b"),)),)
     comparison = await compare_pair(baseline, candidate)
     projection = build_security_comparison_projection(comparison=comparison, baseline_results=baseline, candidate_results=candidate)
     slot = projection.slots[0]
-    assert slot.classification is SecurityTransitionClass.UNCHANGED
-    assert "judge_model_changed" in slot.warnings
-    assert ("judge_model_changed", ("sec-m",)) in projection.comparability_warnings
+    assert slot.classification is SecurityTransitionClass.NOT_COMPARABLE
+    assert ComparisonReason.JUDGE_BINDING_CHANGED.value in slot.detail
+
+
+async def test_projection_does_not_reclassify_canonical_not_comparable_pass_to_fail():
+    baseline = (make_security_result(uuid4(), "sec-canonical", EvaluationVerdict.PASS),)
+    candidate = (make_security_result(uuid4(), "sec-canonical", EvaluationVerdict.FAIL),)
+    canonical = await compare_pair(baseline, candidate)
+    original = canonical.comparisons[0]
+    canonical_row = replace(
+        original,
+        classification=RegressionClassification.NOT_COMPARABLE,
+        reason=ComparisonReason.CASE_CONTENT_CHANGED,
+        reason_codes=(ComparisonReason.CASE_CONTENT_CHANGED.value,),
+    )
+    comparison = replace(canonical, comparisons=(canonical_row,))
+
+    projection = build_security_comparison_projection(
+        comparison=comparison, baseline_results=baseline, candidate_results=candidate
+    )
+
+    assert projection.slots[0].classification is SecurityTransitionClass.NOT_COMPARABLE
+    assert projection.slots[0].detail == ComparisonReason.CASE_CONTENT_CHANGED.value
+    assert projection.security_regressions == ()
 
 
 async def test_projection_dataset_version_change_never_silently_aligns():
@@ -841,11 +950,15 @@ async def test_projection_dataset_version_change_never_silently_aligns():
         baseline_dataset_version="vA",
         candidate_dataset_version="vB",
     )
-    assert comparison.comparisons[0].reason is ComparisonReason.CANDIDATE_MISSING
+    assert len(comparison.comparisons) == 1
+    assert comparison.comparisons[0].case_membership.value == "BOTH"
     projection = build_security_comparison_projection(comparison=comparison, baseline_results=baseline, candidate_results=candidate)
     assert projection.dataset_version_changed is True
-    assert all(slot.classification is SecurityTransitionClass.NOT_COMPARABLE for slot in projection.slots)
-    assert projection.security_regressions == ()
+    assert len(projection.slots) == 1
+    assert projection.slots[0].classification is SecurityTransitionClass.SECURITY_REGRESSION
+    assert projection.slots[0].baseline_result_id == baseline[0].result_id
+    assert projection.slots[0].candidate_result_id == candidate[0].result_id
+    assert len(projection.security_regressions) == 1
     assert ("dataset_version_changed", ("sec-d",)) in projection.comparability_warnings
 
 
@@ -855,7 +968,7 @@ async def test_projection_missing_side_is_not_comparable():
     projection = build_security_comparison_projection(comparison=comparison, baseline_results=baseline, candidate_results=())
     slot = projection.slots[0]
     assert slot.classification is SecurityTransitionClass.NOT_COMPARABLE
-    assert slot.detail == ComparisonReason.CANDIDATE_MISSING.value
+    assert slot.detail == ComparisonReason.MISSING_CANDIDATE_RESULT.value
     assert projection.not_comparable_count == 1
 
 

@@ -285,19 +285,30 @@ class _GenerationJudgeEvaluator:
             output = _JudgeOutput.model_validate(response.payload)
         except ValidationError:
             return _failure(spec, "judge_malformed_structured_output", source_status="JUDGE_MALFORMED_STRUCTURED_OUTPUT")
-        verdict = EvaluationVerdict.PASS if output.score >= spec.threshold else EvaluationVerdict.FAIL
+        actual_model_ref = {"kind": response.model_ref.kind, "opaque_value": response.model_ref.opaque_value}
+        requested_model_ref = {
+            "kind": config.judge_model_ref.kind,
+            "opaque_value": config.judge_model_ref.opaque_value,
+        }
+        model_mismatch = actual_model_ref != requested_model_ref
+        verdict = (
+            EvaluationVerdict.ERROR
+            if model_mismatch
+            else EvaluationVerdict.PASS if output.score >= spec.threshold else EvaluationVerdict.FAIL
+        )
         return EvaluationResultDraft(
             evaluator_id=spec.evaluator_id,
             evaluator_version=spec.evaluator_version,
             config_ref=spec.config_ref,
             prompt_ref=spec.prompt_ref,
             verdict=verdict,
-            reason=output.reason,
+            reason="judge_model_binding_mismatch" if model_mismatch else output.reason,
             score=output.score,
             evidence_refs=(answer_ref, *context_refs),
             metadata={
-                "source_status": "JUDGE_SUCCESS",
-                "judge_model_ref": {"kind": response.model_ref.kind, "opaque_value": response.model_ref.opaque_value},
+                "source_status": "JUDGE_MODEL_BINDING_MISMATCH" if model_mismatch else "JUDGE_SUCCESS",
+                "judge_model_ref": actual_model_ref,
+                "judge_model_mismatch": model_mismatch,
                 "judge_config": {
                     "judge_model_ref": {
                         "kind": config.judge_model_ref.kind,

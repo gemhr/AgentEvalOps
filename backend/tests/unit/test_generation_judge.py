@@ -125,6 +125,7 @@ def _spec(metric: str, *, threshold: float = 0.8, max_input_chars: int = 10000) 
             "max_input_chars": max_input_chars,
         },
         threshold=threshold,
+        required_evidence_kinds=("final_answer",) if metric == GENERATION_CORRECTNESS else ("final_answer", "rag_evaluation_artifact"),
         score_range=(0.0, 1.0),
         prompt_ref=CORRECTNESS_PROMPT_REF if metric == GENERATION_CORRECTNESS else FAITHFULNESS_PROMPT_REF,
     )
@@ -160,10 +161,22 @@ class FakeJudge:
 )
 async def test_correctness_uses_strict_answer_and_threshold(score, verdict) -> None:
     spec = _spec(GENERATION_CORRECTNESS)
-    judge = FakeJudge(JudgeModelResponse({"score": score, "reason": "bounded reason"}, VersionRef("llm_model", "actual")))
+    judge = FakeJudge(JudgeModelResponse(
+        {"score": score, "reason": "bounded reason"}, VersionRef("llm_model", "openai/test-judge")
+    ))
     draft = await GenerationCorrectnessEvaluator().evaluate(_input(_answer_evidence()), EvaluatorContext(spec, judge))
     assert (draft.score, draft.verdict, draft.reason) == (score, verdict, "bounded reason")
     assert len(judge.calls) == 1
+    assert draft.metadata["judge_model_ref"]["opaque_value"] == "openai/test-judge"
+
+
+@pytest.mark.asyncio
+async def test_actual_judge_model_mismatch_is_an_error_fact() -> None:
+    spec = _spec(GENERATION_CORRECTNESS)
+    judge = FakeJudge(JudgeModelResponse({"score": 1.0, "reason": "ok"}, VersionRef("llm_model", "actual")))
+    draft = await GenerationCorrectnessEvaluator().evaluate(_input(_answer_evidence()), EvaluatorContext(spec, judge))
+    assert draft.verdict is EvaluationVerdict.ERROR
+    assert draft.reason == "judge_model_binding_mismatch"
     assert draft.metadata["judge_model_ref"]["opaque_value"] == "actual"
 
 
@@ -205,7 +218,9 @@ async def test_missing_or_malformed_final_answer_and_missing_query_fail_closed()
 @pytest.mark.asyncio
 async def test_faithfulness_empty_context_is_known_and_multiple_artifacts_are_ordered() -> None:
     spec = _spec(GENERATION_FAITHFULNESS)
-    judge = FakeJudge(JudgeModelResponse({"score": 0.2, "reason": "unsupported"}, VersionRef("llm_model", "actual")))
+    judge = FakeJudge(JudgeModelResponse(
+        {"score": 0.2, "reason": "unsupported"}, VersionRef("llm_model", "openai/test-judge")
+    ))
     second = _rag_evidence(retrieval_id="r2", invocation_index=2)
     first = _rag_evidence(retrieval_id="r1", invocation_index=1)
     draft = await GenerationFaithfulnessEvaluator().evaluate(
@@ -267,7 +282,7 @@ async def test_litellm_adapter_makes_one_structured_call_without_fallback(monkey
 
     async def completion(**kwargs):
         calls.append(kwargs)
-        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"score":0.5,"reason":"ok"}', refusal=None))])
+        return SimpleNamespace(model="unprefixed", choices=[SimpleNamespace(message=SimpleNamespace(content='{"score":0.5,"reason":"ok"}', refusal=None))])
 
     monkeypatch.setattr("app.adapters.evaluation.llm_judge.litellm.acompletion", completion)
     adapter = LiteLLMJudgeModel()
@@ -350,3 +365,37 @@ def test_dataset_bridge_preserves_generation_reference_authority_and_dataset_cas
     assert cases[ref].input_payload["query"] == "q"
     assert cases[ref].expected_output == "authoritative"
     assert cases[ref].metadata["generation_reference_authority"] == "ground_truth.generation.reference_answer"
+
+
+@pytest.mark.asyncio
+async def test_production_adapter_preserves_actual_model_and_fails_closed_when_missing(monkeypatch):
+    monkeypatch.setattr("app.adapters.evaluation.llm_judge.check_provider_credentials", lambda _: (True, ""))
+    actual = "actual-model-B"
+
+    async def completion(**kwargs):
+        return SimpleNamespace(model=actual, choices=[SimpleNamespace(message=SimpleNamespace(
+            content='{"score":1.0,"reason":"ok"}', refusal=None))])
+
+    monkeypatch.setattr("app.adapters.evaluation.llm_judge.litellm.acompletion", completion)
+    spec = _spec(GENERATION_CORRECTNESS)
+    adapter = LiteLLMJudgeModel()
+    from dataclasses import replace
+    from app.adapters.evaluation.llm_judge import GenerationJudgeEvaluatorResolver
+    assert GenerationJudgeEvaluatorResolver(adapter).resolve(spec).evaluator_id == spec.evaluator_id
+    with pytest.raises(ValueError, match="omits required"):
+        GenerationJudgeEvaluatorResolver(adapter).resolve(replace(spec, required_evidence_kinds=()))
+    with pytest.raises(ValueError, match="unsupported evaluator result schema"):
+        GenerationJudgeEvaluatorResolver(adapter).resolve(replace(spec, result_schema_ref=VersionRef("schema", "v99")))
+    response = await adapter.structured_generate(
+        prompt_ref=CORRECTNESS_PROMPT_REF,
+        input_payload={"question": "q", "actual_answer": "a", "reference_answer": "r", "retrieved_context": []},
+        config=spec.config_snapshot,
+    )
+    assert response.model_ref == VersionRef("llm_model", "actual-model-B")
+    draft = await GenerationCorrectnessEvaluator().evaluate(_input(_answer_evidence()), EvaluatorContext(spec, adapter))
+    assert draft.verdict is EvaluationVerdict.ERROR
+    assert draft.metadata["judge_model_ref"]["opaque_value"] == actual
+    actual = None
+    draft = await GenerationCorrectnessEvaluator().evaluate(_input(_answer_evidence()), EvaluatorContext(spec, adapter))
+    assert draft.verdict is EvaluationVerdict.ERROR
+    assert "judge_model_ref" not in draft.metadata

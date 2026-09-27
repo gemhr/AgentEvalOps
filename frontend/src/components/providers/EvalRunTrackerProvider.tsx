@@ -60,6 +60,7 @@ const EvalRunTrackerContext = createContext<EvalRunTrackerContextValue | null>(
 const TERMINAL_STATES: ReadonlySet<string> = new Set([
   EvaluationStatus.COMPLETED,
   EvaluationStatus.FAILED,
+  EvaluationStatus.OUTCOME_UNKNOWN,
 ]);
 
 const POLL_INTERVAL_MS = 3000;
@@ -215,6 +216,21 @@ function showCompletionToast(
       .join(" · ");
     toast({
       title: "Evaluation failed",
+      description: desc || undefined,
+      variant: "error",
+    });
+    return;
+  }
+
+  if (run.status === EvaluationStatus.OUTCOME_UNKNOWN) {
+    const desc = [
+      runLabel,
+      run.error_message ?? "The evaluation outcome could not be confirmed.",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    toast({
+      title: "Evaluation outcome unknown",
       description: desc || undefined,
       variant: "error",
     });

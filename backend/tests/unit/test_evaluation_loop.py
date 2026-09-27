@@ -453,6 +453,53 @@ async def test_pending_success_runs_multi_evaluator_in_order_and_assembles_names
     assert persistence.results[0].metadata["evaluator"]["shared"] == "evaluator"
 
 
+def test_case_can_be_rebuilt_from_persisted_attempt_work_snapshot():
+    from app.services.evaluation.loop import _case_from_attempt_snapshot
+
+    _, attempt, case = make_context()
+    persisted = replace(
+        attempt,
+        request_snapshot={
+            "input_payload": {"question": ["value"]},
+            "timeout_seconds": 30,
+            "execution_metadata": {},
+            "case_snapshot": {
+                "case_id": case.case_id,
+                "version": case.version,
+                "name": case.name,
+                "input_payload": case.input_payload,
+                "expected_output": case.expected_output,
+                "created_at": case.created_at.isoformat(),
+                "assertion_specs": [
+                    {"assertion_id": item.assertion_id, "kind": item.kind, "config": item.config, "required": item.required}
+                    for item in case.assertion_specs
+                ],
+                "fixture_refs": [],
+                "evidence_refs": [
+                    {
+                        "kind": item.kind,
+                        "identifier": item.identifier,
+                        "media_type": item.media_type,
+                        "schema_version": item.schema_version,
+                        "metadata": item.metadata,
+                    }
+                    for item in case.evidence_refs
+                ],
+                "tags": list(case.tags),
+                "metadata": case.metadata,
+            },
+        },
+    )
+
+    rebuilt = _case_from_attempt_snapshot(persisted)
+    assert rebuilt.case_id == case.case_id
+    assert rebuilt.input_payload == case.input_payload
+    assert rebuilt.expected_output == case.expected_output
+    assert rebuilt.assertion_specs == case.assertion_specs
+    assert rebuilt.evidence_refs == case.evidence_refs
+    assert rebuilt.metadata == case.metadata
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("capabilities", "config_ref"),

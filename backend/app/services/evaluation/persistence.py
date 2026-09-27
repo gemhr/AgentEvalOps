@@ -24,7 +24,7 @@ from app.core.evaluation.execution import (
     validate_target_capabilities,
 )
 from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue
-from app.core.evaluation.references import ArtifactRef, CapabilityRequirement, CaseVersionRef, VersionRef
+from app.core.evaluation.references import ArtifactRef, CapabilityRequirement, CaseVersionRef, EvidenceRef, VersionRef
 from app.core.evaluation.repositories import EvaluationPersistenceUnitOfWork
 from app.core.evaluation.results import EvaluationResult, ProvenanceCompleteness
 from app.core.evaluation.run_attempts import (
@@ -65,6 +65,35 @@ def _artifact(ref: ArtifactRef | None) -> dict[str, object] | None:
         "digest": ref.digest,
         "media_type": ref.media_type,
         "metadata": _plain(ref.metadata),
+    }
+
+
+def _evidence(ref: EvidenceRef) -> dict[str, object]:
+    return {
+        "kind": ref.kind,
+        "identifier": ref.identifier,
+        "media_type": ref.media_type,
+        "schema_version": ref.schema_version,
+        "metadata": _plain(ref.metadata),
+    }
+
+
+def _serialize_case_snapshot(case: TestCaseVersion) -> dict[str, object]:
+    return {
+        "case_id": case.case_id,
+        "version": case.version,
+        "name": case.name,
+        "input_payload": _plain(case.input_payload),
+        "expected_output": _plain(case.expected_output),
+        "created_at": case.created_at.isoformat(),
+        "assertion_specs": [
+            {"assertion_id": item.assertion_id, "kind": item.kind, "config": _plain(item.config), "required": item.required}
+            for item in case.assertion_specs
+        ],
+        "fixture_refs": [_artifact(item) for item in case.fixture_refs],
+        "evidence_refs": [_evidence(item) for item in case.evidence_refs],
+        "tags": list(case.tags),
+        "metadata": _plain(case.metadata),
     }
 
 
@@ -204,6 +233,7 @@ class EvaluationPersistenceService:
         timeout: timedelta,
         subject_ref: object | None = None,
         metadata: object | None = None,
+        run_id: UUID | None = None,
     ) -> tuple[EvaluationRun, tuple[ExecutionAttempt, ...]]:
         """校验 selection 后原子创建 Run 与全部 initial Attempts。"""
         if not suite.case_selection:
@@ -217,7 +247,7 @@ class EvaluationPersistenceService:
             raise ValueError("selected case snapshot is missing or mismatched")
         validate_target_capabilities(suite.target_capability_requirements, target.capabilities)
 
-        run_id = uuid4()
+        run_id = run_id or uuid4()
         created_at = _now()
         run = EvaluationRun(
             run_id=run_id,
@@ -263,6 +293,7 @@ class EvaluationPersistenceService:
                         "input_payload": _plain(request.input_payload),
                         "timeout_seconds": timeout.total_seconds(),
                         "execution_metadata": _plain(request.execution_metadata),
+                        "case_snapshot": _serialize_case_snapshot(cases[ref]),
                     },
                     created_at=created_at,
                 )
@@ -331,7 +362,9 @@ class EvaluationPersistenceService:
             source = await uow.attempts.get_attempt(project_id, attempt_id)
             if source is None:
                 raise EvaluationEntityNotFound("attempt not found")
-            run = await uow.runs.get_run(project_id, source.run_id)
+            # Serialize retry creation with finish_run, which takes this same
+            # run-row lock before checking the latest attempts.
+            run = await uow.runs.lock_run(project_id, source.run_id)
             if run is None or run.status is not RunStatus.RUNNING:
                 raise ValueError("retry requires RUNNING run")
             if source.execution_outcome_kind not in RETRYABLE_OUTCOMES:
@@ -339,7 +372,12 @@ class EvaluationPersistenceService:
             if source.execution_outcome_kind is OutcomeKind.OUTCOME_UNKNOWN:
                 if not allow_unknown_retry or not reason or not reason.strip():
                     raise ValueError("OUTCOME_UNKNOWN retry requires explicit authorization and reason")
-            child = source.build_retry(attempt_id=uuid4(), request_id=str(uuid4()), created_at=_now())
+            child = source.build_retry(
+                attempt_id=uuid4(),
+                request_id=str(uuid4()),
+                created_at=_now(),
+                unknown_retry_reason=reason if source.execution_outcome_kind is OutcomeKind.OUTCOME_UNKNOWN else None,
+            )
             await uow.attempts.create_retry(child)
             await uow.commit()
             return child
@@ -349,12 +387,18 @@ class EvaluationPersistenceService:
     ) -> None:
         """验证完整 provenance 后 insert-only finalized Result。"""
         async with self._uow_factory() as uow:
+            # Sharing the terminalization lock prevents a result from being
+            # inserted after finish_run has committed the terminal state.
+            run = await uow.runs.lock_run(project_id, UUID(result.run_id))
+            if run is None:
+                raise EvaluationEntityNotFound("run not found")
+            if run.status is not RunStatus.RUNNING:
+                raise RunNotFinishable("result finalization requires a RUNNING run")
             attempt = await uow.attempts.get_attempt(project_id, attempt_id)
             if attempt is None:
                 raise EvaluationEntityNotFound("attempt not found")
-            run = await uow.runs.get_run(project_id, attempt.run_id)
-            if run is None:
-                raise EvaluationEntityNotFound("run not found")
+            if attempt.run_id != run.run_id:
+                raise EvaluationEntityNotFound("attempt does not belong to run")
             if attempt.claim_token != claim_token or attempt.status is not AttemptStatus.TERMINAL:
                 raise AttemptClaimLost("result finalization is not fenced")
             if attempt.execution_outcome_kind is not OutcomeKind.SUCCESS:
@@ -421,8 +465,8 @@ class EvaluationPersistenceService:
             await uow.commit()
             return attempt
 
-    async def finish_run(self, project_id: UUID, run_id: UUID, *, failure_reason: str = "execution failed") -> RunStatus:
-        """按 active > unknown > confirmed failure > slots complete 的优先级结束 Run。"""
+    async def coordinate_run(self, project_id: UUID, run_id: UUID, *, failure_reason: str = "execution failed") -> RunStatus:
+        """在 Run 锁内先完成默认 NO_RETRY 决策，再检查是否可 terminalize。"""
         async with self._uow_factory() as uow:
             run = await uow.runs.lock_run(project_id, run_id)
             if run is None:
@@ -430,24 +474,40 @@ class EvaluationPersistenceService:
             if run.status not in {RunStatus.PENDING, RunStatus.RUNNING}:
                 raise RunNotFinishable("terminal run is immutable")
             latest = await uow.attempts.list_latest_attempts(project_id, run_id)
+            # 本 WP 未发现既有 Domain retry policy，故自动重试明确禁用。
+            # 该决策与终态判断处于同一 Run-row critical section；显式 API
+            # retry_attempt 也使用该锁，因此 child 不会在 terminal 后插入。
+            retry_decisions = [
+                "NO_RETRY"
+                for item in latest
+                if item.status is AttemptStatus.TERMINAL
+                and item.execution_outcome_kind in RETRYABLE_OUTCOMES
+            ]
+            assert all(decision == "NO_RETRY" for decision in retry_decisions)
             if not latest or any(item.status is not AttemptStatus.TERMINAL for item in latest):
                 raise RunNotFinishable("run still has active attempts")
+            required = frozenset(
+                (item["evaluator_id"], item["evaluator_version"])
+                for item in run.suite_snapshot["evaluators"] if item["required"]
+            )
+            for attempt in latest:
+                if attempt.execution_outcome_kind is not OutcomeKind.SUCCESS:
+                    continue
+                slots = await uow.results.list_finalized_slots(project_id, run_id, attempt.attempt_id)
+                if required - frozenset((slot[2], slot[3]) for slot in slots):
+                    raise RunNotFinishable("successful attempt evaluator slots are incomplete")
             kinds = {item.execution_outcome_kind for item in latest}
             if OutcomeKind.OUTCOME_UNKNOWN in kinds:
                 status, reason = RunStatus.OUTCOME_UNKNOWN, "latest attempt outcome is unknown"
             elif kinds & {OutcomeKind.FAILURE, OutcomeKind.TIMEOUT, OutcomeKind.CANCELLED}:
                 status, reason = RunStatus.FAILED, failure_reason
             else:
-                required = frozenset(
-                    (item["evaluator_id"], item["evaluator_version"])
-                    for item in run.suite_snapshot["evaluators"] if item["required"]
-                )
-                for attempt in latest:
-                    slots = await uow.results.list_finalized_slots(project_id, run_id, attempt.attempt_id)
-                    if required - frozenset((slot[2], slot[3]) for slot in slots):
-                        raise RunNotFinishable("required evaluator slots are incomplete")
                 status, reason = RunStatus.COMPLETED, None
             if not await uow.runs.finish_run(project_id, run_id, status, reason):
                 raise RunNotFinishable("run finish CAS failed")
             await uow.commit()
             return status
+
+    async def finish_run(self, project_id: UUID, run_id: UUID, *, failure_reason: str = "execution failed") -> RunStatus:
+        """Compatibility alias for the canonical run-wide coordination boundary."""
+        return await self.coordinate_run(project_id, run_id, failure_reason=failure_reason)

@@ -396,6 +396,7 @@ class EvalRunModel(Base):
         ForeignKey("eval_monitors.id", ondelete="SET NULL"),
         nullable=True,
     )
+    canonical_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -403,7 +404,16 @@ class EvalRunModel(Base):
     trace_scores: Mapped[list["TraceScoreModel"]] = relationship(back_populates="eval_run", passive_deletes=True)
     monitor: Mapped["EvalMonitorModel | None"] = relationship(back_populates="eval_runs", foreign_keys=[monitor_id])
 
-    __table_args__ = (Index("ix_eval_runs_project", "project_id", "created_at"),)
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["project_id", "canonical_run_id"],
+            ["evaluation_runs.project_id", "evaluation_runs.id"],
+            name="fk_eval_runs_canonical_run",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("canonical_run_id", name="uq_eval_runs_canonical_run_id"),
+        Index("ix_eval_runs_project", "project_id", "created_at"),
+    )
 
 
 class TraceScoreModel(Base):
@@ -443,6 +453,8 @@ class TraceScoreModel(Base):
         ForeignKey("eval_runs.id", ondelete="SET NULL"),
         nullable=True,
     )
+    canonical_result_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    canonical_verdict: Mapped[str | None] = mapped_column(String(32), nullable=True)
     author_user_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     environment: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -458,6 +470,21 @@ class TraceScoreModel(Base):
     eval_run: Mapped["EvalRunModel | None"] = relationship(back_populates="trace_scores")
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["project_id", "canonical_result_id"],
+            ["evaluation_results.project_id", "evaluation_results.id"],
+            name="fk_trace_scores_canonical_result",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("canonical_result_id", name="uq_trace_scores_canonical_result_id"),
+        CheckConstraint(
+            "canonical_verdict IS NULL OR canonical_verdict IN ('PASS','FAIL','INCONCLUSIVE','ERROR')",
+            name="ck_trace_scores_canonical_verdict",
+        ),
+        CheckConstraint(
+            "(canonical_result_id IS NULL) = (canonical_verdict IS NULL)",
+            name="ck_trace_scores_canonical_result_verdict_pair",
+        ),
         Index("ix_trace_scores_trace_id", "trace_id"),
         Index("ix_trace_scores_project_name", "project_id", "name"),
         Index("ix_trace_scores_eval_run", "eval_run_id"),
@@ -498,6 +525,8 @@ class SessionScoreModel(Base):
         ForeignKey("eval_runs.id", ondelete="SET NULL"),
         nullable=True,
     )
+    canonical_result_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    canonical_verdict: Mapped[str | None] = mapped_column(String(32), nullable=True)
     author_user_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     environment: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -512,6 +541,21 @@ class SessionScoreModel(Base):
     eval_run: Mapped["EvalRunModel | None"] = relationship()
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["project_id", "canonical_result_id"],
+            ["evaluation_results.project_id", "evaluation_results.id"],
+            name="fk_session_scores_canonical_result",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("canonical_result_id", name="uq_session_scores_canonical_result_id"),
+        CheckConstraint(
+            "canonical_verdict IS NULL OR canonical_verdict IN ('PASS','FAIL','INCONCLUSIVE','ERROR')",
+            name="ck_session_scores_canonical_verdict",
+        ),
+        CheckConstraint(
+            "(canonical_result_id IS NULL) = (canonical_verdict IS NULL)",
+            name="ck_session_scores_canonical_result_verdict_pair",
+        ),
         Index("ix_session_scores_project_session", "project_id", "session_id"),
         Index("ix_session_scores_project_name", "project_id", "name", "created_at"),
         Index("ix_session_scores_eval_run", "eval_run_id"),
@@ -791,6 +835,7 @@ class EvaluationResultModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, server_default=text("CURRENT_TIMESTAMP"))
 
     __table_args__ = (
+        UniqueConstraint("project_id", "id", name="uq_evaluation_results_project_id_id"),
         ForeignKeyConstraint(
             ["project_id", "run_id", "dataset_id", "dataset_version", "suite_id", "suite_version"],
             ["evaluation_runs.project_id", "evaluation_runs.id", "evaluation_runs.dataset_id", "evaluation_runs.dataset_version", "evaluation_runs.suite_id", "evaluation_runs.suite_version"],

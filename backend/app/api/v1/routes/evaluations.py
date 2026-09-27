@@ -269,7 +269,9 @@ class CreateTraceScoreRequest(BaseModel):
 
     @model_validator(mode="after")
     def _validate_value_for_data_type(self) -> "CreateTraceScoreRequest":
-        """Reject invalid values at API layer so we return 422 instead of 500."""
+        """Reject automated writes and invalid values at the HTTP boundary."""
+        if self.source is ScoreSource.AUTOMATED:
+            raise ValueError("AUTOMATED scores are created only by canonical evaluation projection")
         validate_score_value(self.value, self.data_type)
         return self
 
@@ -625,22 +627,24 @@ async def delete_eval_run(
 async def retry_failed_eval_run(
     request: Request,
     run_id: UUID,
+    unknown_retry_reason: str | None = Query(default=None, min_length=1, max_length=1000),
     ctx: ApiContext = Depends(require_project),
     session: AsyncSession = Depends(get_db_session),
     redis_client: aioredis.Redis = Depends(get_redis),
 ) -> EvalRunResponse:
-    """Retry failed metrics from a completed eval run.
+    """Create child Attempts for retryable canonical execution outcomes.
 
-    Creates a new eval run targeting only the trace+metric pairs that
-    failed in the original run. Returns 422 if the original run has
-    no failures to retry.
+    ``unknown_retry_reason`` explicitly authorizes replay of an UNKNOWN
+    attempt and is persisted in its child Attempt snapshot.
 
     Auth: ``Bearer`` + ``X-Project-ID`` | ``X-API-Key`` + ``X-Project-Name``
 
     Rate limit: ``50/min``
     """
     svc = EvalService(session)
-    prepared = await svc.prepare_retry_failed_run(run_id, ctx.project.id)
+    prepared = await svc.prepare_retry_failed_run(
+        run_id, ctx.project.id, unknown_retry_reason=unknown_retry_reason
+    )
     billable = (
         sum(len(metrics) for metrics in prepared.trace_metric_map.values())
         if prepared.trace_metric_map
@@ -1149,22 +1153,24 @@ async def delete_session_eval_run(
 async def retry_failed_session_eval_run(
     request: Request,
     run_id: UUID,
+    unknown_retry_reason: str | None = Query(default=None, min_length=1, max_length=1000),
     ctx: ApiContext = Depends(require_project),
     session: AsyncSession = Depends(get_db_session),
     redis_client: aioredis.Redis = Depends(get_redis),
 ) -> EvalRunResponse:
-    """Retry failed metrics from a completed session eval run.
+    """Create child Attempts for retryable canonical session outcomes.
 
-    Creates a new session eval run targeting only the session+metric
-    pairs that failed in the original run. Returns 422 if the original
-    run has no failures to retry.
+    ``unknown_retry_reason`` explicitly authorizes replay of an UNKNOWN
+    attempt and is persisted in its child Attempt snapshot.
 
     Auth: ``Bearer`` + ``X-Project-ID`` | ``X-API-Key`` + ``X-Project-Name``
 
     Rate limit: ``50/min``
     """
     svc = EvalService(session)
-    prepared = await svc.prepare_retry_failed_session_run(run_id, ctx.project.id)
+    prepared = await svc.prepare_retry_failed_session_run(
+        run_id, ctx.project.id, unknown_retry_reason=unknown_retry_reason
+    )
     usage_svc = UsageService(redis_client, session)
     billable = prepared.run.total_targets * len(prepared.run.metric_names)
     await usage_svc.check_and_increment(ctx.organization.id, UsageCategory.SESSION_EVALS, count=billable)

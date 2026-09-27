@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from httpx import AsyncClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.db.models import EvalRunModel, TraceScoreModel
@@ -27,6 +28,27 @@ async def test_create_eval_run_returns_202(client: AsyncClient, seed_trace):
     assert "project_id" in data
     assert "filters" in data
     assert "sampling_rate" in data
+
+
+async def test_create_trace_score_rejects_unlinked_automated_write(client: AsyncClient, seed_trace, db_session):
+    trace = await seed_trace()
+    response = await client.post(
+        "/evaluations/trace-scores",
+        json={
+            "trace_id": str(trace.trace_id),
+            "name": "quality",
+            "value": "0.9",
+            "source": "AUTOMATED",
+        },
+    )
+    assert response.status_code == 422
+    score_count = await db_session.scalar(
+        select(func.count()).select_from(TraceScoreModel).where(
+            TraceScoreModel.trace_id == trace.trace_id,
+            TraceScoreModel.source == ScoreSource.AUTOMATED,
+        )
+    )
+    assert score_count == 0
 
 
 async def test_create_eval_run_with_invalid_metric(client: AsyncClient, seed_trace):

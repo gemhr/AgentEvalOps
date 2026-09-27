@@ -411,7 +411,7 @@ async def test_concurrent_duplicate_delivery_claims_and_executes_target_once(db_
         loop.execute_attempt(TEST_PROJECT_ID, attempt.attempt_id, case, lease=timedelta(minutes=5)),
         loop.execute_attempt(TEST_PROJECT_ID, attempt.attempt_id, case, lease=timedelta(minutes=5)),
     )
-    assert EvaluationLoopResult.NOT_CLAIMED in outcomes
+    assert any(item in outcomes for item in (EvaluationLoopResult.NOT_CLAIMED, EvaluationLoopResult.ALREADY_COMPLETE))
     assert target.calls == 1
 
 

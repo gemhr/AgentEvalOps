@@ -1,7 +1,36 @@
 """Integration tests for evaluation monitor endpoints."""
 
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+import redis.asyncio as aioredis
 from httpx import AsyncClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.infrastructure.db.models import EvalMonitorModel, EvalRunModel, EvaluationRunModel, ExecutionAttemptModel
+from app.infrastructure.queue import tasks
+from app.services.eval_service import EvalService
+from app.services.usage_service import UsageService
+from tests.integration.conftest import TEST_PROJECT_ID
+
+
+async def _assert_monitor_run_linkage(session: AsyncSession, monitor_id):
+    monitor = await session.get(EvalMonitorModel, monitor_id)
+    assert monitor is not None and monitor.last_run_id is not None
+    legacy = await session.get(EvalRunModel, monitor.last_run_id)
+    canonical = await session.get(EvaluationRunModel, monitor.last_run_id)
+    attempt_count = await session.scalar(
+        select(func.count()).select_from(ExecutionAttemptModel).where(
+            ExecutionAttemptModel.project_id == TEST_PROJECT_ID,
+            ExecutionAttemptModel.run_id == monitor.last_run_id,
+        )
+    )
+    assert legacy is not None and legacy.canonical_run_id == monitor.last_run_id
+    assert canonical is not None
+    assert attempt_count and attempt_count > 0
 
 
 # ---------------------------------------------------------------------------
@@ -357,6 +386,55 @@ async def test_trigger_monitor_creates_run(client: AsyncClient, seed_trace):
     assert run_data["monitor_id"] == monitor_id
     assert run_data["target_type"] == "TRACE"
     assert run_data["name"].startswith("[Monitor]")
+
+
+@pytest.mark.asyncio
+async def test_manual_monitor_dispatch_creates_projection_before_fk_linkage(db_session, seed_trace, monkeypatch):
+    await seed_trace()
+    service = EvalService(db_session)
+    monitor = await service.create_monitor(
+        TEST_PROJECT_ID, "Manual boundary", "TRACE", ["task_completion"], "daily"
+    )
+    dispatch = MagicMock()
+    monkeypatch.setattr(tasks.execute_evaluation_attempt, "apply_async", dispatch)
+    monkeypatch.setattr(tasks.execute_eval_run, "delay", MagicMock(side_effect=AssertionError("legacy task dispatched")))
+    monkeypatch.setattr(tasks.execute_session_eval_run, "delay", MagicMock(side_effect=AssertionError("legacy task dispatched")))
+
+    prepared = await service.prepare_trigger_monitor(monitor.id, TEST_PROJECT_ID)
+    assert (await db_session.get(EvalMonitorModel, monitor.id)).last_run_id is None
+    await service.dispatch_trigger_monitor(prepared)
+
+    await _assert_monitor_run_linkage(db_session, monitor.id)
+    dispatch.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_scheduled_monitor_dispatch_creates_projection_before_fk_linkage(
+    db_session, seed_trace, monkeypatch
+):
+    await seed_trace()
+    service = EvalService(db_session)
+    monitor = await service.create_monitor(
+        TEST_PROJECT_ID, "Scheduled boundary", "TRACE", ["task_completion"], "daily"
+    )
+    dispatch = MagicMock()
+    monkeypatch.setattr(tasks.execute_evaluation_attempt, "apply_async", dispatch)
+    monkeypatch.setattr(tasks.execute_eval_run, "delay", MagicMock(side_effect=AssertionError("legacy task dispatched")))
+    monkeypatch.setattr(tasks.execute_session_eval_run, "delay", MagicMock(side_effect=AssertionError("legacy task dispatched")))
+    fake_redis = SimpleNamespace(aclose=AsyncMock())
+    monkeypatch.setattr(aioredis, "from_url", MagicMock(return_value=fake_redis))
+    monkeypatch.setattr(UsageService, "check_and_increment", AsyncMock())
+
+    @asynccontextmanager
+    async def worker_session():
+        yield db_session
+
+    monkeypatch.setattr(tasks, "_worker_session", worker_session)
+    result = await tasks._process_single_monitor(str(monitor.id), str(TEST_PROJECT_ID))
+
+    await _assert_monitor_run_linkage(db_session, monitor.id)
+    assert result["status"] == "spawned"
+    dispatch.assert_called_once()
 
 
 async def test_trigger_paused_monitor_still_works(client: AsyncClient, seed_trace):

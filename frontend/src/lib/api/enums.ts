@@ -30,6 +30,7 @@ export const EvaluationStatus = {
   RUNNING: "RUNNING",
   COMPLETED: "COMPLETED",
   FAILED: "FAILED",
+  OUTCOME_UNKNOWN: "OUTCOME_UNKNOWN",
 } as const;
 export type EvaluationStatus =
   (typeof EvaluationStatus)[keyof typeof EvaluationStatus];

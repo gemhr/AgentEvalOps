@@ -20,6 +20,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
+from uuid import UUID
 
 from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -139,6 +140,39 @@ _EVAL_SOFT_TIME_LIMIT = 3300  # 55 min
 _EVAL_TIME_LIMIT = 3600  # 60 min
 
 
+@celery.task(name="execute_evaluation_attempt", bind=True, max_retries=0, soft_time_limit=_EVAL_SOFT_TIME_LIMIT, time_limit=_EVAL_TIME_LIMIT)
+def execute_evaluation_attempt(self: Any, project_id: str, attempt_id: str) -> dict[str, str]:
+    """Execute exactly one canonical Attempt identified by durable keys."""
+    import socket
+
+    from app.services.evaluation.legacy_application import execute_canonical_attempt
+
+    status = asyncio.run(
+        execute_canonical_attempt(
+            UUID(project_id), UUID(attempt_id),
+            task_ref=getattr(getattr(self, "request", None), "id", None),
+            worker_ref=socket.gethostname(),
+        )
+    )
+    return {"attempt_id": attempt_id, "status": status}
+
+
+@celery.task(name="dispatch_pending_evaluation_attempts", bind=True, max_retries=0)
+def dispatch_pending_evaluation_attempts(self: Any) -> dict[str, int]:
+    """Re-enqueue canonical attempts committed before a broker dispatch failure."""
+    from app.services.evaluation.legacy_application import dispatch_pending_attempts
+
+    return {"dispatched": asyncio.run(dispatch_pending_attempts())}
+
+
+@celery.task(name="reconcile_expired_evaluation_attempts", bind=True, max_retries=0)
+def reconcile_expired_evaluation_attempts(self: Any) -> dict[str, int]:
+    """Apply UNKNOWN semantics to expired leases and resume coordinator work."""
+    from app.services.evaluation.legacy_application import reconcile_expired_attempts
+
+    return {"reconciled": asyncio.run(reconcile_expired_attempts())}
+
+
 @celery.task(
     name="execute_eval_run",
     bind=True,
@@ -173,16 +207,7 @@ def execute_eval_run(
     Returns:
         A dict summarising the eval run outcome.
     """
-    try:
-        return asyncio.run(_run_eval_run(run_id, project_id, trace_ids, trace_metric_map))
-    except SoftTimeLimitExceeded:
-        logger.error("execute_eval_run_timeout", run_id=run_id)
-        asyncio.run(_fail_eval_run(run_id, "Eval run exceeded its time limit."))
-        raise
-    except Exception as exc:
-        logger.error("execute_eval_run_failed", error=str(exc), run_id=run_id)
-        asyncio.run(_fail_eval_run(run_id, str(exc)))
-        raise self.retry(exc=exc)
+    raise RuntimeError("execute_eval_run is retired; dispatch execute_evaluation_attempt identities")
 
 
 async def _run_eval_run(
@@ -453,21 +478,18 @@ async def _process_single_monitor(monitor_id: str, project_id: str) -> dict[str,
         try:
             usage_svc = UsageService(redis_client, session)
             await usage_svc.check_and_increment(project.org_id, category, count=billable_units)
-            try:
-                now = datetime.now(timezone.utc)
-                await eval_repo.advance_monitor(
-                    mid,
-                    last_run_at=now,
-                    last_run_id=run.id,
-                )
-                await session.commit()
-            except Exception:
-                await usage_svc.rollback_increment(project.org_id, category, count=billable_units)
-                raise
         finally:
             await redis_client.aclose()
 
-        svc._dispatch_monitor_run(monitor.target_type, run.id, monitor.project_id, target_ids)
+        from app.core.evals.entities import PreparedRun
+
+        prepared = PreparedRun(
+            run=run,
+            project_id=monitor.project_id,
+            target_ids=target_ids,
+            target_type=monitor.target_type,
+        )
+        await svc.dispatch_run(prepared)
 
         logger.info(
             "monitor_run_spawned",
@@ -505,16 +527,7 @@ def execute_session_eval_run(
     trace-level signals (persisting each as a TraceScore), then passes
     the precomputed signals to session metrics for pure aggregation.
     """
-    try:
-        return asyncio.run(_run_session_eval(run_id, project_id, session_ids))
-    except SoftTimeLimitExceeded:
-        logger.error("execute_session_eval_run_timeout", run_id=run_id)
-        asyncio.run(_fail_eval_run(run_id, "Session eval run exceeded its time limit."))
-        raise
-    except Exception as exc:
-        logger.error("execute_session_eval_run_failed", error=str(exc), run_id=run_id)
-        asyncio.run(_fail_eval_run(run_id, str(exc)))
-        raise self.retry(exc=exc)
+    raise RuntimeError("execute_session_eval_run is retired; dispatch execute_evaluation_attempt identities")
 
 
 async def _run_session_eval(

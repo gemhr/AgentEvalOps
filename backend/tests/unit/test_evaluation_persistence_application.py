@@ -192,7 +192,7 @@ async def test_finalize_result_rejects_mismatched_complete_provenance(change, me
     run, terminal, token, result = await persisted_success_context()
     uow = FakeUow()
     uow.attempts.get_attempt.return_value = terminal
-    uow.runs.get_run.return_value = run
+    uow.runs.lock_run.return_value = replace(run, status=RunStatus.RUNNING, started_at=NOW)
     with pytest.raises(ValueError, match=message):
         await EvaluationPersistenceService(lambda: uow).finalize_result(
             terminal.project_id, terminal.attempt_id, token, replace(result, **change)
@@ -205,7 +205,7 @@ async def test_finalize_result_accepts_complete_matching_provenance():
     run, terminal, token, result = await persisted_success_context()
     uow = FakeUow()
     uow.attempts.get_attempt.return_value = terminal
-    uow.runs.get_run.return_value = run
+    uow.runs.lock_run.return_value = replace(run, status=RunStatus.RUNNING, started_at=NOW)
     await EvaluationPersistenceService(lambda: uow).finalize_result(
         terminal.project_id, terminal.attempt_id, token, result
     )
@@ -257,9 +257,42 @@ async def test_unknown_retry_requires_explicit_authorization_and_reason():
     )
     uow = FakeUow()
     uow.attempts.get_attempt.return_value = terminal
-    uow.runs.get_run.return_value = SimpleNamespace(status=RunStatus.RUNNING)
+    uow.runs.lock_run.return_value = SimpleNamespace(status=RunStatus.RUNNING)
     with pytest.raises(ValueError, match="authorization"):
         await EvaluationPersistenceService(lambda: uow).retry_attempt(terminal.project_id, terminal.attempt_id)
+
+
+@pytest.mark.asyncio
+async def test_unknown_retry_persists_authorization_reason():
+    ref = CaseVersionRef("case", "v1")
+    request_id = str(uuid4())
+    run_id = uuid4()
+    attempt_id = uuid4()
+    from app.core.evaluation.execution import ExecutionRequest
+    from app.core.evaluation.run_attempts import ExecutionAttempt
+
+    request = ExecutionRequest(
+        request_id, str(run_id), str(attempt_id), ref, {"q": 1}, timedelta(seconds=5), "stable-key"
+    )
+    source = ExecutionAttempt(
+        attempt_id=attempt_id, project_id=uuid4(), run_id=run_id, case_ref=ref, attempt_no=1,
+        execution_target_ref=ExecutionTargetRef("target", "FIXTURE"), execution_request=request,
+        request_snapshot={"input_payload": {"q": 1}, "timeout_seconds": 5}, created_at=NOW,
+        status=AttemptStatus.TERMINAL, claim_token=uuid4(), claimed_at=NOW, started_at=NOW,
+        finished_at=NOW, lease_expires_at=NOW, execution_outcome_kind=OutcomeKind.OUTCOME_UNKNOWN,
+        error_category="UNKNOWN", reason="lost",
+    )
+    uow = FakeUow()
+    uow.attempts.get_attempt.return_value = source
+    uow.runs.lock_run.return_value = SimpleNamespace(status=RunStatus.RUNNING)
+    child = await EvaluationPersistenceService(lambda: uow).retry_attempt(
+        source.project_id, source.attempt_id, allow_unknown_retry=True, reason="operator approved replay"
+    )
+    assert child.request_snapshot["retry_authorization"] == {
+        "outcome_unknown": True,
+        "reason": "operator approved replay",
+    }
+    uow.attempts.create_retry.assert_awaited_once_with(child)
 
 
 @pytest.mark.asyncio
@@ -274,7 +307,7 @@ async def test_finish_run_refuses_active_attempt():
 @pytest.mark.asyncio
 async def test_finish_run_unknown_has_priority_over_confirmed_failure():
     uow = FakeUow()
-    uow.runs.lock_run.return_value = SimpleNamespace(status=RunStatus.RUNNING)
+    uow.runs.lock_run.return_value = SimpleNamespace(status=RunStatus.RUNNING, suite_snapshot={"evaluators": ()})
     uow.attempts.list_latest_attempts.return_value = (
         SimpleNamespace(status=AttemptStatus.TERMINAL, execution_outcome_kind=OutcomeKind.FAILURE),
         SimpleNamespace(status=AttemptStatus.TERMINAL, execution_outcome_kind=OutcomeKind.OUTCOME_UNKNOWN),
@@ -286,11 +319,26 @@ async def test_finish_run_unknown_has_priority_over_confirmed_failure():
 @pytest.mark.asyncio
 async def test_finish_run_confirmed_failure_is_failed():
     uow = FakeUow()
-    uow.runs.lock_run.return_value = SimpleNamespace(status=RunStatus.RUNNING)
+    uow.runs.lock_run.return_value = SimpleNamespace(status=RunStatus.RUNNING, suite_snapshot={"evaluators": ()})
     uow.attempts.list_latest_attempts.return_value = (
         SimpleNamespace(status=AttemptStatus.TERMINAL, execution_outcome_kind=OutcomeKind.TIMEOUT),
     )
     assert await EvaluationPersistenceService(lambda: uow).finish_run(uuid4(), uuid4()) is RunStatus.FAILED
+
+
+@pytest.mark.asyncio
+async def test_finish_run_waits_for_successful_slots_even_when_another_attempt_failed():
+    uow = FakeUow()
+    uow.runs.lock_run.return_value = SimpleNamespace(
+        status=RunStatus.RUNNING,
+        suite_snapshot={"evaluators": ({"evaluator_id": "eval", "evaluator_version": "e1", "required": True},)},
+    )
+    uow.attempts.list_latest_attempts.return_value = (
+        SimpleNamespace(attempt_id=uuid4(), status=AttemptStatus.TERMINAL, execution_outcome_kind=OutcomeKind.SUCCESS),
+        SimpleNamespace(attempt_id=uuid4(), status=AttemptStatus.TERMINAL, execution_outcome_kind=OutcomeKind.FAILURE),
+    )
+    with pytest.raises(RunNotFinishable, match="successful attempt evaluator slots"):
+        await EvaluationPersistenceService(lambda: uow).finish_run(uuid4(), uuid4())
 
 
 @pytest.mark.asyncio

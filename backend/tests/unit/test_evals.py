@@ -169,6 +169,16 @@ def test_create_trace_score_request_accepts_valid_values():
     CreateTraceScoreRequest(trace_id=tid, name="m", value="PASS", data_type=ScoreDataType.CATEGORICAL)
 
 
+def test_create_trace_score_request_rejects_automated_source():
+    with pytest.raises(ValueError, match="canonical evaluation projection"):
+        CreateTraceScoreRequest(
+            trace_id=uuid4(),
+            name="quality",
+            value="0.9",
+            source=ScoreSource.AUTOMATED,
+        )
+
+
 def test_validate_score_value_numeric():
     """validate_score_value enforces NUMERIC rules."""
     validate_score_value("0.5", ScoreDataType.NUMERIC)

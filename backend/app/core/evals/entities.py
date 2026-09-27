@@ -152,3 +152,5 @@ class PreparedRun:
     target_ids: list[str]
     target_type: str
     trace_metric_map: dict[str, list[str]] | None = field(default=None)
+    retry_reason: str | None = None
+    monitor_next_run_at: datetime | None = None

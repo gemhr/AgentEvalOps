@@ -20,7 +20,7 @@ from app.core.evals.entities import (
     validate_score_value,
 )
 from app.core.evals.metrics import list_metrics, list_session_metrics
-from app.infrastructure.db.models import TraceModel
+from app.infrastructure.db.models import EvalRunModel, SessionScoreModel, TraceModel, TraceScoreModel
 from app.infrastructure.db.repositories.eval_repo import EvalRepository
 from app.infrastructure.db.repositories.trace_repo import TraceRepository
 from app.logging import logger
@@ -110,8 +110,6 @@ class EvalService:
             created_at=now,
         )
 
-        await self._repo.create_eval_run(run)
-
         return PreparedRun(
             run=run,
             project_id=project_id,
@@ -157,8 +155,6 @@ class EvalService:
             created_at=now,
         )
 
-        await self._repo.create_eval_run(run)
-
         return PreparedRun(
             run=run,
             project_id=project_id,
@@ -167,33 +163,41 @@ class EvalService:
         )
 
     async def dispatch_run(self, prepared: PreparedRun) -> EvalRun:
-        """Commit the prepared run to the database and enqueue the Celery task."""
+        """Create canonical Run/Attempts, project its read row and enqueue attempts."""
         await self._session.commit()
+        from app.infrastructure.queue.tasks import execute_evaluation_attempt
 
-        if prepared.target_type == "SESSION":
-            from app.infrastructure.queue.tasks import execute_session_eval_run
+        if prepared.target_type.startswith("CANONICAL_RETRY_"):
+            from app.services.evaluation.legacy_application import retry_canonical_attempts
 
-            execute_session_eval_run.delay(
-                str(prepared.run.id),
-                str(prepared.project_id),
-                prepared.target_ids,
+            attempts = await retry_canonical_attempts(
+                prepared.project_id,
+                [UUID(item) for item in prepared.target_ids],
+                unknown_retry_reason=prepared.retry_reason,
             )
-        else:
-            from app.infrastructure.queue.tasks import execute_eval_run
+            for attempt in attempts:
+                execute_evaluation_attempt.apply_async(args=[str(prepared.project_id), str(attempt.attempt_id)])
+            from app.services.evaluation.legacy_application import project_canonical_state
 
-            if prepared.trace_metric_map is not None:
-                execute_eval_run.delay(
-                    str(prepared.run.id),
-                    str(prepared.project_id),
-                    prepared.target_ids,
-                    trace_metric_map=prepared.trace_metric_map,
-                )
-            else:
-                execute_eval_run.delay(
-                    str(prepared.run.id),
-                    str(prepared.project_id),
-                    prepared.target_ids,
-                )
+            await project_canonical_state(prepared.project_id, prepared.run.id)
+            return prepared.run
+
+        from app.services.evaluation.legacy_application import create_canonical_run
+
+        _canonical, attempts = await create_canonical_run(self._session, prepared)
+
+        if prepared.run.monitor_id is not None:
+            now = datetime.now(timezone.utc)
+            await self._repo.advance_monitor(
+                prepared.run.monitor_id,
+                last_run_at=now,
+                last_run_id=prepared.run.id,
+                next_run_at=prepared.monitor_next_run_at,
+            )
+            await self._session.commit()
+
+        for attempt in attempts:
+            execute_evaluation_attempt.apply_async(args=[str(prepared.project_id), str(attempt.attempt_id)])
 
         logger.info(
             "eval_run_dispatched",
@@ -226,13 +230,17 @@ class EvalService:
             project_id, status=status, target_type=target_type, limit=limit, offset=offset
         )
 
-    async def prepare_retry_failed_run(self, run_id: UUID, project_id: UUID) -> PreparedRun:
+    async def prepare_retry_failed_run(
+        self, run_id: UUID, project_id: UUID, *, unknown_retry_reason: str | None = None
+    ) -> PreparedRun:
         """Validate and add a retry run to the session (without committing)."""
         from collections import defaultdict
 
         original = await self._repo.get_eval_run(run_id, project_id)
         if original is None:
             raise NotFoundError(f"Eval run {run_id} not found.")
+        if await self._is_canonical_run(run_id, project_id):
+            return await self._prepare_canonical_retry(original, project_id, unknown_retry_reason)
 
         failed_scores = await self._repo.get_failed_scores_for_run(run_id, project_id)
         if not failed_scores:
@@ -262,8 +270,6 @@ class EvalService:
             created_at=now,
         )
 
-        await self._repo.create_eval_run(run)
-
         serialized_map = {str(tid): metrics for tid, metrics in trace_metric_map.items()}
         return PreparedRun(
             run=run,
@@ -271,6 +277,51 @@ class EvalService:
             target_ids=[str(tid) for tid in trace_ids],
             target_type="TRACE",
             trace_metric_map=serialized_map,
+        )
+
+    async def _is_canonical_run(self, run_id: UUID, project_id: UUID) -> bool:
+        """Return whether this compatibility row is linked to a canonical Run."""
+        return await self._session.scalar(
+            select(EvalRunModel.canonical_run_id).where(
+                EvalRunModel.id == run_id, EvalRunModel.project_id == project_id
+            )
+        ) is not None
+
+    async def _prepare_canonical_retry(
+        self, legacy_run: EvalRun, project_id: UUID, unknown_retry_reason: str | None = None
+    ) -> PreparedRun:
+        """Select retryable terminal Attempts without creating a second Run."""
+        from app.core.evaluation.execution import OutcomeKind
+        from app.core.evaluation.run_attempts import AttemptStatus, RunStatus
+        from app.services.evaluation.legacy_application import persistence_service
+
+        persistence = persistence_service()
+        run = await persistence.get_run(project_id, legacy_run.id)
+        if run.status is not RunStatus.RUNNING:
+            raise ValidationError("Canonical retry requires a RUNNING Run; terminal history is immutable.")
+        attempts = await persistence.list_attempts(project_id, run.run_id)
+        latest: dict[tuple[str, str], object] = {}
+        for attempt in attempts:
+            key = (attempt.case_ref.case_id, attempt.case_ref.version)
+            if key not in latest or latest[key].attempt_no < attempt.attempt_no:
+                latest[key] = attempt
+        retryable = [
+            item for item in latest.values()
+            if item.status is AttemptStatus.TERMINAL
+            and (
+                item.execution_outcome_kind in {OutcomeKind.FAILURE, OutcomeKind.TIMEOUT, OutcomeKind.CANCELLED}
+                or (item.execution_outcome_kind is OutcomeKind.OUTCOME_UNKNOWN and unknown_retry_reason and unknown_retry_reason.strip())
+            )
+        ]
+        if not retryable:
+            raise ValidationError("No retryable terminal canonical Attempts are available.")
+        prepared_run = legacy_run.model_copy(update={"total_targets": len(retryable)})
+        return PreparedRun(
+            run=prepared_run,
+            project_id=project_id,
+            target_ids=[str(item.attempt_id) for item in retryable],
+            target_type=f"CANONICAL_RETRY_{legacy_run.target_type}",
+            retry_reason=unknown_retry_reason,
         )
 
     async def get_scores_for_run(self, run_id: UUID, project_id: UUID) -> list[TraceScore]:
@@ -282,6 +333,13 @@ class EvalService:
         run = await self._repo.get_eval_run(run_id, project_id)
         if run is None:
             raise NotFoundError(f"Eval run {run_id} not found.")
+        linked = await self._session.scalar(
+            select(EvalRunModel.canonical_run_id).where(
+                EvalRunModel.id == run_id, EvalRunModel.project_id == project_id
+            )
+        )
+        if linked is not None:
+            raise ValidationError("Canonical evaluation history cannot be deleted.")
         if delete_scores:
             if run.target_type == "SESSION":
                 await self._repo.delete_session_scores_for_run(run_id, project_id)
@@ -304,6 +362,8 @@ class EvalService:
         metadata: dict[str, Any] | None = None,
     ) -> TraceScore:
         """Manually create a trace score (annotation or programmatic)."""
+        if source == ScoreSource.AUTOMATED:
+            raise ValidationError("AUTOMATED scores can only be created by canonical evaluation projection.")
         now = datetime.now(timezone.utc)
         score = TraceScore(
             id=uuid4(),
@@ -346,6 +406,13 @@ class EvalService:
         existing = await self._repo.get_score_by_id(score_id, project_id)
         if existing is None:
             raise NotFoundError(f"Trace score {score_id} not found.")
+        canonical_result_id = await self._session.scalar(
+            select(TraceScoreModel.canonical_result_id).where(
+                TraceScoreModel.id == score_id, TraceScoreModel.project_id == project_id
+            )
+        )
+        if canonical_result_id is not None:
+            raise ValidationError("Canonical automated scores are read-only.")
 
         if value is not None:
             try:
@@ -374,6 +441,13 @@ class EvalService:
         existing = await self._repo.get_score_by_id(score_id, project_id)
         if existing is None:
             raise NotFoundError(f"Trace score {score_id} not found.")
+        canonical_result_id = await self._session.scalar(
+            select(TraceScoreModel.canonical_result_id).where(
+                TraceScoreModel.id == score_id, TraceScoreModel.project_id == project_id
+            )
+        )
+        if canonical_result_id is not None:
+            raise ValidationError("Canonical automated scores are read-only.")
         await self._repo.delete_score(score_id, project_id)
         await self._session.commit()
 
@@ -502,8 +576,6 @@ class EvalService:
             created_at=now,
         )
 
-        await self._repo.create_eval_run(run)
-
         return PreparedRun(
             run=run,
             project_id=project_id,
@@ -554,8 +626,6 @@ class EvalService:
             created_at=now,
         )
 
-        await self._repo.create_eval_run(run)
-
         return PreparedRun(
             run=run,
             project_id=project_id,
@@ -563,11 +633,15 @@ class EvalService:
             target_type="SESSION",
         )
 
-    async def prepare_retry_failed_session_run(self, run_id: UUID, project_id: UUID) -> PreparedRun:
+    async def prepare_retry_failed_session_run(
+        self, run_id: UUID, project_id: UUID, *, unknown_retry_reason: str | None = None
+    ) -> PreparedRun:
         """Validate and add a session retry run to the session (without committing)."""
         original = await self._repo.get_eval_run(run_id, project_id)
         if original is None:
             raise NotFoundError(f"Eval run {run_id} not found.")
+        if await self._is_canonical_run(run_id, project_id):
+            return await self._prepare_canonical_retry(original, project_id, unknown_retry_reason)
 
         failed_scores = await self._repo.get_failed_session_scores_for_run(run_id, project_id)
         if not failed_scores:
@@ -598,8 +672,6 @@ class EvalService:
             evaluated_count=0,
             created_at=now,
         )
-
-        await self._repo.create_eval_run(run)
 
         return PreparedRun(
             run=run,
@@ -644,6 +716,13 @@ class EvalService:
         )
 
     async def delete_session_score(self, score_id: UUID, project_id: UUID) -> None:  # noqa: D102
+        canonical_result_id = await self._session.scalar(
+            select(SessionScoreModel.canonical_result_id).where(
+                SessionScoreModel.id == score_id, SessionScoreModel.project_id == project_id
+            )
+        )
+        if canonical_result_id is not None:
+            raise ValidationError("Canonical automated scores are read-only.")
         await self._repo.delete_session_score(score_id, project_id)
         await self._session.commit()
 
@@ -879,28 +958,21 @@ class EvalService:
 
         run, target_ids = await self._spawn_run_for_monitor(monitor)
 
-        now = datetime.now(timezone.utc)
-        next_run = compute_next_run(monitor.cadence, now)
-        await self._repo.advance_monitor(monitor_id, last_run_at=now, last_run_id=run.id, next_run_at=next_run)
+        next_run = compute_next_run(monitor.cadence, datetime.now(timezone.utc))
 
         return PreparedRun(
             run=run,
             project_id=project_id,
             target_ids=target_ids,
             target_type=monitor.target_type,
+            monitor_next_run_at=next_run,
         )
 
     async def dispatch_trigger_monitor(self, prepared: PreparedRun) -> EvalRun:
         """Commit and dispatch a previously prepared monitor-triggered run."""
-        await self._session.commit()
-        self._dispatch_monitor_run(
-            prepared.target_type,
-            prepared.run.id,
-            prepared.project_id,
-            prepared.target_ids,
-        )
+        run = await self.dispatch_run(prepared)
         logger.info("monitor_triggered", run_id=str(prepared.run.id))
-        return prepared.run
+        return run
 
     async def list_monitor_runs(  # noqa: D102
         self,
@@ -977,8 +1049,6 @@ class EvalService:
                 evaluated_count=0,
                 created_at=now,
             )
-            await self._repo.create_eval_run(run)
-            await self._session.flush()
             return run, [str(t) for t in trace_ids]
 
         else:
@@ -1006,25 +1076,7 @@ class EvalService:
                 evaluated_count=0,
                 created_at=now,
             )
-            await self._repo.create_eval_run(run)
-            await self._session.flush()
             return run, session_ids
-
-    @staticmethod
-    def _dispatch_monitor_run(target_type: str, run_id: UUID, project_id: UUID, target_ids: list[str]) -> None:
-        """Dispatch the Celery task for a monitor-spawned run.
-
-        Must only be called **after** the transaction that created the
-        eval run row has been committed.
-        """
-        if target_type == "TRACE":
-            from app.infrastructure.queue.tasks import execute_eval_run
-
-            execute_eval_run.delay(str(run_id), str(project_id), target_ids)
-        else:
-            from app.infrastructure.queue.tasks import execute_session_eval_run
-
-            execute_session_eval_run.delay(str(run_id), str(project_id), target_ids)
 
     # -- Private helpers -------------------------------------------------------
 

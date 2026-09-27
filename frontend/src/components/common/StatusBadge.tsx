@@ -25,6 +25,7 @@ const statusVariantMap: Record<string, BadgeProps["variant"]> = {
   UNSET: "default",
   ERROR: "error",
   FAILED: "error",
+  OUTCOME_UNKNOWN: "warning",
   PAUSED: "warning",
   PAST_DUE: "warning",
   CANCELED: "error",

@@ -284,6 +284,7 @@ class PostgresExecutionAttemptRepository:
             update(ExecutionAttemptModel).where(
                 ExecutionAttemptModel.project_id == project_id, ExecutionAttemptModel.id == attempt_id,
                 ExecutionAttemptModel.status == AttemptStatus.RUNNING.value, ExecutionAttemptModel.claim_token == token,
+                ExecutionAttemptModel.lease_expires_at > func.current_timestamp(),
             ).values(
                 status=AttemptStatus.TERMINAL.value, execution_outcome_kind=outcome.kind.value,
                 output_artifact_ref=_artifact(outcome.output_artifact_ref),

@@ -658,6 +658,20 @@ def _assert_schema_parity(engine) -> None:
         assert "reject_evaluation_result_update()" in function_definition
         assert "evaluation_results rows are immutable" in function_definition
 
+        delete_trigger, delete_function = connection.execute(text("""
+            SELECT pg_get_triggerdef(t.oid), pg_get_functiondef(p.oid)
+            FROM pg_trigger t
+            JOIN pg_proc p ON p.oid = t.tgfoid
+            JOIN pg_class c ON c.oid = t.tgrelid
+            WHERE t.tgname = 'trg_evaluation_results_no_delete'
+              AND c.relname = 'evaluation_results'
+              AND NOT t.tgisinternal
+        """)).one()
+        assert "BEFORE DELETE ON" in delete_trigger
+        assert "evaluation_results" in delete_trigger
+        assert "reject_evaluation_result_delete()" in delete_trigger
+        assert "evaluation_results rows cannot be deleted" in delete_function
+
 
 def _assert_immutable_trigger(engine) -> None:
     with engine.connect() as connection:
@@ -702,8 +716,15 @@ def _assert_immutable_trigger(engine) -> None:
             VALUES (:result,:project,:run,:attempt,'dataset','d1','case','v1','suite','s1','eval','e1','cfg','1',
                     'target','git','abc','request','FAIL','wrong','COMPLETE','[]'::jsonb,'{}'::jsonb,CURRENT_TIMESTAMP)
         """), {"result": result_id, "project": project_id, "run": run_id, "attempt": attempt_id})
+        connection.commit()
         with pytest.raises(DBAPIError, match="immutable"):
             connection.execute(text("UPDATE evaluation_results SET verdict='PASS' WHERE id=:id"), {"id": result_id})
+        connection.rollback()
+        with pytest.raises(DBAPIError, match="cannot be deleted"):
+            connection.execute(text("DELETE FROM evaluation_results WHERE id=:id"), {"id": result_id})
+        connection.rollback()
+        with pytest.raises(DBAPIError, match="cannot be deleted"):
+            connection.execute(text("DELETE FROM evaluation_runs WHERE id=:id"), {"id": run_id})
         connection.rollback()
 
 

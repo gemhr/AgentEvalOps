@@ -44,6 +44,7 @@ class EvaluationStatus(StrEnum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
 
 
 class ScoreSource(StrEnum):

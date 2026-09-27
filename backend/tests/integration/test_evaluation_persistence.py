@@ -18,6 +18,7 @@ from app.core.evaluation import (
 )
 from app.core.evaluation.run_attempts import (
     AttemptClaimLost, AttemptStatus, EvaluationEntityNotFound, ResultAlreadyFinalized, RetryAlreadyCreated,
+    RunNotFinishable, RunStatus,
 )
 from app.infrastructure.db.engine import async_session_factory
 from app.infrastructure.db.models import EvaluationResultModel, EvaluationRunModel, ExecutionAttemptModel, ProjectModel
@@ -143,6 +144,33 @@ async def test_wrong_token_fails_start_outcome_and_result(db_session):
 
 
 @pytest.mark.asyncio
+async def test_expired_lease_cannot_record_outcome_before_reconciliation(db_session):
+    _, (attempt,) = await seed_run()
+    claim = await service().claim_attempt(TEST_PROJECT_ID, attempt.attempt_id, lease=timedelta(minutes=5))
+    running = await service().start_attempt(TEST_PROJECT_ID, attempt.attempt_id, claim.claim_token)
+    async with async_session_factory() as session:
+        await session.execute(
+            update(ExecutionAttemptModel)
+            .where(ExecutionAttemptModel.id == attempt.attempt_id)
+            .values(lease_expires_at=func.current_timestamp() - timedelta(seconds=1))
+        )
+        await session.commit()
+
+    outcome = ExecutionOutcome(
+        running.execution_request.request_id,
+        OutcomeKind.SUCCESS,
+        NOW,
+        NOW,
+        ArtifactRef("late-artifact"),
+    )
+    with pytest.raises(AttemptClaimLost):
+        await service().record_outcome(TEST_PROJECT_ID, attempt.attempt_id, claim.claim_token, outcome)
+
+    stale = await service().reconcile_stale(TEST_PROJECT_ID, attempt.attempt_id, reason="lease expired")
+    assert stale.execution_outcome_kind is OutcomeKind.OUTCOME_UNKNOWN
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "outcome_kind",
     [OutcomeKind.FAILURE, OutcomeKind.TIMEOUT, OutcomeKind.CANCELLED, OutcomeKind.OUTCOME_UNKNOWN],
@@ -243,6 +271,85 @@ async def test_retry_race_creates_one_child_and_preserves_source(db_session):
         source = next(row for row in rows if row.id == attempt.attempt_id)
         child = next(row for row in rows if row.id != attempt.attempt_id)
         assert source.execution_outcome_kind == "FAILURE" and child.retry_of_attempt_id == source.id
+
+
+@pytest.mark.asyncio
+async def test_default_retry_policy_decides_no_retry_before_run_terminalization(db_session):
+    run, (attempt,) = await seed_run()
+    claim = await service().claim_attempt(TEST_PROJECT_ID, attempt.attempt_id, lease=timedelta(minutes=5))
+    running = await service().start_attempt(TEST_PROJECT_ID, attempt.attempt_id, claim.claim_token)
+    await service().record_outcome(
+        TEST_PROJECT_ID,
+        attempt.attempt_id,
+        claim.claim_token,
+        ExecutionOutcome(
+            running.execution_request.request_id,
+            OutcomeKind.FAILURE,
+            NOW,
+            NOW,
+            error_category="TARGET",
+            reason="failed",
+        ),
+    )
+
+    terminal = await service().coordinate_run(TEST_PROJECT_ID, run.run_id)
+    current_run = await service().get_run(TEST_PROJECT_ID, run.run_id)
+    attempts = await service().list_attempts(TEST_PROJECT_ID, run.run_id)
+    assert terminal is RunStatus.FAILED
+    assert current_run.status is RunStatus.FAILED
+    assert len(attempts) == 1
+    with pytest.raises(ValueError, match="RUNNING run"):
+        await service().retry_attempt(TEST_PROJECT_ID, attempt.attempt_id)
+
+
+@pytest.mark.asyncio
+async def test_explicit_retry_before_coordination_creates_one_child_and_keeps_run_running(db_session):
+    run, (attempt,) = await seed_run()
+    claim = await service().claim_attempt(TEST_PROJECT_ID, attempt.attempt_id, lease=timedelta(minutes=5))
+    running = await service().start_attempt(TEST_PROJECT_ID, attempt.attempt_id, claim.claim_token)
+    await service().record_outcome(
+        TEST_PROJECT_ID,
+        attempt.attempt_id,
+        claim.claim_token,
+        ExecutionOutcome(
+            running.execution_request.request_id,
+            OutcomeKind.FAILURE,
+            NOW,
+            NOW,
+            error_category="TARGET",
+            reason="failed",
+        ),
+    )
+
+    child = await service().retry_attempt(TEST_PROJECT_ID, attempt.attempt_id)
+    with pytest.raises(RetryAlreadyCreated):
+        await service().retry_attempt(TEST_PROJECT_ID, attempt.attempt_id)
+    with pytest.raises(RunNotFinishable, match="active attempts"):
+        await service().coordinate_run(TEST_PROJECT_ID, run.run_id)
+
+    current_run = await service().get_run(TEST_PROJECT_ID, run.run_id)
+    attempts = await service().list_attempts(TEST_PROJECT_ID, run.run_id)
+    assert current_run.status is RunStatus.RUNNING
+    assert len(attempts) == 2
+    assert attempts[0].execution_outcome_kind is OutcomeKind.FAILURE
+    assert attempts[1].attempt_id == child.attempt_id
+    assert attempts[1].retry_of_attempt_id == attempt.attempt_id
+
+
+@pytest.mark.asyncio
+async def test_terminal_run_rejects_late_result_finalization(db_session):
+    run, attempt, token = await terminal_success()
+    result = result_for(run, attempt)
+    await service().finalize_result(TEST_PROJECT_ID, attempt.attempt_id, token, result)
+    assert await service().finish_run(TEST_PROJECT_ID, run.run_id) is RunStatus.COMPLETED
+
+    with pytest.raises(RunNotFinishable, match="RUNNING run"):
+        await service().finalize_result(
+            TEST_PROJECT_ID,
+            attempt.attempt_id,
+            token,
+            replace(result, result_id=str(uuid4()), created_at=NOW + timedelta(seconds=1)),
+        )
 
 
 @pytest.mark.asyncio

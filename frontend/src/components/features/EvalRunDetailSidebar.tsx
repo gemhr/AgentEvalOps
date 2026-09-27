@@ -55,6 +55,7 @@ const POLL_INTERVAL_MS = 3000;
 const TERMINAL_STATES: ReadonlySet<string> = new Set([
   EvaluationStatus.COMPLETED,
   EvaluationStatus.FAILED,
+  EvaluationStatus.OUTCOME_UNKNOWN,
 ]);
 
 interface EvalRunDetailSidebarProps {

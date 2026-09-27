@@ -180,7 +180,14 @@ class ExecutionAttempt:
         object.__setattr__(self, "outcome_evidence_refs", tuple(self.outcome_evidence_refs))
         object.__setattr__(self, "outcome_metadata", freeze_metadata(self.outcome_metadata))
 
-    def build_retry(self, *, attempt_id: UUID, request_id: str, created_at: datetime) -> ExecutionAttempt:
+    def build_retry(
+        self,
+        *,
+        attempt_id: UUID,
+        request_id: str,
+        created_at: datetime,
+        unknown_retry_reason: str | None = None,
+    ) -> ExecutionAttempt:
         """从 terminal non-success Attempt 创建新 identity 的 PENDING child。"""
         if self.status is not AttemptStatus.TERMINAL or self.execution_outcome_kind not in RETRYABLE_OUTCOMES:
             raise ValueError("only terminal non-success attempt can be retried")
@@ -194,6 +201,20 @@ class ExecutionAttempt:
             idempotency_key=self.execution_request.idempotency_key,
             execution_metadata=self.execution_request.execution_metadata,
         )
+        request_snapshot: dict[str, object] = {
+            "input_payload": request.input_payload,
+            "timeout_seconds": request.timeout.total_seconds(),
+            "execution_metadata": request.execution_metadata,
+        }
+        if "case_snapshot" in self.request_snapshot:
+            request_snapshot["case_snapshot"] = self.request_snapshot["case_snapshot"]
+        if self.execution_outcome_kind is OutcomeKind.OUTCOME_UNKNOWN:
+            if not unknown_retry_reason or not unknown_retry_reason.strip():
+                raise ValueError("OUTCOME_UNKNOWN retry requires an audit reason")
+            request_snapshot["retry_authorization"] = {
+                "outcome_unknown": True,
+                "reason": unknown_retry_reason.strip(),
+            }
         return ExecutionAttempt(
             attempt_id=attempt_id,
             project_id=self.project_id,
@@ -203,11 +224,7 @@ class ExecutionAttempt:
             retry_of_attempt_id=self.attempt_id,
             execution_target_ref=self.execution_target_ref,
             execution_request=request,
-            request_snapshot={
-                "input_payload": request.input_payload,
-                "timeout_seconds": request.timeout.total_seconds(),
-                "execution_metadata": request.execution_metadata,
-            },
+            request_snapshot=request_snapshot,
             created_at=created_at,
         )
 

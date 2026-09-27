@@ -12,6 +12,7 @@ from typing import Protocol
 from uuid import UUID, uuid4
 
 from app.core.evaluation.catalog import (
+    AssertionSpec,
     EvaluationPolicy,
     EvaluatorKind,
     EvaluatorSpec,
@@ -23,7 +24,7 @@ from app.core.evaluation.evaluators import EvaluationInput, EvaluatorContext
 from app.core.evaluation.execution import ExecutionOutcome, ExecutionTarget, ExecutionTargetRef, OutcomeKind
 from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue
 from app.core.evaluation.ports import Evaluator, JudgeModelPort
-from app.core.evaluation.references import CaseVersionRef, EvidenceRef, VersionRef
+from app.core.evaluation.references import ArtifactRef, CaseVersionRef, EvidenceRef, VersionRef
 from app.core.evaluation.results import (
     EvaluationResult,
     EvaluationResultDraft,
@@ -297,6 +298,54 @@ def _evaluation_input(test_case: TestCaseVersion, attempt: ExecutionAttempt) -> 
     )
 
 
+def _case_from_attempt_snapshot(attempt: ExecutionAttempt) -> TestCaseVersion:
+    """Rebuild evaluator input from the persisted Attempt work snapshot."""
+    snapshot = attempt.request_snapshot.get("case_snapshot")
+    if not isinstance(snapshot, Mapping):
+        raise EvaluationLoopContractError("persisted attempt case snapshot is missing")
+    try:
+        return TestCaseVersion(
+            case_id=str(snapshot["case_id"]),
+            version=str(snapshot["version"]),
+            name=str(snapshot["name"]),
+            input_payload=snapshot["input_payload"],
+            expected_output=snapshot.get("expected_output"),
+            created_at=datetime.fromisoformat(str(snapshot["created_at"])),
+            assertion_specs=tuple(
+                AssertionSpec(
+                    assertion_id=str(item["assertion_id"]),
+                    kind=str(item["kind"]),
+                    config=item.get("config", {}),
+                    required=bool(item.get("required", True)),
+                )
+                for item in snapshot.get("assertion_specs", ())
+            ),
+            fixture_refs=tuple(
+                ArtifactRef(
+                    artifact_id=str(item["artifact_id"]),
+                    digest=item.get("digest"),
+                    media_type=item.get("media_type"),
+                    metadata=item.get("metadata", {}),
+                )
+                for item in snapshot.get("fixture_refs", ())
+            ),
+            evidence_refs=tuple(
+                EvidenceRef(
+                    kind=str(item["kind"]),
+                    identifier=str(item["identifier"]),
+                    media_type=item.get("media_type"),
+                    schema_version=item.get("schema_version"),
+                    metadata=item.get("metadata", {}),
+                )
+                for item in snapshot.get("evidence_refs", ())
+            ),
+            tags=tuple(snapshot.get("tags", ())),
+            metadata=snapshot.get("metadata", {}),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EvaluationLoopContractError("persisted attempt case snapshot is invalid") from exc
+
+
 def _validate_draft(draft: EvaluationResultDraft, spec: EvaluatorSpec) -> None:
     if not isinstance(draft, EvaluationResultDraft):
         raise EvaluationLoopContractError("evaluator returned an invalid draft type")
@@ -416,14 +465,16 @@ class EvaluationLoopService:
         self,
         project_id: UUID,
         attempt_id: UUID,
-        test_case: TestCaseVersion,
+        test_case: TestCaseVersion | None = None,
         *,
         lease: timedelta,
         worker_ref: str | None = None,
         task_ref: str | None = None,
+        finalize_run: bool = True,
     ) -> EvaluationLoopResult:
         """推进一个 Attempt；不遍历 Run、不自动 retry/reconcile。"""
         attempt = await self._persistence.get_attempt(project_id, attempt_id)
+        test_case = test_case or _case_from_attempt_snapshot(attempt)
         run = await self._persistence.get_run(project_id, attempt.run_id)
         if run.status in TERMINAL_RUN_STATUSES:
             return EvaluationLoopResult.ALREADY_COMPLETE
@@ -455,7 +506,7 @@ class EvaluationLoopService:
         if attempt.claim_token is None:
             raise EvaluationLoopContractError("terminal attempt has no claim token")
         if attempt.execution_outcome_kind is not OutcomeKind.SUCCESS:
-            return await self._finish(project_id, run.run_id, preflight.specs)
+            return await self._finish(project_id, run.run_id, preflight.specs) if finalize_run else EvaluationLoopResult.PROGRESSED
 
         input_value = _evaluation_input(test_case, attempt)
         existing = await self._persistence.list_results(project_id, run.run_id, attempt.attempt_id)
@@ -490,7 +541,7 @@ class EvaluationLoopService:
                     raise
             finalized.add(slot)
 
-        return await self._finish(project_id, run.run_id, preflight.specs)
+        return await self._finish(project_id, run.run_id, preflight.specs) if finalize_run else EvaluationLoopResult.PROGRESSED
 
     def _preflight(
         self,

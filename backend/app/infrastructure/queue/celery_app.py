@@ -49,6 +49,14 @@ celery.conf.update(
 )
 
 celery.conf.beat_schedule = {
+    "dispatch-pending-evaluation-attempts": {
+        "task": "dispatch_pending_evaluation_attempts",
+        "schedule": 60.0,
+    },
+    "reconcile-expired-evaluation-attempts": {
+        "task": "reconcile_expired_evaluation_attempts",
+        "schedule": 60.0,
+    },
     "check-eval-monitors": {
         "task": "check_eval_monitors",
         "schedule": 300.0,

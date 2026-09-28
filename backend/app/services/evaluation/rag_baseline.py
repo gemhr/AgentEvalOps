@@ -33,7 +33,7 @@ from app.core.evaluation.catalog import (
 from app.core.evaluation.dataset import EvaluationDataset
 from app.core.evaluation.dataset_bridge import bridge_dataset_to_catalog
 from app.core.evaluation.execution import ExecutionTargetRef
-from app.core.evaluation.rag_artifact import RAG_ARTIFACT_EVIDENCE_KIND, RagEvaluationArtifactV1
+from app.core.evaluation.process_trajectory import ProcessKind, parse_process_trajectory
 from app.core.evaluation.references import VersionRef
 from app.services.evaluation.loop import EvaluationLoopService
 from app.services.evaluation.persistence import EvaluationPersistenceService
@@ -43,14 +43,16 @@ SUITE_VERSION = "v1"
 CONFIG_REF = VersionRef("rag_metric_config", "rag-quality-metrics.v1-k1-3-5")
 
 
-def build_rag_baseline_suite(dataset: EvaluationDataset) -> EvaluationSuiteVersion:
+def build_rag_baseline_suite(
+    dataset: EvaluationDataset, *, process_evidence: bool = True
+) -> EvaluationSuiteVersion:
     """为 Dataset v1 构建冻结的 Recall/MRR/NDCG Suite."""
     specs = []
     for k, evaluator_id in RECALL_IDS.items():
-        specs.append(_spec(evaluator_id, {"metric": "recall_at_k", "k": k}))
-    specs.append(_spec(MRR_ID, {"metric": "mrr"}))
+        specs.append(_spec(evaluator_id, {"metric": "recall_at_k", "k": k}, process_evidence=process_evidence))
+    specs.append(_spec(MRR_ID, {"metric": "mrr"}, process_evidence=process_evidence))
     for k, evaluator_id in NDCG_IDS.items():
-        specs.append(_spec(evaluator_id, {"metric": "ndcg_at_k", "k": k}))
+        specs.append(_spec(evaluator_id, {"metric": "ndcg_at_k", "k": k}, process_evidence=process_evidence))
     refs = tuple(bridge_dataset_to_catalog(dataset, created_at=_now())[0].case_version_refs)
     return EvaluationSuiteVersion(
         suite_id=SUITE_ID,
@@ -67,16 +69,31 @@ def build_rag_baseline_suite(dataset: EvaluationDataset) -> EvaluationSuiteVersi
     )
 
 
-def _spec(evaluator_id: str, config: Mapping[str, object]) -> EvaluatorSpec:
+def _spec(
+    evaluator_id: str, config: Mapping[str, object], *, process_evidence: bool = True
+) -> EvaluatorSpec:
+    snapshot = dict(config)
+    if process_evidence:
+        snapshot["process_evidence_requirements"] = {
+            "schema_version": "process-evidence-requirements.v1",
+            "trajectory_schema_version": "stage11.wp4.v1",
+            "requirements": [{
+                "kind": "RETRIEVAL",
+                "fields": ["retrieval_id", "retrieved_items", "ranked_items"],
+                "accepted_provenance": ["FIXTURE", "RUNTIME"],
+                "allow_partial": False,
+                "allow_not_applicable": False,
+            }],
+        }
     return EvaluatorSpec(
         evaluator_id=evaluator_id,
         evaluator_version=EVALUATOR_VERSION,
         evaluator_kind=EvaluatorKind.DETERMINISTIC,
         config_ref=CONFIG_REF,
         score_direction=ScoreDirection.HIGHER_IS_BETTER,
-        config_snapshot=dict(config),
+        config_snapshot=snapshot,
         score_range=(0.0, 1.0),
-        required_evidence_kinds=("rag_evaluation_artifact",),
+        required_evidence_kinds=("process_trajectory",) if process_evidence else ("rag_evaluation_artifact",),
     )
 
 
@@ -175,16 +192,15 @@ async def execute_rag_quality_baseline(
     total_latencies: list[int] = []
     outcomes: Counter[str] = Counter()
     for attempt in final_attempts:
-        refs = [ref for ref in attempt.outcome_evidence_refs if ref.kind == RAG_ARTIFACT_EVIDENCE_KIND]
+        refs = [ref for ref in attempt.outcome_evidence_refs if ref.kind == "process_trajectory"]
         if len(refs) != 1:
-            raise RuntimeError("baseline attempt must contain exactly one RAG artifact")
-        artifact = RagEvaluationArtifactV1.model_validate(refs[0].metadata["payload"])
-        outcomes[artifact.retrieval_status] += 1
-        if artifact.retrieval_latency_ms is not None:
-            retrieval_latencies.append(artifact.retrieval_latency_ms)
-        if artifact.rerank_latency_ms is not None:
-            rerank_latencies.append(artifact.rerank_latency_ms)
-        total_latencies.append(artifact.total_latency_ms)
+            raise RuntimeError("baseline attempt must contain exactly one process trajectory")
+        trajectory = parse_process_trajectory(refs[0])
+        retrievals = [record.payload for record in trajectory.records if record.kind is ProcessKind.RETRIEVAL]
+        if len(retrievals) != 1:
+            raise RuntimeError("baseline attempt must contain exactly one Retrieval record")
+        retrieval = retrievals[0]
+        outcomes[retrieval.retrieval_status] += 1
         case = dataset_cases[attempt.case_ref.case_id]
         scores = {
             result.evaluator_id: result.score
@@ -196,24 +212,22 @@ async def execute_rag_quality_baseline(
                 "case_id": case.case_id,
                 "case_version": dataset.version,
                 "case_type": case.metadata.get("case_type"),
-                "query": case.input.get("query"),
+                "query": None,
                 "ground_truth": case.ground_truth.model_dump(mode="json", exclude_none=True),
                 "retrieved_ids": [
-                    [item.document_id, item.chunk_id] for item in artifact.retrieved_items
+                    [item.document_id, item.chunk_id] for item in retrieval.retrieved_items
                 ],
-                "ranked_ids": [[item.document_id, item.chunk_id] for item in artifact.ranked_items],
+                "ranked_ids": [[item.document_id, item.chunk_id] for item in retrieval.ranked_items],
                 "selected_ids": [
-                    [item.document_id, item.chunk_id] for item in artifact.selected_items
+                    [item.document_id, item.chunk_id] for item in retrieval.selected_items
                 ],
                 "scores": scores,
-                "retrieval_status": artifact.retrieval_status,
-                "retrieval_latency_ms": artifact.retrieval_latency_ms,
-                "rerank_latency_ms": artifact.rerank_latency_ms,
-                "total_latency_ms": artifact.total_latency_ms,
-                "rewritten_query": artifact.rewritten_query,
-                "retrieval_channels": {
-                    item.chunk_id: list(item.retrieval_channels) for item in artifact.retrieved_items
-                },
+                "retrieval_status": retrieval.retrieval_status,
+                "retrieval_latency_ms": None,
+                "rerank_latency_ms": None,
+                "total_latency_ms": None,
+                "rewritten_query": None,
+                "retrieval_channels": {},
             }
         )
     metrics = {

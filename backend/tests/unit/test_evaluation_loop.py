@@ -476,12 +476,47 @@ async def test_pending_success_runs_multi_evaluator_in_order_and_assembles_names
     assert persistence.run.status is RunStatus.COMPLETED
     assert target.requests == [attempt.execution_request]
     evaluation_input = evaluators["required"].calls[0]
-    assert evaluation_input.evidence_refs == (CASE_EVIDENCE, OUTCOME_EVIDENCE)
+    assert evaluation_input.evidence_refs[:2] == (CASE_EVIDENCE, OUTCOME_EVIDENCE)
+    trajectory = evaluation_input.evidence_refs[2]
+    assert trajectory.kind == "process_trajectory"
+    assert trajectory.schema_version == "stage11.wp4.v1"
     assert evaluation_input.metadata["case"]["shared"] == "case"
     assert evaluation_input.metadata["execution_outcome"]["shared"] == "outcome"
-    assert persistence.results[0].evidence_refs == (CASE_EVIDENCE, OUTCOME_EVIDENCE, DRAFT_EVIDENCE)
+    assert persistence.results[0].evidence_refs[:3] == (CASE_EVIDENCE, OUTCOME_EVIDENCE, DRAFT_EVIDENCE)
+    result_process_ref = persistence.results[0].evidence_refs[3]
+    assert result_process_ref.kind == "process_trajectory"
+    assert set(result_process_ref.metadata) == {
+        "content_sha256", "evaluation_attempt_id", "accepted_provenance", "availability", "policy_ref"
+    }
     assert persistence.results[0].metadata["case"]["shared"] == "case"
     assert persistence.results[0].metadata["evaluator"]["shared"] == "evaluator"
+
+
+@pytest.mark.asyncio
+async def test_required_process_evidence_unavailable_becomes_ordinary_evaluator_error():
+    required = replace(
+        spec("process-tool"),
+        required_evidence_kinds=("process_trajectory",),
+        config_snapshot={"process_evidence_requirements": {
+            "schema_version": "process-evidence-requirements.v1",
+            "trajectory_schema_version": "stage11.wp4.v1",
+            "requirements": [{
+                "kind": "TOOL", "phases": ["COMPLETED"], "fields": ["tool_name"],
+                "accepted_provenance": ["RUNTIME"], "allow_partial": False,
+                "allow_not_applicable": False,
+            }],
+        }},
+    )
+    run, attempt, case = make_context(specs=(required,))
+    evaluator = DraftEvaluator(required)
+    loop, persistence, _, _ = make_loop(run, attempt, (required,), evaluators={required.evaluator_id: evaluator})
+
+    await loop.execute_attempt(PROJECT_ID, attempt.attempt_id, case, lease=timedelta(minutes=1))
+
+    assert evaluator.calls == []
+    assert persistence.results[0].verdict is EvaluationVerdict.INCONCLUSIVE
+    assert persistence.results[0].reason == "REQUIRED_PROCESS_EVIDENCE_UNAVAILABLE"
+    assert persistence.results[0].metadata["policy_normalization"]["source"] == "EVALUATOR_ERROR"
 
 
 def test_case_can_be_rebuilt_from_persisted_attempt_work_snapshot():

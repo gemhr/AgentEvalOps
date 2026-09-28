@@ -13,6 +13,7 @@ from app.core.evaluation.references import ArtifactRef, CaseVersionRef, Evidence
 
 if TYPE_CHECKING:
     from app.core.evaluation.ports import JudgeModelPort
+    from app.core.evaluation.process_trajectory import ProcessTrajectoryV1
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +27,8 @@ class EvaluationInput:
     actual_artifact: ArtifactRef | None = None
     execution_outcome_ref: EvidenceRef | None = None
     evidence_refs: tuple[EvidenceRef, ...] = ()
+    process_trajectory: ProcessTrajectoryV1 | None = None
+    process_evidence_error: str | None = None
     metadata: FrozenDict = field(default_factory=FrozenDict, compare=False)
 
     def __post_init__(self) -> None:

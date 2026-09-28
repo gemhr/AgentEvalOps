@@ -23,6 +23,7 @@ from app.core.evaluation.execution import (
     OutcomeKind,
     validate_target_capabilities,
 )
+from app.core.evaluation.evidence_body_policy import parse_evidence_body_policy
 from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue
 from app.core.evaluation.references import ArtifactRef, CapabilityRequirement, CaseVersionRef, EvidenceRef, VersionRef
 from app.core.evaluation.repositories import EvaluationPersistenceUnitOfWork
@@ -140,6 +141,13 @@ def _serialize_capability(requirement: CapabilityRequirement) -> dict[str, str]:
 
 
 def _serialize_suite_snapshot(suite: EvaluationSuiteVersion) -> dict[str, object]:
+    body_policy = parse_evidence_body_policy({"metadata": _plain(suite.metadata)})
+    policy_snapshot = body_policy.model_dump(mode="json")
+    evaluator_snapshots = [_serialize_evaluator_spec(spec) for spec in suite.evaluator_specs]
+    for evaluator in evaluator_snapshots:
+        config = dict(evaluator["config_snapshot"])
+        config["evidence_body_policy"] = policy_snapshot
+        evaluator["config_snapshot"] = config
     snapshot = {
         "suite_id": suite.suite_id,
         "version": suite.version,
@@ -147,7 +155,7 @@ def _serialize_suite_snapshot(suite: EvaluationSuiteVersion) -> dict[str, object
         "selected_cases": [
             {"case_id": ref.case_id, "version": ref.version} for ref in suite.case_selection
         ],
-        "evaluators": [_serialize_evaluator_spec(spec) for spec in suite.evaluator_specs],
+        "evaluators": evaluator_snapshots,
         "evaluation_policy": _serialize_policy(suite.evaluation_policy),
         "target_capability_requirements": [
             _serialize_capability(requirement) for requirement in suite.target_capability_requirements

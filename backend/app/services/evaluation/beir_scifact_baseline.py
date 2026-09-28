@@ -41,7 +41,7 @@ from app.core.evaluation.dataset import EvaluationDataset
 from app.core.evaluation.dataset_bridge import bridge_dataset_to_catalog
 from app.core.evaluation.document_metrics import DocumentProjection
 from app.core.evaluation.execution import ExecutionTargetRef
-from app.core.evaluation.rag_artifact import RAG_ARTIFACT_EVIDENCE_KIND, RagEvaluationArtifactV1
+from app.core.evaluation.process_trajectory import ProcessKind, RetrievalEvidencePayloadV1, parse_process_trajectory
 from app.core.evaluation.references import VersionRef
 from app.services.evaluation.loop import EvaluationLoopService
 from app.services.evaluation.persistence import EvaluationPersistenceService
@@ -84,9 +84,19 @@ def _spec(evaluator_id: str, config: Mapping[str, object]) -> EvaluatorSpec:
         evaluator_kind=EvaluatorKind.DETERMINISTIC,
         config_ref=CONFIG_REF,
         score_direction=ScoreDirection.HIGHER_IS_BETTER,
-        config_snapshot=dict(config),
+        config_snapshot={**config, "process_evidence_requirements": {
+            "schema_version": "process-evidence-requirements.v1",
+            "trajectory_schema_version": "stage11.wp4.v1",
+            "requirements": [{
+                "kind": "RETRIEVAL",
+                "fields": ["retrieval_id", "retrieved_items", "ranked_items"],
+                "accepted_provenance": ["RUNTIME"],
+                "allow_partial": False,
+                "allow_not_applicable": False,
+            }],
+        }},
         score_range=(0.0, 1.0),
-        required_evidence_kinds=("rag_evaluation_artifact",),
+        required_evidence_kinds=("process_trajectory",),
     )
 
 
@@ -208,16 +218,15 @@ async def execute_beir_scifact_baseline(
     unique_ranked_docs: list[int] = []
     selected_doc_counts: list[int] = []
     for attempt in final_attempts:
-        refs = [ref for ref in attempt.outcome_evidence_refs if ref.kind == RAG_ARTIFACT_EVIDENCE_KIND]
+        refs = [ref for ref in attempt.outcome_evidence_refs if ref.kind == "process_trajectory"]
         if len(refs) != 1:
-            raise RuntimeError("baseline attempt must contain exactly one RAG artifact")
-        artifact = RagEvaluationArtifactV1.model_validate(refs[0].metadata["payload"])
-        outcomes[artifact.retrieval_status] += 1
-        if artifact.retrieval_latency_ms is not None:
-            retrieval_latencies.append(artifact.retrieval_latency_ms)
-        if artifact.rerank_latency_ms is not None:
-            rerank_latencies.append(artifact.rerank_latency_ms)
-        total_latencies.append(artifact.total_latency_ms)
+            raise RuntimeError("baseline attempt must contain exactly one process trajectory")
+        trajectory = parse_process_trajectory(refs[0])
+        retrievals = [record.payload for record in trajectory.records if record.kind is ProcessKind.RETRIEVAL]
+        if len(retrievals) != 1:
+            raise RuntimeError("baseline attempt must contain exactly one Retrieval record")
+        retrieval = retrievals[0]
+        outcomes[retrieval.retrieval_status] += 1
 
         case = dataset_cases[attempt.case_ref.case_id]
         truth = case.ground_truth.document_retrieval
@@ -226,7 +235,7 @@ async def execute_beir_scifact_baseline(
         }
         retrieved_documents = [
             document_projection.benchmark_document_id(item.document_id)
-            for item in sorted(artifact.retrieved_items, key=lambda entry: entry.retrieval_rank)
+            for item in sorted(retrieval.retrieved_items, key=lambda entry: entry.retrieval_rank)
         ]
         seen: set[str] = set()
         retrieved_document_ids: list[str] = []
@@ -235,10 +244,10 @@ async def execute_beir_scifact_baseline(
                 seen.add(document_id)
                 retrieved_document_ids.append(document_id)
         ranked_document_ids = _projected_ranked_documents(
-            artifact, document_projection, "ranked_items", "rank"
+            retrieval, document_projection, "ranked_items", "rank"
         )
         selected_document_ids = _projected_ranked_documents(
-            artifact, document_projection, "selected_items", "selection_rank"
+            retrieval, document_projection, "selected_items", "selection_rank"
         )
         unique_retrieved_docs.append(len(retrieved_document_ids))
         unique_ranked_docs.append(len(ranked_document_ids))
@@ -282,26 +291,26 @@ async def execute_beir_scifact_baseline(
                 "case_id": case.case_id,
                 "case_version": dataset.version,
                 "benchmark_query_id": case.metadata["benchmark_query_id"],
-                "query": case.input.get("query"),
+                "query": None,
                 "qrels_document_ids": sorted(relevant),
                 "retrieved_document_ids": retrieved_document_ids,
                 "ranked_document_ids": ranked_document_ids,
                 "selected_document_ids": selected_document_ids,
                 "retrieved_chunk_ids": [
-                    [item.document_id, item.chunk_id] for item in artifact.retrieved_items
+                    [item.document_id, item.chunk_id] for item in retrieval.retrieved_items
                 ],
                 "ranked_chunk_ids": [
-                    [item.document_id, item.chunk_id] for item in artifact.ranked_items
+                    [item.document_id, item.chunk_id] for item in retrieval.ranked_items
                 ],
                 "selected_chunk_ids": [
-                    [item.document_id, item.chunk_id] for item in artifact.selected_items
+                    [item.document_id, item.chunk_id] for item in retrieval.selected_items
                 ],
                 "scores": scores,
-                "retrieval_status": artifact.retrieval_status,
-                "retrieval_latency_ms": artifact.retrieval_latency_ms,
-                "rerank_latency_ms": artifact.rerank_latency_ms,
-                "total_latency_ms": artifact.total_latency_ms,
-                "rewritten_query": artifact.rewritten_query,
+                "retrieval_status": retrieval.retrieval_status,
+                "retrieval_latency_ms": None,
+                "rerank_latency_ms": None,
+                "total_latency_ms": None,
+                "rewritten_query": None,
             }
         )
 
@@ -347,7 +356,7 @@ async def execute_beir_scifact_baseline(
 
 
 def _projected_ranked_documents(
-    artifact: RagEvaluationArtifactV1,
+    artifact: RetrievalEvidencePayloadV1,
     document_projection: DocumentProjection,
     field: str,
     rank_field: str,

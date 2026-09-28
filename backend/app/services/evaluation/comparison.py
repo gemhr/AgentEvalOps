@@ -31,6 +31,11 @@ from app.core.evaluation.comparison import (
 from app.core.evaluation.references import VersionRef
 from app.core.evaluation.execution import OutcomeKind
 from app.core.evaluation.immutable import FrozenDict, freeze_json, json_compatible
+from app.core.evaluation.process_trajectory import (
+    parse_process_requirements,
+    parse_process_trajectory,
+    validate_process_requirements,
+)
 from app.core.evaluation.results import EvaluationResult, EvaluationVerdict
 from app.core.evaluation.run_attempts import TERMINAL_RUN_STATUSES, EvaluationRun, ExecutionAttempt, RunStatus
 from app.services.evaluation.loop import _case_from_attempt_snapshot
@@ -44,6 +49,48 @@ _CONDITIONAL_REASONS = {
     ComparisonReason.SUBJECT_BINDING_DRIFT.value,
     ComparisonReason.MODEL_REVISION_UNVERIFIABLE.value,
 }
+
+
+def _valid_process_result_support(
+    spec: Mapping[str, Any],
+    result: EvaluationResult,
+    attempt: ExecutionAttempt | None,
+    run: EvaluationRun | None,
+) -> bool:
+    """Result 中的 thin ref 必须对应同一 authoritative Attempt snapshot。"""
+    if attempt is None or run is None or attempt.execution_outcome_kind is not OutcomeKind.SUCCESS:
+        return False
+    thin_refs = [ref for ref in result.evidence_refs if ref.kind == "process_trajectory"]
+    durable_refs = [ref for ref in attempt.outcome_evidence_refs if ref.kind == "process_trajectory"]
+    if len(thin_refs) != 1 or len(durable_refs) != 1:
+        return False
+    thin, durable = thin_refs[0], durable_refs[0]
+    try:
+        trajectory = parse_process_trajectory(durable)
+        requirements = parse_process_requirements(spec["config_snapshot"]["process_evidence_requirements"])
+        if validate_process_requirements(trajectory, requirements) is not None:
+            return False
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (
+        thin.identifier == durable.identifier == trajectory.trajectory_id
+        and thin.schema_version == durable.schema_version == "stage11.wp4.v1"
+        and thin.metadata.get("content_sha256") == trajectory.content_sha256
+        and thin.metadata.get("evaluation_attempt_id") == str(attempt.attempt_id)
+        and set(thin.metadata) == {"content_sha256", "evaluation_attempt_id", "accepted_provenance", "availability", "policy_ref"}
+        and tuple(thin.metadata.get("accepted_provenance", ()))
+        == tuple(sorted({record.provenance.value for record in trajectory.records}))
+        and thin.metadata.get("policy_ref") == trajectory.body_policy_ref
+        and trajectory.evaluation_attempt_id == str(attempt.attempt_id)
+        and trajectory.evaluation_run_id == str(run.run_id) == result.run_id
+        and trajectory.project_id == str(run.project_id) == str(attempt.project_id)
+        and trajectory.dataset_id == str(run.dataset_snapshot["dataset_id"]) == result.dataset_id
+        and trajectory.case_ref.case_id == result.case_id == attempt.case_ref.case_id
+        and trajectory.case_ref.version == result.case_version == attempt.case_ref.version
+        and trajectory.execution_request_id == attempt.execution_request.request_id == result.execution_request_id
+        and json_compatible(trajectory.frozen_subject_ref)
+        == json_compatible(run.subject_ref if run.subject_ref is not None else {"availability": "UNAVAILABLE", "reason_code": "SOURCE_UNAVAILABLE"})
+    )
 
 
 class EvaluationComparisonService:
@@ -300,7 +347,10 @@ class EvaluationComparisonService:
             reasons.add(ComparisonReason.EVALUATOR_REMOVED.value)
             compatibility = ComparisonCompatibility.INCOMPARABLE
         else:
-            evaluator_compat, evaluator_reasons = self._evaluator_compatibility(b_spec, c_spec, baseline, candidate)
+            evaluator_compat, evaluator_reasons = self._evaluator_compatibility(
+                b_spec, c_spec, baseline, candidate,
+                baseline_attempt, candidate_attempt, baseline_run, candidate_run,
+            )
             compatibility = self._combine(compatibility, evaluator_compat)
             reasons.update(evaluator_reasons)
         target_compat, target_reasons = self._target_compatibility(baseline_run, candidate_run)
@@ -444,6 +494,10 @@ class EvaluationComparisonService:
         candidate: Mapping[str, Any],
         baseline_result: EvaluationResult | None,
         candidate_result: EvaluationResult | None,
+        baseline_attempt: ExecutionAttempt | None = None,
+        candidate_attempt: ExecutionAttempt | None = None,
+        baseline_run: EvaluationRun | None = None,
+        candidate_run: EvaluationRun | None = None,
     ) -> tuple[ComparisonCompatibility, set[str]]:
         reasons: set[str] = set()
         descriptor_fields = ("result_schema_ref", "comparison_semantics", "required_artifact_kinds", "required_evidence_kinds")
@@ -469,6 +523,13 @@ class EvaluationComparisonService:
                 )
             ):
                 return ComparisonCompatibility.INCOMPARABLE, {ComparisonReason.REQUIRED_EVIDENCE_MISSING.value}
+        for spec, result, attempt, run in (
+            (baseline, baseline_result, baseline_attempt, baseline_run),
+            (candidate, candidate_result, candidate_attempt, candidate_run),
+        ):
+            if "process_trajectory" in spec["required_evidence_kinds"] and result is not None:
+                if not _valid_process_result_support(spec, result, attempt, run):
+                    return ComparisonCompatibility.INCOMPARABLE, {ComparisonReason.REQUIRED_EVIDENCE_MISSING.value}
         if baseline["evaluator_version"] != candidate["evaluator_version"]:
             return ComparisonCompatibility.INCOMPARABLE, {ComparisonReason.EVALUATOR_VERSION_CHANGED.value}
         for field, reason in (

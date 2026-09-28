@@ -406,6 +406,12 @@ async def test_coordinator_runs_real_pair_and_keeps_writable_state_isolated(tmp_
     assert controller.started == ["BASELINE", "CANDIDATE"]
     assert result.baseline_run is not None and result.candidate_run is not None
     assert result.baseline_run.run_id != result.candidate_run.run_id
+    baseline_attempts = await persistence.list_attempts(PROJECT_ID, result.baseline_run.run_id)
+    assert baseline_attempts
+    assert all(
+        all(ref.kind != "rag_evaluation_artifact" for ref in attempt.outcome_evidence_refs)
+        for attempt in baseline_attempts
+    )
     assert isolation_receipts_are_serial(
         controller.isolation_for(controller._evidence["BASELINE"]),
         controller.isolation_for(controller._evidence["CANDIDATE"]),

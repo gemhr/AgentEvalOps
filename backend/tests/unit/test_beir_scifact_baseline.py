@@ -7,6 +7,7 @@ import json
 import math
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
@@ -41,10 +42,16 @@ from app.core.evaluation.document_metrics import (
     project_artifact_to_documents,
 )
 from app.core.evaluation.evaluators import EvaluationInput, EvaluatorContext
+from app.core.evaluation.execution import ExecutionOutcome, OutcomeKind
+from app.core.evaluation.process_trajectory import (
+    Availability, Completeness, CoverageV1, ProcessKind, Provenance, Sensitivity,
+    build_process_evidence, build_process_trajectory, parse_process_requirements, validate_process_requirements,
+)
 from app.core.evaluation.references import ArtifactRef, CaseVersionRef, EvidenceRef, VersionRef
-from app.core.evaluation.rag_artifact import RagEvaluationArtifactV1
-from app.services.evaluation.beir_scifact_baseline import build_beir_scifact_suite
+from app.core.evaluation.rag_artifact import RagEvaluationArtifactV1, build_rag_artifact_evidence
+from app.services.evaluation.beir_scifact_baseline import build_beir_scifact_suite, execute_beir_scifact_baseline
 from tests.unit.test_rag_artifact import artifact_payload
+from tests.unit.test_wp3_coordinator import memory_persistence
 
 
 def _write_asset(root: Path, *, qrels_rows: list[tuple[str, str, int]] | None = None) -> Path:
@@ -118,6 +125,48 @@ def _artifact(
 
 def _tiny_projection() -> DocumentProjection:
     return DocumentProjection({"local-d1": "1", "local-d2": "2", "local-d3": "3"})
+
+
+@pytest.mark.asyncio
+async def test_default_beir_baseline_runs_from_safe_process_evidence(tmp_path: Path, monkeypatch) -> None:
+    asset = load_beir_scifact_asset(_write_asset(tmp_path), verify_checksums=False)
+
+    class FakeTarget:
+        def __init__(self, target_ref, base_url, *, bearer_token):
+            self.target_ref = target_ref
+
+        async def execute(self, request):
+            query = request.input_payload["query"]
+            document = "local-d1" if query == "query one" else "local-d2"
+            item = _item(document, "chunk-1", rank=1, retrieval_rank=1)
+            payload = artifact_payload(
+                artifact_id=f"rag-eval://{request.attempt_id}/r1", run_id=request.attempt_id,
+                attempt_id=request.attempt_id, query="private-query", rewritten_query="private-query",
+                retrieved_items=[item], ranked_items=[item], selected_items=[], citations=[],
+            )
+            artifact = RagEvaluationArtifactV1.model_validate(payload)
+            return ExecutionOutcome(
+                request_id=request.request_id, kind=OutcomeKind.SUCCESS,
+                started_at=datetime.now(timezone.utc), finished_at=datetime.now(timezone.utc),
+                output_artifact_ref=ArtifactRef("output", "sha256:output"),
+                evidence_refs=(build_rag_artifact_evidence(artifact, "COMPLETE"),),
+            )
+
+        async def aclose(self):
+            pass
+
+    monkeypatch.setattr("app.services.evaluation.beir_scifact_baseline.LocalAgentHttpExecutionTarget", FakeTarget)
+    persistence = memory_persistence()
+    project_id = UUID("20000000-0000-4000-a000-000000000002")
+    report = await execute_beir_scifact_baseline(
+        persistence=persistence, project_id=project_id, asset=asset,
+        base_url="http://localhost", bearer_token="test", document_projection=_tiny_projection(),
+    )
+    assert report["evaluated_retrieval_cases"] == 2
+    assert report["metrics"]["document_recall_at_1"] == 0.75
+    assert "private-query" not in str(report)
+    attempts = await persistence.list_attempts(project_id, UUID(report["run_id"]))
+    assert all([ref.kind for ref in attempt.outcome_evidence_refs] == ["process_trajectory"] for attempt in attempts)
 
 
 class TestAssetLoading:
@@ -242,6 +291,7 @@ class TestDatasetBuild:
             spec.evaluator_version == DOCUMENT_EVALUATOR_VERSION
             for spec in suite.evaluator_specs
         )
+        assert all(spec.required_evidence_kinds == ("process_trajectory",) for spec in suite.evaluator_specs)
 
 
 class TestDocumentProjection:
@@ -415,6 +465,56 @@ class TestDocumentMetricsEvaluator:
         expected_ndcg = (1.0 + 1.0 / 2.0) / (1.0 + 1.0 / math.log2(3))
         assert scores["document_ndcg_at_3"] == pytest.approx(expected_ndcg)
         assert scores["document_ndcg_at_5"] == pytest.approx(expected_ndcg)
+
+    @pytest.mark.asyncio
+    async def test_formal_document_metrics_match_legacy_without_rag_artifact(self, tmp_path: Path) -> None:
+        asset = load_beir_scifact_asset(_write_asset(tmp_path), verify_checksums=False)
+        suite = build_beir_scifact_suite(build_beir_scifact_dataset(asset))
+        legacy_input = self._evaluation_input({"1": 1, "3": 1})
+        artifact = RagEvaluationArtifactV1.model_validate(legacy_input.evidence_refs[0].metadata["payload"])
+        record = build_process_evidence(
+            evaluation_attempt_id="attempt-1", schema_version="stage11.wp4.v1", kind=ProcessKind.RETRIEVAL,
+            producer_id="localagent.http.evaluation_v2", provenance=Provenance.RUNTIME,
+            runtime_run_id="runtime-1", source_stream_id="rag.artifacts", source_event_id=artifact.artifact_id,
+            projection_role="retrieval.snapshot", source_schema_ref=artifact.schema_version,
+            sensitivity=Sensitivity.SAFE_METADATA,
+            payload={
+                "retrieval_id": artifact.retrieval_id, "retrieval_status": artifact.retrieval_status,
+                "retrieved_items": tuple({
+                    "document_id": item.document_id, "chunk_id": item.chunk_id,
+                    "rank": item.rank, "retrieval_rank": item.retrieval_rank,
+                } for item in artifact.retrieved_items),
+                "ranked_items": tuple({
+                    "document_id": item.document_id, "chunk_id": item.chunk_id,
+                    "rank": item.rank, "retrieval_rank": item.retrieval_rank,
+                } for item in artifact.ranked_items),
+                "selected_items": (),
+            },
+        )
+        trajectory = build_process_trajectory(
+            schema_version="stage11.wp4.v1", trajectory_id="trajectory://attempt-1", project_id="project-1",
+            evaluation_run_id="run-1", evaluation_attempt_id="attempt-1", dataset_id="d",
+            case_ref=legacy_input.case_ref, execution_request_id="request-1",
+            execution_target_ref={"target_id": "localagent"}, frozen_subject_ref={"subject": "s1"},
+            sealed=True, execution_partial=False, body_policy_ref=None, source_manifests=(),
+            coverage=(CoverageV1(kind=ProcessKind.RETRIEVAL, scope="attempt", availability=Availability.PRESENT,
+                                 completeness=Completeness.COMPLETE),),
+            records=(record,), edges=(),
+        )
+        formal_input = EvaluationInput(
+            case_ref=legacy_input.case_ref, input_payload=legacy_input.input_payload,
+            expected_output=None, assertion_specs=(), process_trajectory=trajectory,
+            metadata=legacy_input.metadata,
+        )
+        resolver = RagMetricEvaluatorResolver(document_projection=_tiny_projection())
+        for formal_spec in suite.evaluator_specs:
+            requirements = parse_process_requirements(formal_spec.config_snapshot["process_evidence_requirements"])
+            assert validate_process_requirements(trajectory, requirements) is None
+            legacy_spec = self._spec(formal_spec.evaluator_id)
+            formal = await resolver.resolve(formal_spec).evaluator.evaluate(formal_input, EvaluatorContext(formal_spec))
+            legacy = await resolver.resolve(legacy_spec).evaluator.evaluate(legacy_input, EvaluatorContext(legacy_spec))
+            assert formal.verdict == legacy.verdict
+            assert formal.score == pytest.approx(legacy.score)
 
     @pytest.mark.asyncio
     async def test_relevant_doc_second_chunk_still_hits_document(self) -> None:

@@ -153,6 +153,7 @@ class FormationEvent:
     reused_count: int
     failed_count: int
     candidate_outcomes: str
+    sequence: int = 0
 
     def __post_init__(self) -> None:
         require_text(self.run_id, "run_id")
@@ -169,6 +170,8 @@ class FormationEvent:
         )
         if any(count < 0 for count in counts):
             raise JournalEvidenceError("formation counts must be non-negative")
+        if self.sequence < 0:
+            raise JournalEvidenceError("formation sequence must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +189,7 @@ class LifecycleEvent:
     new_memory_id: str | None
     candidate_outcome: str | None
     affected_transitions: str
+    sequence: int = 0
 
     def __post_init__(self) -> None:
         require_text(self.run_id, "run_id")
@@ -195,6 +199,8 @@ class LifecycleEvent:
         require_text(self.outcome, "outcome")
         if self.affected_count < 0:
             raise JournalEvidenceError("lifecycle affected_count must be non-negative")
+        if self.sequence < 0:
+            raise JournalEvidenceError("lifecycle sequence must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,6 +223,7 @@ class RetrievalEvent:
     open_selected_count: int
     planning_injected: bool
     direct_entry_supplied: bool
+    sequence: int = 0
 
     def __post_init__(self) -> None:
         require_text(self.run_id, "run_id")
@@ -236,6 +243,8 @@ class RetrievalEvent:
         )
         if any(count < 0 for count in counts):
             raise JournalEvidenceError("retrieval counts must be non-negative")
+        if self.sequence < 0:
+            raise JournalEvidenceError("retrieval sequence must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -363,7 +372,7 @@ def read_journal_events(db_path: str | Path, run_id: str) -> JournalEvents:
             raise JournalEvidenceError(f"isolated journal schema is missing required columns: {path}")
         try:
             rows = connection.execute(
-                f"SELECT event_id, event_type, safe_payload FROM {_JOURNAL_TABLE} WHERE run_id = ? ORDER BY sequence",
+                f"SELECT event_id, sequence, event_type, safe_payload FROM {_JOURNAL_TABLE} WHERE run_id = ? ORDER BY sequence",
                 (run_id,),
             ).fetchall()
         except sqlite3.Error as exc:
@@ -371,7 +380,7 @@ def read_journal_events(db_path: str | Path, run_id: str) -> JournalEvents:
         formation: list[FormationEvent] = []
         lifecycle: list[LifecycleEvent] = []
         retrieval: list[RetrievalEvent] = []
-        for event_id, event_type, safe_payload in rows:
+        for event_id, sequence, event_type, safe_payload in rows:
             # LocalAgent journal 同一 run 还包含 planning、step、terminal 等事件；
             # WP5 只拥有三类 Memory observation 的消费契约。非目标事件不应让
             # Memory collector 把完整 journal 误判为 malformed。
@@ -399,6 +408,7 @@ def read_journal_events(db_path: str | Path, run_id: str) -> JournalEvents:
                         reused_count=payload.reused_count,
                         failed_count=payload.failed_count,
                         candidate_outcomes=payload.candidate_outcomes,
+                        sequence=sequence,
                     )
                 )
             elif event_type == MEMORY_LIFECYCLE_RESOLVED:
@@ -417,6 +427,7 @@ def read_journal_events(db_path: str | Path, run_id: str) -> JournalEvents:
                         new_memory_id=payload.new_memory_id,
                         candidate_outcome=payload.candidate_outcome,
                         affected_transitions=payload.affected_transitions,
+                        sequence=sequence,
                     )
                 )
             elif event_type == MEMORY_RETRIEVAL_COMPLETED:
@@ -440,6 +451,7 @@ def read_journal_events(db_path: str | Path, run_id: str) -> JournalEvents:
                         open_selected_count=payload.open_selected_count,
                         planning_injected=payload.planning_injected,
                         direct_entry_supplied=payload.direct_entry_supplied,
+                        sequence=sequence,
                     )
                 )
         return JournalEvents(

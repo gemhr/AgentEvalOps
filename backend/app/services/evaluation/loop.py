@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Protocol
@@ -22,8 +22,20 @@ from app.core.evaluation.catalog import (
 )
 from app.core.evaluation.evaluators import EvaluationInput, EvaluatorContext
 from app.core.evaluation.execution import ExecutionOutcome, ExecutionTarget, ExecutionTargetRef, OutcomeKind
+from app.core.evaluation.evidence_body_policy import EvidenceBodyMode, parse_evidence_body_policy
+from app.core.evaluation.expected_process import parse_expected_process
 from app.core.evaluation.immutable import FrozenDict, FrozenJsonValue
 from app.core.evaluation.ports import Evaluator, JudgeModelPort
+from app.core.evaluation.process_trajectory import (
+    PROCESS_TRAJECTORY_KIND,
+    parse_process_requirements,
+    parse_process_trajectory,
+    seal_attempt_trajectory,
+    thin_process_trajectory_ref,
+    validate_process_requirements,
+)
+from app.core.evaluation.generation_evidence import FINAL_ANSWER_EVIDENCE_KIND
+from app.core.evaluation.rag_artifact import RAG_ARTIFACT_EVIDENCE_KIND
 from app.core.evaluation.references import ArtifactRef, CaseVersionRef, EvidenceRef, VersionRef
 from app.core.evaluation.results import (
     EvaluationResult,
@@ -270,6 +282,10 @@ def _suite(snapshot: FrozenJsonValue) -> tuple[tuple[EvaluatorSpec, ...], Evalua
             }
         ),
     )
+    try:
+        parse_evidence_body_policy(item)
+    except (TypeError, ValueError) as exc:
+        raise EvaluationLoopContractError("invalid frozen evidence body policy") from exc
     evaluators = item["evaluators"]
     if not isinstance(evaluators, tuple) or not evaluators:
         raise EvaluationLoopContractError("persisted suite evaluators are invalid")
@@ -285,9 +301,41 @@ def _ordered_unique(*groups: tuple[EvidenceRef, ...]) -> tuple[EvidenceRef, ...]
     return tuple(result)
 
 
-def _evaluation_input(test_case: TestCaseVersion, attempt: ExecutionAttempt) -> EvaluationInput:
+def _evaluation_input(
+    test_case: TestCaseVersion, attempt: ExecutionAttempt, run: EvaluationRun | None = None
+) -> EvaluationInput:
     if attempt.execution_outcome_kind is not OutcomeKind.SUCCESS or attempt.output_artifact_ref is None:
         raise EvaluationLoopContractError("terminal SUCCESS attempt requires an output artifact")
+    if any(reference.kind == PROCESS_TRAJECTORY_KIND for reference in test_case.evidence_refs):
+        raise EvaluationLoopContractError("Case cannot provide reserved process_trajectory evidence")
+    trajectory_refs = tuple(ref for ref in attempt.outcome_evidence_refs if ref.kind == PROCESS_TRAJECTORY_KIND)
+    trajectory = None
+    process_error = None
+    if len(trajectory_refs) > 1:
+        process_error = "REQUIRED_PROCESS_EVIDENCE_INVALID"
+    elif trajectory_refs:
+        try:
+            trajectory = parse_process_trajectory(trajectory_refs[0])
+            if run is not None and (
+                trajectory.project_id != str(run.project_id)
+                or trajectory.evaluation_run_id != str(run.run_id)
+                or trajectory.evaluation_attempt_id != str(attempt.attempt_id)
+                or trajectory.dataset_id != str(run.dataset_snapshot["dataset_id"])
+                or trajectory.case_ref != attempt.case_ref
+                or trajectory.execution_request_id != attempt.execution_request.request_id
+                or trajectory.trajectory_id != f"trajectory://{attempt.attempt_id}"
+            ):
+                raise ValueError("trajectory canonical binding mismatch")
+        except (KeyError, TypeError, ValueError):
+            trajectory = None
+            process_error = "REQUIRED_PROCESS_EVIDENCE_INVALID"
+    expected_process = parse_expected_process(test_case.metadata)
+    input_metadata: dict[str, object] = {
+        "case": test_case.metadata,
+        "execution_outcome": attempt.outcome_metadata,
+    }
+    if expected_process is not None:
+        input_metadata["expected_process"] = expected_process.to_dict()
     return EvaluationInput(
         case_ref=attempt.case_ref,
         input_payload=test_case.input_payload,
@@ -296,10 +344,9 @@ def _evaluation_input(test_case: TestCaseVersion, attempt: ExecutionAttempt) -> 
         actual_artifact=attempt.output_artifact_ref,
         execution_outcome_ref=None,
         evidence_refs=_ordered_unique(test_case.evidence_refs, attempt.outcome_evidence_refs),
-        metadata={
-            "case": test_case.metadata,
-            "execution_outcome": attempt.outcome_metadata,
-        },
+        process_trajectory=trajectory,
+        process_evidence_error=process_error,
+        metadata=input_metadata,
     )
 
 
@@ -395,6 +442,19 @@ def _normalize_draft(
     )
 
 
+def _process_error_draft(spec: EvaluatorSpec, reason_code: str) -> EvaluationResultDraft:
+    return EvaluationResultDraft(
+        evaluator_id=spec.evaluator_id,
+        evaluator_version=spec.evaluator_version,
+        config_ref=spec.config_ref,
+        prompt_ref=spec.prompt_ref,
+        verdict=EvaluationVerdict.ERROR,
+        score=None,
+        reason=reason_code,
+        metadata={"source_status": "EVALUATOR_ERROR", "process_evidence_error": reason_code},
+    )
+
+
 def _result(
     *,
     run: EvaluationRun,
@@ -434,7 +494,7 @@ def _result(
         provenance_completeness=ProvenanceCompleteness.COMPLETE,
         output_artifact_ref=attempt.output_artifact_ref,
         score=draft.score,
-        evidence_refs=_ordered_unique(input_value.evidence_refs, draft.evidence_refs),
+        evidence_refs=_result_support_refs(input_value.evidence_refs, draft.evidence_refs, input_value.process_trajectory),
         metadata={
             "case": test_case.metadata,
             "execution_outcome": attempt.outcome_metadata,
@@ -446,6 +506,24 @@ def _result(
         },
         created_at=created_at,
     )
+
+
+def _result_support_refs(
+    input_refs: tuple[EvidenceRef, ...],
+    draft_refs: tuple[EvidenceRef, ...],
+    trajectory: object | None,
+) -> tuple[EvidenceRef, ...]:
+    refs = tuple(
+        ref for ref in _ordered_unique(input_refs, draft_refs)
+        if ref.kind not in {PROCESS_TRAJECTORY_KIND, RAG_ARTIFACT_EVIDENCE_KIND, FINAL_ANSWER_EVIDENCE_KIND}
+    )
+    if trajectory is None:
+        return refs
+    from app.core.evaluation.process_trajectory import ProcessTrajectoryV1
+
+    if not isinstance(trajectory, ProcessTrajectoryV1):
+        raise EvaluationLoopContractError("validated process trajectory has invalid type")
+    return (*refs, thin_process_trajectory_ref(trajectory))
 
 
 class EvaluationLoopService:
@@ -503,6 +581,22 @@ class EvaluationLoopService:
             outcome = await preflight.target.execute(attempt.execution_request)
             if not isinstance(outcome, ExecutionOutcome):
                 raise EvaluationLoopContractError("target returned an invalid outcome type")
+            if any(reference.kind == PROCESS_TRAJECTORY_KIND for reference in outcome.evidence_refs):
+                raise EvaluationLoopContractError("Target cannot provide reserved process_trajectory evidence")
+            trajectory_ref = seal_attempt_trajectory(
+                run, attempt, _target_ref(run.execution_target_snapshot), outcome, sealed_at=self._clock()
+            )
+            body_policy = parse_evidence_body_policy(run.suite_snapshot)
+            durable_refs = tuple(
+                reference for reference in outcome.evidence_refs
+                if reference.kind not in {RAG_ARTIFACT_EVIDENCE_KIND, FINAL_ANSWER_EVIDENCE_KIND}
+                or (
+                    reference.kind == FINAL_ANSWER_EVIDENCE_KIND
+                    and body_policy.mode is EvidenceBodyMode.APPROVED_SAFE_SNAPSHOT
+                    and "final_answer.body" in body_policy.approved_fields
+                )
+            )
+            outcome = replace(outcome, evidence_refs=(*durable_refs, trajectory_ref))
             attempt.validate_outcome(outcome)
             attempt = await self._persistence.record_outcome(project_id, attempt_id, claim.claim_token, outcome)
         elif attempt.status is not AttemptStatus.TERMINAL:
@@ -513,7 +607,7 @@ class EvaluationLoopService:
         if attempt.execution_outcome_kind is not OutcomeKind.SUCCESS:
             return await self._finish(project_id, run.run_id, preflight.specs) if finalize_run else EvaluationLoopResult.PROGRESSED
 
-        input_value = _evaluation_input(test_case, attempt)
+        input_value = _evaluation_input(test_case, attempt, run)
         existing = await self._persistence.list_results(project_id, run.run_id, attempt.attempt_id)
         finalized = {(item.evaluator_id, item.evaluator_version) for item in existing}
         for spec, binding in zip(preflight.specs, preflight.evaluators, strict=True):
@@ -592,6 +686,18 @@ class EvaluationLoopService:
         judge_model: JudgeModelPort | None,
     ) -> EvaluationResultDraft:
         try:
+            if PROCESS_TRAJECTORY_KIND in spec.required_evidence_kinds:
+                if input_value.process_evidence_error is not None:
+                    return _process_error_draft(spec, input_value.process_evidence_error)
+                if input_value.process_trajectory is None:
+                    return _process_error_draft(spec, "REQUIRED_PROCESS_EVIDENCE_MISSING")
+                try:
+                    requirements = parse_process_requirements(spec.config_snapshot.get("process_evidence_requirements"))
+                except (KeyError, TypeError, ValueError):
+                    return _process_error_draft(spec, "REQUIRED_PROCESS_EVIDENCE_INVALID")
+                process_error = validate_process_requirements(input_value.process_trajectory, requirements)
+                if process_error is not None:
+                    return _process_error_draft(spec, process_error)
             if not set(spec.required_evidence_kinds).issubset({ref.kind for ref in input_value.evidence_refs}) or (
                 spec.required_artifact_kinds and (
                     input_value.actual_artifact is None
@@ -618,6 +724,10 @@ class EvaluationLoopService:
                 },
             )
         _validate_draft(draft, spec)
+        if any(reference.kind == PROCESS_TRAJECTORY_KIND for reference in draft.evidence_refs):
+            return _process_error_draft(spec, "REQUIRED_PROCESS_EVIDENCE_INVALID")
+        if PROCESS_TRAJECTORY_KIND in spec.required_evidence_kinds and draft.evidence_refs:
+            return _process_error_draft(spec, "REQUIRED_PROCESS_EVIDENCE_INVALID")
         return draft
 
     async def _finish(

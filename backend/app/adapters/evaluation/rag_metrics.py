@@ -18,9 +18,11 @@ from app.core.evaluation.document_metrics import (
     DocumentProjection,
     UnknownBenchmarkDocumentError,
     project_artifact_to_documents,
+    project_document_sequence,
 )
 from app.core.evaluation.evaluators import EvaluationInput, EvaluatorContext
 from app.core.evaluation.rag_artifact import RAG_ARTIFACT_EVIDENCE_KIND, RagEvaluationArtifactV1
+from app.core.evaluation.process_trajectory import PROCESS_TRAJECTORY_KIND, ProcessKind
 from app.core.evaluation.ranking_metrics import calculate_ndcg_at_k
 from app.core.evaluation.references import VersionRef
 from app.core.evaluation.results import EvaluationResultDraft, EvaluationVerdict
@@ -35,6 +37,24 @@ MRR_ID = "mrr"
 DOCUMENT_RECALL_IDS = {1: "document_recall_at_1", 3: "document_recall_at_3", 5: "document_recall_at_5"}
 DOCUMENT_NDCG_IDS = {3: "document_ndcg_at_3", 5: "document_ndcg_at_5"}
 DOCUMENT_MRR_ID = "document_mrr"
+
+
+@dataclass(frozen=True, slots=True)
+class _MetricItemView:
+    document_id: str
+    chunk_id: str
+    rank: int | None
+    retrieval_rank: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class _MetricRetrievalView:
+    artifact_id: str
+    retrieval_id: str
+    retrieval_status: str | None
+    retrieval_strategy: str | None
+    retrieved_items: tuple[_MetricItemView, ...]
+    ranked_items: tuple[_MetricItemView, ...]
 
 
 def _rag_artifact(evaluation_input: EvaluationInput):
@@ -54,6 +74,65 @@ def _ground_truth(evaluation_input: EvaluationInput) -> Mapping[str, object] | N
     return value if isinstance(value, Mapping) else None
 
 
+def _process_retrieval_input(evaluation_input: EvaluationInput):
+    """把经 Loop shared validator 验证的单一 Retrieval record 映射到旧 metric 输入形状。"""
+    trajectory = evaluation_input.process_trajectory
+    if trajectory is None or evaluation_input.process_evidence_error is not None:
+        return None
+    records = [record for record in trajectory.records if record.kind is ProcessKind.RETRIEVAL]
+    if len(records) != 1:
+        raise ValueError("formal RAG metrics require exactly one retrieval invocation")
+    payload = records[0].payload
+
+    def metric_items(items, rank_field: str):
+        if items is None:
+            raise ValueError("formal RAG retrieval ranking field is unavailable")
+        mapped = []
+        for item in items:
+            rank = getattr(item, rank_field)
+            if rank is None or rank < 1:
+                raise ValueError("formal RAG retrieval rank is unavailable")
+            mapped.append(_MetricItemView(
+                document_id=item.document_id, chunk_id=item.chunk_id,
+                rank=item.rank, retrieval_rank=item.retrieval_rank,
+            ))
+        return tuple(mapped)
+
+    return _MetricRetrievalView(
+        artifact_id=records[0].source_event_id,
+        retrieval_id=payload.retrieval_id,
+        retrieval_status=payload.status,
+        retrieval_strategy=payload.retrieval_strategy,
+        retrieved_items=metric_items(payload.retrieved_items, "retrieval_rank"),
+        ranked_items=metric_items(payload.ranked_items, "rank"),
+    )
+
+
+def _project_process_to_documents(artifact: _MetricRetrievalView, projection: DocumentProjection) -> _MetricRetrievalView:
+    """按原有 document rank 投影规则映射安全 Retrieval 视图。"""
+    retrieved = project_document_sequence(
+        [(item.retrieval_rank, item.document_id) for item in artifact.retrieved_items], projection
+    )
+    ranked = project_document_sequence(
+        [(item.rank, item.document_id) for item in artifact.ranked_items], projection
+    )
+    retrieved_positions = dict(retrieved)
+    return _MetricRetrievalView(
+        artifact_id=artifact.artifact_id,
+        retrieval_id=artifact.retrieval_id,
+        retrieval_status=artifact.retrieval_status,
+        retrieval_strategy=artifact.retrieval_strategy,
+        retrieved_items=tuple(_MetricItemView(doc, doc, rank, rank) for doc, rank in retrieved),
+        ranked_items=tuple(
+            _MetricItemView(doc, doc, rank, retrieved_positions.get(doc, rank)) for doc, rank in ranked
+        ),
+    )
+
+
+def _is_process_spec(spec: EvaluatorSpec) -> bool:
+    return PROCESS_TRAJECTORY_KIND in spec.required_evidence_kinds
+
+
 @dataclass(frozen=True, slots=True)
 class RagMetricEvaluator:
     """计算单个已版本化 RAG metric slot."""
@@ -67,7 +146,12 @@ class RagMetricEvaluator:
     ) -> EvaluationResultDraft:
         """从 Ground Truth 与唯一 RAG Artifact 计算 metric draft."""
         spec = context.evaluator_spec
-        artifact, refs = _rag_artifact(evaluation_input)
+        formal_process = _is_process_spec(spec)
+        if formal_process:
+            artifact = _process_retrieval_input(evaluation_input)
+            refs = ()
+        else:
+            artifact, refs = _rag_artifact(evaluation_input)
         truth = _ground_truth(evaluation_input)
         if artifact is None or truth is None:
             return self._unavailable(spec, "rag_metric_input_unavailable")
@@ -139,7 +223,11 @@ class RagMetricEvaluator:
         if not relevant:
             return self._unavailable(spec, "document_ground_truth_unavailable")
         try:
-            projected = project_artifact_to_documents(artifact, self.document_projection)
+            projected = (
+                _project_process_to_documents(artifact, self.document_projection)
+                if isinstance(artifact, _MetricRetrievalView)
+                else project_artifact_to_documents(artifact, self.document_projection)
+            )
         except UnknownBenchmarkDocumentError as error:
             draft = self._unavailable(spec, "document_projection_unavailable")
             return EvaluationResultDraft(
@@ -237,8 +325,10 @@ class RagMetricEvaluatorResolver:
         """把 suite spec 解析为对应的 deterministic evaluator."""
         if spec.result_schema_ref != VersionRef("evaluation_result", "v1") or spec.comparison_semantics != "verdict_transition.v1":
             raise ValueError("unsupported evaluator result schema or comparison semantics")
-        if RAG_ARTIFACT_EVIDENCE_KIND not in spec.required_evidence_kinds:
-            raise ValueError("evaluator descriptor omits required RAG artifact evidence")
+        formal_process = _is_process_spec(spec)
+        legacy_artifact = RAG_ARTIFACT_EVIDENCE_KIND in spec.required_evidence_kinds
+        if formal_process == legacy_artifact:
+            raise ValueError("evaluator descriptor must select exactly one RAG evidence authority")
         reverse_recall = {value: key for key, value in RECALL_IDS.items()}
         reverse_ndcg = {value: key for key, value in NDCG_IDS.items()}
         reverse_document_recall = {value: key for key, value in DOCUMENT_RECALL_IDS.items()}
@@ -265,6 +355,8 @@ class RagMetricEvaluatorResolver:
             return ResolvedEvaluator(spec.evaluator_id, spec.evaluator_version, evaluator)
         if spec.evaluator_version != EVALUATOR_VERSION:
             raise ValueError(f"unsupported RAG evaluator version: {spec.evaluator_version}")
+        if formal_process and spec.evaluator_id not in {*RECALL_IDS.values(), *NDCG_IDS.values(), MRR_ID}:
+            raise ValueError(f"unsupported process-backed RAG evaluator: {spec.evaluator_id}")
         if spec.evaluator_id == MRR_ID:
             evaluator = RagMetricEvaluator(MRR_ID)
         elif spec.evaluator_id in reverse_recall:

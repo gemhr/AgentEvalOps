@@ -108,9 +108,12 @@ def test_journal_event_mapping():
         events = read_journal_events(journal, "run-1")
         assert len(events.formation) == 1
         assert events.formation[0].persisted_count == 1
+        assert events.formation[0].sequence == 1
         assert len(events.lifecycle) == 1
         assert events.lifecycle[0].operation == "INSERT"
+        assert events.lifecycle[0].sequence == 2
         assert len(events.retrieval) == 1
+        assert events.retrieval[0].sequence == 3
         assert events.retrieval[0].planning_injected is True
         assert events.retrieval[0].direct_entry_supplied is True
     finally:

@@ -345,6 +345,25 @@ class _FixedTargetResolver:
         return self.target
 
 
+class _CapturingTarget:
+    """保留本次 WP3 计算所需的专项 artifact，不写入 canonical Attempt。"""
+
+    def __init__(self, target: ExecutionTarget) -> None:
+        self._target = target
+        self.target_ref = target.target_ref
+        self.artifacts: dict[str, RagEvaluationArtifactV1] = {}
+
+    async def execute(self, request):
+        outcome = await self._target.execute(request)
+        refs = [ref for ref in outcome.evidence_refs if ref.kind == RAG_ARTIFACT_EVIDENCE_KIND]
+        if len(refs) == 1:
+            artifact = RagEvaluationArtifactV1.model_validate(refs[0].metadata["payload"])
+            if artifact.attempt_id != request.attempt_id:
+                raise WP3ExperimentInvalid("WP3 artifact Attempt binding mismatch")
+            self.artifacts[request.attempt_id] = artifact
+        return outcome
+
+
 def persisted_identity_payload(run: EvaluationRun) -> Mapping[str, object]:
     metadata = run.metadata
     wp3 = metadata.get("wp3") if isinstance(metadata, Mapping) else None
@@ -437,6 +456,7 @@ class WP3FormalStrategyRunner:
         }
         suite = build_rag_baseline_suite(self._dataset)
         target = self._process.build_target(evidence)
+        capturing_target = _CapturingTarget(target)
         persisted_identity = replace(bound_identity, port=isolation.port)
         run, attempts = await self._persistence.create_run(
             project_id=self._project_id,
@@ -457,7 +477,7 @@ class WP3FormalStrategyRunner:
         await _rewrite_run_identity(self._persistence, run, identity_with_run, isolation, self._generation_pin_sha256)
         loop = EvaluationLoopService(
             self._persistence,
-            _FixedTargetResolver(target),
+            _FixedTargetResolver(capturing_target),
             RagMetricEvaluatorResolver(),
         )
         try:
@@ -476,7 +496,9 @@ class WP3FormalStrategyRunner:
             shutdown_clean, port_released = await self._process.stop(evidence)
         final_run = await self._persistence.get_run(self._project_id, run.run_id)
         final_attempts = await self._persistence.list_attempts(self._project_id, run.run_id)
-        observations = _observations_from_attempts(self._dataset, final_attempts, identity_with_run)
+        observations = _observations_from_attempts(
+            self._dataset, final_attempts, identity_with_run, capturing_target.artifacts,
+        )
         identity_persisted = _identity_is_persisted(final_run, identity_with_run)
         generation_rewrite_valid = all(
             item.generation_id == identity_with_run.generation_id
@@ -524,14 +546,12 @@ def _observations_from_attempts(
     dataset: EvaluationDataset,
     attempts: Sequence[object],
     identity: WP3RunIdentity,
+    artifacts: Mapping[str, RagEvaluationArtifactV1],
 ) -> tuple[WP3CaseObservation, ...]:
     dataset_cases = {item.case_id: item for item in dataset.cases}
     observations: list[WP3CaseObservation] = []
     for attempt in attempts:
-        refs = [ref for ref in attempt.outcome_evidence_refs if ref.kind == RAG_ARTIFACT_EVIDENCE_KIND]
-        artifact = None
-        if len(refs) == 1:
-            artifact = RagEvaluationArtifactV1.model_validate(refs[0].metadata["payload"])
+        artifact = artifacts.get(str(attempt.attempt_id))
         case = dataset_cases[attempt.case_ref.case_id]
         metrics = None if artifact is None else metrics_for_artifact(case, artifact)
         status = "FAILED" if artifact is None else artifact.retrieval_status

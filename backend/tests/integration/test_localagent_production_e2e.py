@@ -60,6 +60,7 @@ from app.services.evaluation import (
 )
 from app.services.evaluation.stateful_environment import LocalAgentSubprocessProvisioner
 from app.registry.settings import settings
+from scripts.ci.release_gate import ci_evidence_source_from_env
 
 from .conftest import TEST_PROJECT_ID
 
@@ -330,6 +331,28 @@ def _target_ref() -> ExecutionTargetRef:
     )
 
 
+def _controlled_test_subject() -> dict[str, object]:
+    """在Run创建前冻结本E2E明示的TEST fixture composition身份."""
+    return {
+        "subject_kind": "AGENT",
+        "agent_id": "core_router",
+        "agent_version": "TEST_FIXTURE:core_router:v1",
+        "workflow_id": "episodic_evaluation_layer1",
+        "workflow_version": "TEST_FIXTURE:episodic_evaluation_layer1:v1",
+        "toolset_identity": {"fixture": "controlled-toolset", "version": "TEST_FIXTURE:v1"},
+        "provider_binding_identity": {
+            "fixture": "sequenced-openai-compatible-provider",
+            "model": "wp3-deterministic-provider-v1",
+            "version": "TEST_FIXTURE:v1",
+        },
+        "actual_model_binding": "wp3-deterministic-provider-v1",
+        "runtime_version": f"TEST_FIXTURE:{LOCALAGENT_HTTP_EVALUATION_V2_TARGET_VERSION.opaque_value}",
+        "deployment_environment": "TEST",
+        "run_mode": "evaluation",
+        "profile": "EPISODIC_EVALUATION_LAYER1",
+    }
+
+
 class _ProductionTargetResolver:
     """EvaluationLoop resolver bound to the real fixture-owned HTTP target."""
 
@@ -551,6 +574,7 @@ async def _execute_exact_answer_run(
         cases={case_ref: case},
         target=target.target_ref,
         timeout=timedelta(seconds=60),
+        subject_ref=_controlled_test_subject(),
         metadata={"wp3_role": role},
     )
     loop = EvaluationLoopService(
@@ -581,6 +605,7 @@ def _run_canonical_gate(
     baseline_run_id: object,
     candidate_run_id: object,
     case_ref: CaseVersionRef,
+    metric_policy_path: Path,
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
     """调用 canonical persisted mode；报告读取自本轮真实 run IDs."""
     configured_dir = os.getenv("AGENTEVALOPS_CANDIDATE_GATE_REPORT_DIR", "").strip()
@@ -601,6 +626,8 @@ def _run_canonical_gate(
             str(candidate_run_id),
             "--critical-case",
             f"{case_ref.case_id}@{case_ref.version}",
+            "--metric-policy-json",
+            str(metric_policy_path),
             "--report-json",
             str(report_path),
             "--dsn",
@@ -613,7 +640,11 @@ def _run_canonical_gate(
     )
     assert report_path.is_file(), result.stderr
     payload = json.loads(report_path.read_text(encoding="utf-8"))
-    assert payload["synthetic"] is False
+    source = payload["wp6_evidence_source"]
+    assert source["evidence_type"] == "TEST_EVIDENCE"
+    assert source["environment_type"] == "TEST"
+    assert source["synthetic"] is True
+    assert source["source_authenticity"] == "DECLARED_SOURCE"
     assert payload["authority"] == "RegressionReportService"
     return result, payload
 
@@ -718,6 +749,30 @@ async def test_real_known_bad_candidate_fails_canonical_gate(
     assert report.regression_count == 1
     assert report.release_decision.value == "FAIL"
 
+    # TEST FIXTURE ONLY — NOT A PRODUCTION THRESHOLD. This explicit rule checks
+    # report coverage for the controlled CI case; WP5 remains NOT_CONFIGURED without it.
+    from app.services.evaluation.platform_metrics import PlatformMetricService
+
+    good_comparison = await EvaluationComparisonService(persistence).compare_runs(
+        TEST_PROJECT_ID, baseline.run_id, good.run_id
+    )
+    good_metrics = await PlatformMetricService(persistence).build_report(good_comparison)
+    assert good_metrics.candidate
+    metric = good_metrics.candidate[0]
+    metric_policy_path = tmp_path / "test-metric-policy.json"
+    metric_policy_path.write_text(json.dumps({
+        "policy_id": "candidate-gate-test-fixture",
+        "policy_version": "v1",
+        "fixture_scope": "TEST FIXTURE ONLY — NOT A PRODUCTION THRESHOLD",
+        "rules": [{
+            "kind": "MIN_COVERAGE",
+            "metric_id": metric.definition.metric_id,
+            "metric_version": metric.definition.metric_version,
+            "metric_definition_digest": metric.definition.metric_definition_digest,
+            "threshold": 1.0,
+        }],
+    }, indent=2) + "\n", encoding="utf-8")
+
     run_ids_path = os.getenv("AGENTEVALOPS_CANDIDATE_GATE_RUN_IDS_PATH", "").strip()
     if run_ids_path:
         target = Path(run_ids_path)
@@ -729,7 +784,7 @@ async def test_real_known_bad_candidate_fails_canonical_gate(
                     "baseline_run_id": str(baseline.run_id),
                     "good_candidate_run_id": str(good.run_id),
                     "bad_candidate_run_id": str(bad.run_id),
-                    "synthetic": False,
+                    "wp6_evidence_source": ci_evidence_source_from_env().model_dump(mode="json"),
                 },
                 indent=2,
             )
@@ -743,6 +798,7 @@ async def test_real_known_bad_candidate_fails_canonical_gate(
         baseline_run_id=baseline.run_id,
         candidate_run_id=good.run_id,
         case_ref=case_ref,
+        metric_policy_path=metric_policy_path,
     )
     bad_gate, bad_payload = _run_canonical_gate(
         tmp_path,
@@ -750,6 +806,7 @@ async def test_real_known_bad_candidate_fails_canonical_gate(
         baseline_run_id=baseline.run_id,
         candidate_run_id=bad.run_id,
         case_ref=case_ref,
+        metric_policy_path=metric_policy_path,
     )
     assert good_gate.returncode == 0, good_gate.stderr
     assert bad_gate.returncode == 2, bad_gate.stderr

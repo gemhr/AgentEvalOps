@@ -26,6 +26,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.evaluation.references import CaseVersionRef
 from app.core.evaluation.immutable import json_compatible
 from app.core.evaluation.report import RegressionReport, ReleaseDecision
+from app.core.evaluation.production_evidence import (
+    CIEvidenceSourceV1, EnvironmentType, SourceAuthenticity,
+)
+from app.core.evaluation.metric_policy import (
+    MetricGateDecision, MetricGateStatus, MetricPolicy, MetricRule, MetricRuleKind, evaluate_metric_gate,
+)
+from app.core.evaluation.platform_metrics import MetricReportV1
 from app.infrastructure.db.engine import engine as default_engine
 from app.infrastructure.db.repositories.evaluation_persistence_repo import (
     PostgresEvaluationPersistenceUnitOfWork,
@@ -34,7 +41,7 @@ from app.infrastructure.db.repositories.evaluation_persistence_repo import (
 EXIT_PASS = 0
 EXIT_GATE_FAIL = 2
 EXIT_ERROR = 1
-REPORT_SCHEMA_VERSION = 2
+REPORT_SCHEMA_VERSION = 3
 GATE_DATABASE_URL_ENV = "AGENTEVALOPS_GATE_DATABASE_URL"
 
 
@@ -49,6 +56,8 @@ def exit_code_for_decision(decision: ReleaseDecision) -> int:
 
 def serialize_report(
     report: RegressionReport,
+    metrics: MetricReportV1 | None = None,
+    gate: MetricGateDecision | None = None,
 ) -> dict[str, object]:
     """Serialize the existing RegressionReport without recomputing its truth."""
     payload: dict[str, object] = {
@@ -92,11 +101,34 @@ def serialize_report(
             for item in report.incomplete_required_evidence
         ],
         "rows": [_json_value(item) for item in report.comparisons],
+        "wp6_evidence_source": _json_value(ci_evidence_source_from_env()),
     }
+    if metrics is not None:
+        payload["metric_report"] = _json_value(metrics)
+    if gate is not None:
+        payload["metric_gate"] = _json_value(gate)
     return payload
 
 
+def ci_evidence_source_from_env() -> CIEvidenceSourceV1:
+    """Project controlled workflow identity; this wrapper never implies production."""
+    workflow = os.environ.get("GITHUB_WORKFLOW")
+    job = os.environ.get("GITHUB_JOB")
+    run_id = os.environ.get("GITHUB_RUN_ID")
+    revision = os.environ.get("GITHUB_SHA")
+    controlled = (os.environ.get("GITHUB_ACTIONS") == "true" and bool(workflow and job and run_id and revision))
+    return CIEvidenceSourceV1(
+        workflow=workflow, job=job, run_id=run_id, source_revision=revision,
+        environment_type=EnvironmentType.TEST if controlled else EnvironmentType.UNKNOWN,
+        synthetic=True,
+        # Runner environment variables identify context but are not an attestation.
+        source_authenticity=SourceAuthenticity.DECLARED_SOURCE if controlled else SourceAuthenticity.UNKNOWN_SOURCE,
+    )
+
+
 def _json_value(value: object) -> object:
+    if hasattr(value, "model_dump"):
+        return _json_value(value.model_dump(mode="python"))
     if is_dataclass(value):
         return {item.name: _json_value(getattr(value, item.name)) for item in fields(value)}
     if isinstance(value, dict) or hasattr(value, "items"):
@@ -109,12 +141,14 @@ def _json_value(value: object) -> object:
 def write_report_artifact(
     path: str,
     report: RegressionReport,
+    metrics: MetricReportV1 | None = None,
+    gate: MetricGateDecision | None = None,
 ) -> Path:
     """Write ephemeral CI evidence (never durable evaluation authority)."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
-        json.dumps(serialize_report(report), indent=2) + "\n",
+        json.dumps(serialize_report(report, metrics, gate), indent=2) + "\n",
         encoding="utf-8",
     )
     return target
@@ -123,10 +157,16 @@ def write_report_artifact(
 def finalize(
     report_json_path: str | None,
     report: RegressionReport,
+    metrics: MetricReportV1 | None = None,
+    gate: MetricGateDecision | None = None,
 ) -> int:
     """Write evidence first, then map the existing decision to process status."""
     if report_json_path:
-        write_report_artifact(report_json_path, report)
+        write_report_artifact(report_json_path, report, metrics, gate)
+    if gate is not None:
+        if gate.status is MetricGateStatus.NOT_CONFIGURED:
+            return EXIT_ERROR
+        return EXIT_PASS if gate.status is MetricGateStatus.PASS else EXIT_GATE_FAIL
     return exit_code_for_decision(report.release_decision)
 
 
@@ -161,6 +201,10 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help="Write ephemeral gate evidence to this path, including when the decision is FAIL.",
+    )
+    parser.add_argument(
+        "--metric-policy-json", metavar="PATH", default=None,
+        help="Optional explicit WP5 metric policy JSON; no production thresholds are built in.",
     )
     parser.add_argument(
         "--dsn",
@@ -198,11 +242,28 @@ def _engine_for_dsn(dsn: str | None):
     return create_async_engine(dsn), True
 
 
+def _metric_policy(path: str | None) -> MetricPolicy | None:
+    if path is None:
+        return None
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    return MetricPolicy(
+        policy_id=data["policy_id"], policy_version=data["policy_version"],
+        rules=tuple(MetricRule(
+            kind=MetricRuleKind(item["kind"]), metric_id=item["metric_id"],
+            metric_version=item["metric_version"],
+            metric_definition_digest=item["metric_definition_digest"], threshold=float(item["threshold"]),
+        ) for item in data["rules"]),
+        block_unavailable=data.get("block_unavailable", True),
+        block_not_comparable=data.get("block_not_comparable", True),
+    )
+
+
 async def _run_persisted_gate(args: argparse.Namespace) -> int:
     """Compare persisted real runs and delegate policy to the existing service."""
     from app.services.evaluation.comparison import EvaluationComparisonService
     from app.services.evaluation.persistence import EvaluationPersistenceService
     from app.services.evaluation.report import RegressionReportService
+    from app.services.evaluation.platform_metrics import PlatformMetricService
 
     if args.project_id is None or args.baseline_run_id is None or args.candidate_run_id is None:
         raise ValueError("canonical gate requires --project-id, --baseline-run-id and --candidate-run-id")
@@ -215,7 +276,9 @@ async def _run_persisted_gate(args: argparse.Namespace) -> int:
             args.project_id, args.baseline_run_id, args.candidate_run_id
         )
         report = RegressionReportService().build_report(comparison, _critical_case_refs(args.critical_case))
-        return finalize(args.report_json, report)
+        metrics = await PlatformMetricService(persistence).build_report(comparison)
+        gate = evaluate_metric_gate(report, metrics, _metric_policy(args.metric_policy_json))
+        return finalize(args.report_json, report, metrics, gate)
     finally:
         if dispose_engine:
             await engine.dispose()

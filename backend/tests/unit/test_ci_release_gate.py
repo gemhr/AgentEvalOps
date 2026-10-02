@@ -10,6 +10,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
@@ -26,11 +27,13 @@ from scripts.ci.release_gate import (
     EXIT_GATE_FAIL,
     EXIT_PASS,
     _build_parser,
+    ci_evidence_source_from_env,
     exit_code_for_decision,
     finalize,
     main,
     serialize_report,
 )
+from app.core.evaluation.metric_policy import MetricGateStatus
 
 NOW = datetime(2026, 8, 19, tzinfo=timezone.utc)
 CASE_ROUTING = "demo-routing-critical"
@@ -153,6 +156,27 @@ def test_exit_comes_from_report_decision() -> None:
     assert finalize(None, _report(ReleaseDecision.PASS)) == EXIT_PASS
 
 
+def test_missing_metric_policy_remains_exit_one() -> None:
+    gate = SimpleNamespace(status=MetricGateStatus.NOT_CONFIGURED)
+    assert finalize(None, _report(ReleaseDecision.PASS), None, gate) == 1
+
+
+def test_ci_evidence_source_never_promotes_synthetic_test_to_production(monkeypatch) -> None:
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "test workflow")
+    monkeypatch.setenv("GITHUB_JOB", "test-job")
+    monkeypatch.setenv("GITHUB_RUN_ID", "12345")
+    monkeypatch.setenv("GITHUB_SHA", "abc123")
+    source = ci_evidence_source_from_env()
+    assert source.environment_type.value == "TEST"
+    assert source.synthetic is True
+    assert source.source_authenticity.value == "DECLARED_SOURCE"
+    monkeypatch.delenv("GITHUB_SHA")
+    unbound = ci_evidence_source_from_env()
+    assert unbound.environment_type.value == "UNKNOWN"
+    assert unbound.source_authenticity.value == "UNKNOWN_SOURCE"
+
+
 def test_serialize_report_matches_report_truth() -> None:
     report = _report(ReleaseDecision.FAIL)
     payload = serialize_report(report)
@@ -190,6 +214,40 @@ def test_workflow_static_gate() -> None:
     assert "workflow_dispatch" in text
     assert "workflow_call" in text
     assert "POSTGRES_HOST_AUTH_METHOD: trust" in text
+    assert "- 5433:5432" in text
+    assert "- 6380:6379" in text
+    assert "POSTGRES_PORT: \"5433\"" in text
+    assert "POSTGRES_DB: pandaprobe_test_db" in text
+    assert "AGENTEVALOPS_GATE_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5433/pandaprobe_test_db" in text
+    assert "CREATE DATABASE pandaprobe_test_db" in text
+    psql_create_lines = [line.strip() for line in text.splitlines() if line.strip().startswith("psql ")]
+    assert len(psql_create_lines) == 2
+    assert all("-h localhost -p 5433" in line and "-d postgres" in line for line in psql_create_lines)
+    assert "5432:5432" not in text
+    assert "6379:6379" not in text
+    fixture_text = Path(__file__).resolve().parents[2].joinpath("tests", "conftest.py").read_text(encoding="utf-8")
+    assert 'os.environ["POSTGRES_PORT"] = "5433"' in fixture_text
+    assert 'os.environ["POSTGRES_DB"] = "pandaprobe_test_db"' in fixture_text
+    assert 'os.environ["REDIS_PORT"] = "6380"' in fixture_text
+    service_pg_port = re.search(r"-\s*(\d+):5432", text).group(1)
+    service_redis_port = re.search(r"-\s*(\d+):6379", text).group(1)
+    gate_pg = re.search(r"AGENTEVALOPS_GATE_DATABASE_URL: postgresql\+asyncpg://[^@]+@localhost:(\d+)/([^\s]+)", text)
+    workflow_pg_port = re.search(r'POSTGRES_PORT: "(\d+)"', text).group(1)
+    workflow_pg_db = re.search(r"^      POSTGRES_DB: ([A-Za-z0-9_]+)$", text, re.MULTILINE).group(1)
+    test_pg_port = re.search(r'os\.environ\["POSTGRES_PORT"\] = "(\d+)"', fixture_text).group(1)
+    test_pg_db = re.search(r'os\.environ\["POSTGRES_DB"\] = "([A-Za-z0-9_]+)"', fixture_text).group(1)
+    test_redis_port = re.search(r'os\.environ\["REDIS_PORT"\] = "(\d+)"', fixture_text).group(1)
+    assert gate_pg is not None
+    assert service_pg_port == workflow_pg_port == test_pg_port == gate_pg.group(1)
+    assert workflow_pg_db == test_pg_db == gate_pg.group(2) == "pandaprobe_test_db"
+    assert service_redis_port == test_redis_port == "6380"
+    assert re.search(r'^      REDIS_DB: "0"$', text, re.MULTILINE)
+    assert "redis://localhost:6380/1" in text
+    assert "redis://localhost:6380/0" not in text
+    assert text.count("LOCAL_AGENT_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5433/localagent_ci") == 2
+    assert "LOCALAGENT_E2E_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5433/localagent_ci" in text
+    assert text.count("LOCAL_AGENT_REDIS_URL: redis://localhost:6380/1") == 2
+    assert "LOCALAGENT_E2E_REDIS_URL: redis://localhost:6380/1" in text
     assert "repository: gemhr/Local_Agent" in text
     assert "uv sync --frozen" in text
     assert "LOCAL_AGENT_DATABASE_URL" in text
@@ -203,6 +261,12 @@ def test_workflow_static_gate() -> None:
     assert "AGENTEVALOPS_CANDIDATE_GATE_RUN_IDS_PATH" in text
     assert "AGENTEVALOPS_CANDIDATE_GATE_REPORT_DIR" in text
     assert "scripts.ci.release_gate" in text
+    assert "--metric-policy-json" in Path(__file__).resolve().parents[3].joinpath(
+        "backend", "tests", "integration", "test_localagent_production_e2e.py"
+    ).read_text(encoding="utf-8")
+    assert "TEST FIXTURE ONLY" in Path(__file__).resolve().parents[3].joinpath(
+        "backend", "tests", "integration", "test_localagent_production_e2e.py"
+    ).read_text(encoding="utf-8")
     assert "alembic upgrade head" in text
     assert "--synthetic" not in text
     assert "scenario" not in text

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from statistics import mean, median
 from typing import Mapping
@@ -42,9 +42,11 @@ from app.core.evaluation.dataset_bridge import bridge_dataset_to_catalog
 from app.core.evaluation.document_metrics import DocumentProjection
 from app.core.evaluation.execution import ExecutionTargetRef
 from app.core.evaluation.process_trajectory import ProcessKind, RetrievalEvidencePayloadV1, parse_process_trajectory
+from app.core.evaluation.platform_metrics import MetricObservation, MetricState, aggregate_metric
 from app.core.evaluation.references import VersionRef
 from app.services.evaluation.loop import EvaluationLoopService
 from app.services.evaluation.persistence import EvaluationPersistenceService
+from app.services.evaluation.platform_metrics import _quality_definition
 
 SUITE_ID = "beir-scifact-baseline-suite"
 SUITE_VERSION = "v1"
@@ -202,10 +204,25 @@ async def execute_beir_scifact_baseline(
 
     final_attempts = await persistence.list_attempts(project_id, run.run_id)
     results = await persistence.list_results(project_id, run.run_id)
-    result_scores: dict[str, list[float]] = defaultdict(list)
-    for result in results:
-        if result.score is not None:
-            result_scores[result.evaluator_id].append(result.score)
+    result_by_slot = {(item.case_id, item.evaluator_id): item for item in results}
+    aggregates = {}
+    for spec in suite.evaluator_specs:
+        definition = _quality_definition({
+            "evaluator_id": spec.evaluator_id, "evaluator_version": spec.evaluator_version,
+            "score_direction": spec.score_direction.value, "config_snapshot": spec.config_snapshot,
+            "definition_digest": spec.definition_digest,
+        })
+        observations = []
+        for case_ref in suite.case_selection:
+            result = result_by_slot.get((case_ref.case_id, spec.evaluator_id))
+            valid = result is not None and result.score is not None and result.verdict.value in {"PASS", "FAIL"}
+            observations.append(MetricObservation(
+                case_ref.case_id, MetricState.VALID if valid else MetricState.MISSING if result is None
+                else MetricState.ERROR if result.verdict.value == "ERROR" else MetricState.INCONCLUSIVE
+                if result.verdict.value == "INCONCLUSIVE" else MetricState.UNAVAILABLE,
+                result.score if valid else None, observed=result is not None,
+            ))
+        aggregates[spec.evaluator_id] = aggregate_metric(definition, tuple(observations), scope="baseline")
 
     dataset_cases = {item.case_id: item for item in dataset.cases}
     case_results = []
@@ -314,9 +331,7 @@ async def execute_beir_scifact_baseline(
             }
         )
 
-    metrics = {
-        evaluator_id: float(mean(values)) for evaluator_id, values in sorted(result_scores.items())
-    }
+    metrics = {name: float(item.value) for name, item in sorted(aggregates.items()) if item.value is not None}
     report = {
         "baseline_ref": baseline_ref,
         "benchmark_kind": BENCHMARK_KIND,
@@ -324,7 +339,7 @@ async def execute_beir_scifact_baseline(
         "dataset_id": BEIR_SCIFACT_DATASET_ID,
         "dataset_version": BEIR_SCIFACT_DATASET_VERSION,
         "dataset_case_count": len(dataset),
-        "evaluated_retrieval_cases": len(result_scores.get(DOCUMENT_RECALL_IDS[1], [])),
+        "evaluated_retrieval_cases": aggregates[DOCUMENT_RECALL_IDS[1]].coverage.valid_count,
         "suite_id": SUITE_ID,
         "suite_version": SUITE_VERSION,
         "asset": {

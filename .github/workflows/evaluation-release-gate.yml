@@ -29,7 +29,7 @@ jobs:
           POSTGRES_DB: postgres
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d postgres"
           --health-interval 5s
@@ -38,7 +38,7 @@ jobs:
       redis:
         image: redis:7-alpine
         ports:
-          - 6379:6379
+          - 6380:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
@@ -51,14 +51,14 @@ jobs:
     env:
       # Separate databases and Redis namespaces keep the two real stacks
       # isolated while sharing the ephemeral CI services.
-      AGENTEVALOPS_GATE_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/pandaprobe_ci
+      AGENTEVALOPS_GATE_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5433/pandaprobe_test_db
       POSTGRES_HOST: localhost
-      POSTGRES_PORT: "5432"
-      POSTGRES_DB: pandaprobe_ci
+      POSTGRES_PORT: "5433"
+      POSTGRES_DB: pandaprobe_test_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ""
       REDIS_HOST: localhost
-      REDIS_PORT: "6379"
+      REDIS_PORT: "6380"
       REDIS_DB: "0"
 
     steps:
@@ -95,9 +95,9 @@ jobs:
         env:
           PGPASSWORD: ""
         run: |
-          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
-            -c "CREATE DATABASE pandaprobe_ci"
-          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+          psql -h localhost -p 5433 -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE pandaprobe_test_db"
+          psql -h localhost -p 5433 -U postgres -d postgres -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE localagent_ci"
 
       - name: Prepare AgentEvalOps schema
@@ -107,21 +107,21 @@ jobs:
       - name: Prepare LocalAgent schema
         working-directory: localagent
         env:
-          LOCAL_AGENT_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/localagent_ci
+          LOCAL_AGENT_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5433/localagent_ci
           LOCAL_AGENT_ENVIRONMENT_PROFILE: TEST
           LOCAL_AGENT_LLM_BACKEND: scripted
           LOCAL_AGENT_RUNTIME_PROFILE: EPISODIC_EVALUATION_LAYER1
-          LOCAL_AGENT_REDIS_URL: redis://localhost:6379/1
+          LOCAL_AGENT_REDIS_URL: redis://localhost:6380/1
         run: uv run alembic upgrade head
 
       - name: Create ephemeral LocalAgent service identity
         shell: bash
         env:
-          LOCAL_AGENT_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/localagent_ci
+          LOCAL_AGENT_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5433/localagent_ci
           LOCAL_AGENT_ENVIRONMENT_PROFILE: TEST
           LOCAL_AGENT_LLM_BACKEND: scripted
           LOCAL_AGENT_RUNTIME_PROFILE: EPISODIC_EVALUATION_LAYER1
-          LOCAL_AGENT_REDIS_URL: redis://localhost:6379/1
+          LOCAL_AGENT_REDIS_URL: redis://localhost:6380/1
         run: |
           set -euo pipefail
           private_key="$RUNNER_TEMP/localagent-jwt-private.pem"
@@ -150,11 +150,11 @@ jobs:
         working-directory: backend
         env:
           AGENTEVALOPS_RUN_LOCALAGENT_PRODUCTION_E2E: "1"
-          AGENTEVALOPS_GATE_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/pandaprobe_ci
+          AGENTEVALOPS_GATE_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5433/pandaprobe_test_db
           LOCALAGENT_E2E_REPO: ${{ github.workspace }}/localagent
           LOCALAGENT_E2E_PYTHON_EXECUTABLE: ${{ github.workspace }}/localagent/.venv/bin/python
-          LOCALAGENT_E2E_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5432/localagent_ci
-          LOCALAGENT_E2E_REDIS_URL: redis://localhost:6379/1
+          LOCALAGENT_E2E_DATABASE_URL: postgresql+asyncpg://postgres@localhost:5433/localagent_ci
+          LOCALAGENT_E2E_REDIS_URL: redis://localhost:6380/1
           LOCALAGENT_E2E_HEALTH_TIMEOUT: "120"
           AGENTEVALOPS_CANDIDATE_GATE_RUN_IDS_PATH: ${{ github.workspace }}/backend/artifacts/candidate-gate-run-ids.json
           AGENTEVALOPS_CANDIDATE_GATE_REPORT_DIR: ${{ github.workspace }}/backend/artifacts

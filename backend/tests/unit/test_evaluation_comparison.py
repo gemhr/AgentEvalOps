@@ -754,6 +754,38 @@ async def test_subject_missing_facts_cannot_be_accepted_as_known():
     )[0] is ComparisonCompatibility.CONDITIONALLY_COMPARABLE
 
 
+def test_controlled_test_subject_is_comparable_and_missing_subject_is_not():
+    from app.core.evaluation.comparison import ComparisonCompatibility
+
+    baseline, candidate = make_run(uuid4()), make_run(uuid4())
+    target = replace(baseline.execution_target_ref, target_kind="LOCALAGENT_HTTP")
+    frozen_test_subject = {
+        "subject_kind": "AGENT",
+        "agent_id": "core_router",
+        "agent_version": "TEST_FIXTURE:core_router:v1",
+        "workflow_id": "episodic_evaluation_layer1",
+        "workflow_version": "TEST_FIXTURE:episodic_evaluation_layer1:v1",
+        "toolset_identity": {"fixture": "controlled-toolset", "version": "TEST_FIXTURE:v1"},
+        "provider_binding_identity": {
+            "fixture": "sequenced-openai-compatible-provider",
+            "model": "wp3-deterministic-provider-v1",
+            "version": "TEST_FIXTURE:v1",
+        },
+        "runtime_version": "TEST_FIXTURE:evaluation-v2",
+        "deployment_environment": "TEST",
+        "run_mode": "evaluation",
+        "profile": "EPISODIC_EVALUATION_LAYER1",
+    }
+    baseline = replace(baseline, execution_target_ref=target, subject_ref=frozen_test_subject)
+    candidate = replace(candidate, execution_target_ref=target, subject_ref=dict(frozen_test_subject))
+    assert EvaluationComparisonService._subject_compatibility(baseline, candidate)[0] is ComparisonCompatibility.COMPARABLE
+    compatibility, reasons = EvaluationComparisonService._subject_compatibility(
+        baseline, replace(candidate, subject_ref={"subject_kind": "AGENT"}),
+    )
+    assert compatibility is ComparisonCompatibility.INCOMPARABLE
+    assert "INSUFFICIENT_SUBJECT_PROVENANCE" in reasons
+
+
 def test_fixture_content_identity_is_captured_from_actual_templates():
     from app.adapters.evaluation.fixture import FixtureExecution, FixtureExecutionTarget
 

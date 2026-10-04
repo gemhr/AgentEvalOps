@@ -1,0 +1,921 @@
+{
+  "oracle": "Python retrieval_metrics/ranking_metrics at 94101995d3b5a4330626e7a6681d03d9d60aabde",
+  "breaks": "declared empty GT => NOT_APPLICABLE; absent GT => MISSING_EVIDENCE (Python rejects both)",
+  "vectors": [
+    {
+      "name": "rank_order",
+      "artifact": {
+        "schema_version": "rag-evaluation-artifact.v2",
+        "artifact_id": "rag-eval://remote/r1",
+        "run_id": "remote",
+        "attempt_id": "remote",
+        "retrieval_id": "r1",
+        "invocation_index": 1,
+        "retrieval_status": "SUCCEEDED",
+        "query": "query",
+        "rewritten_query": "query",
+        "retrieved_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "rank": 2,
+            "retrieval_rank": 2,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "ranked_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "rank": 2,
+            "retrieval_rank": 2,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "selected_items": [],
+        "citations": [],
+        "total_latency_ms": 1,
+        "degraded": false,
+        "degradation_reasons": [],
+        "budget_usage": {},
+        "retrieval_strategy": null
+      },
+      "ground_truth": {
+        "relevant_chunks": [
+          {
+            "document_id": "d",
+            "chunk_id": "a"
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b"
+          }
+        ],
+        "graded_relevance": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "relevance": 3
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "relevance": 1
+          }
+        ]
+      },
+      "k": 2,
+      "expected": {
+        "recall@k.v1": 1.0,
+        "mrr.v1": 1.0,
+        "ndcg.v1": 1.0
+      },
+      "state": "APPLICABLE"
+    },
+    {
+      "name": "duplicate_occupancy",
+      "artifact": {
+        "schema_version": "rag-evaluation-artifact.v2",
+        "artifact_id": "rag-eval://remote/r1",
+        "run_id": "remote",
+        "attempt_id": "remote",
+        "retrieval_id": "r1",
+        "invocation_index": 1,
+        "retrieval_status": "SUCCEEDED",
+        "query": "query",
+        "rewritten_query": "query",
+        "retrieved_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 2,
+            "retrieval_rank": 2,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "rank": 3,
+            "retrieval_rank": 3,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "ranked_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 2,
+            "retrieval_rank": 2,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "rank": 3,
+            "retrieval_rank": 3,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "selected_items": [],
+        "citations": [],
+        "total_latency_ms": 1,
+        "degraded": false,
+        "degradation_reasons": [],
+        "budget_usage": {},
+        "retrieval_strategy": null
+      },
+      "ground_truth": {
+        "relevant_chunks": [
+          {
+            "document_id": "d",
+            "chunk_id": "a"
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b"
+          }
+        ],
+        "graded_relevance": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "relevance": 3
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "relevance": 1
+          }
+        ]
+      },
+      "k": 2,
+      "expected": {
+        "recall@k.v1": 0.5,
+        "mrr.v1": 1.0,
+        "ndcg.v1": 0.9173194127129571
+      },
+      "state": "APPLICABLE"
+    },
+    {
+      "name": "graded_relevance",
+      "artifact": {
+        "schema_version": "rag-evaluation-artifact.v2",
+        "artifact_id": "rag-eval://remote/r1",
+        "run_id": "remote",
+        "attempt_id": "remote",
+        "retrieval_id": "r1",
+        "invocation_index": 1,
+        "retrieval_status": "SUCCEEDED",
+        "query": "query",
+        "rewritten_query": "query",
+        "retrieved_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 2,
+            "retrieval_rank": 2,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "ranked_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 2,
+            "retrieval_rank": 2,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "selected_items": [],
+        "citations": [],
+        "total_latency_ms": 1,
+        "degraded": false,
+        "degradation_reasons": [],
+        "budget_usage": {},
+        "retrieval_strategy": null
+      },
+      "ground_truth": {
+        "relevant_chunks": [
+          {
+            "document_id": "d",
+            "chunk_id": "a"
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b"
+          }
+        ],
+        "graded_relevance": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "relevance": 3
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "relevance": 1
+          }
+        ]
+      },
+      "k": 2,
+      "expected": {
+        "recall@k.v1": 1.0,
+        "mrr.v1": 1.0,
+        "ndcg.v1": 0.7098097413968655
+      },
+      "state": "APPLICABLE"
+    },
+    {
+      "name": "namespace_mismatch",
+      "artifact": {
+        "schema_version": "rag-evaluation-artifact.v2",
+        "artifact_id": "rag-eval://remote/r1",
+        "run_id": "remote",
+        "attempt_id": "remote",
+        "retrieval_id": "r1",
+        "invocation_index": 1,
+        "retrieval_status": "SUCCEEDED",
+        "query": "query",
+        "rewritten_query": "query",
+        "retrieved_items": [
+          {
+            "document_id": "other",
+            "chunk_id": "a",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "ranked_items": [
+          {
+            "document_id": "other",
+            "chunk_id": "a",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "selected_items": [],
+        "citations": [],
+        "total_latency_ms": 1,
+        "degraded": false,
+        "degradation_reasons": [],
+        "budget_usage": {},
+        "retrieval_strategy": null
+      },
+      "ground_truth": {
+        "relevant_chunks": [
+          {
+            "document_id": "d",
+            "chunk_id": "a"
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b"
+          }
+        ],
+        "graded_relevance": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "relevance": 3
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "relevance": 1
+          }
+        ]
+      },
+      "k": 2,
+      "expected": {
+        "recall@k.v1": 0.0,
+        "mrr.v1": 0.0,
+        "ndcg.v1": 0.0
+      },
+      "state": "APPLICABLE"
+    },
+    {
+      "name": "rank_fallback",
+      "artifact": {
+        "schema_version": "rag-evaluation-artifact.v2",
+        "artifact_id": "rag-eval://remote/r1",
+        "run_id": "remote",
+        "attempt_id": "remote",
+        "retrieval_id": "r1",
+        "invocation_index": 1,
+        "retrieval_status": "SUCCEEDED",
+        "query": "query",
+        "rewritten_query": "query",
+        "retrieved_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 4,
+            "retrieval_rank": 4,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "ranked_items": [],
+        "selected_items": [],
+        "citations": [],
+        "total_latency_ms": 1,
+        "degraded": false,
+        "degradation_reasons": [],
+        "budget_usage": {},
+        "retrieval_strategy": null
+      },
+      "ground_truth": {
+        "relevant_chunks": [
+          {
+            "document_id": "d",
+            "chunk_id": "a"
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b"
+          }
+        ],
+        "graded_relevance": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "relevance": 3
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "relevance": 1
+          }
+        ]
+      },
+      "k": 5,
+      "expected": {
+        "recall@k.v1": 0.5,
+        "mrr.v1": 0.25,
+        "ndcg.v1": 0.0
+      },
+      "state": "APPLICABLE"
+    },
+    {
+      "name": "hybrid_fused_rank",
+      "artifact": {
+        "schema_version": "rag-evaluation-artifact.v2",
+        "artifact_id": "rag-eval://remote/r1",
+        "run_id": "remote",
+        "attempt_id": "remote",
+        "retrieval_id": "r1",
+        "invocation_index": 1,
+        "retrieval_status": "SUCCEEDED",
+        "query": "query",
+        "rewritten_query": "query",
+        "retrieved_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 2,
+            "retrieval_rank": 2,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "ranked_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "rank": 2,
+            "retrieval_rank": 2,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "selected_items": [],
+        "citations": [],
+        "total_latency_ms": 1,
+        "degraded": false,
+        "degradation_reasons": [],
+        "budget_usage": {},
+        "retrieval_strategy": "HYBRID_RRF"
+      },
+      "ground_truth": {
+        "relevant_chunks": [
+          {
+            "document_id": "d",
+            "chunk_id": "a"
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b"
+          }
+        ],
+        "graded_relevance": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "relevance": 3
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "relevance": 1
+          }
+        ]
+      },
+      "k": 1,
+      "expected": {
+        "recall@k.v1": 0.5,
+        "mrr.v1": 1.0,
+        "ndcg.v1": 1.0
+      },
+      "state": "APPLICABLE"
+    },
+    {
+      "name": "zero_gain",
+      "artifact": {
+        "schema_version": "rag-evaluation-artifact.v2",
+        "artifact_id": "rag-eval://remote/r1",
+        "run_id": "remote",
+        "attempt_id": "remote",
+        "retrieval_id": "r1",
+        "invocation_index": 1,
+        "retrieval_status": "SUCCEEDED",
+        "query": "query",
+        "rewritten_query": "query",
+        "retrieved_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "ranked_items": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "rank": 1,
+            "retrieval_rank": 1,
+            "retrieval_score": 0.5,
+            "retrieval_score_kind": "VECTOR_NORMALIZED_RELEVANCE",
+            "retrieval_channels": [
+              "VECTOR_ORIGINAL_QUERY"
+            ],
+            "source": {
+              "source_type": "test",
+              "collection": "test",
+              "display_name": "test",
+              "document_version": "v1"
+            },
+            "selected": false
+          }
+        ],
+        "selected_items": [],
+        "citations": [],
+        "total_latency_ms": 1,
+        "degraded": false,
+        "degradation_reasons": [],
+        "budget_usage": {},
+        "retrieval_strategy": null
+      },
+      "ground_truth": {
+        "relevant_chunks": [
+          {
+            "document_id": "d",
+            "chunk_id": "a"
+          }
+        ],
+        "graded_relevance": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "relevance": 0
+          }
+        ]
+      },
+      "k": 5,
+      "expected": {
+        "recall@k.v1": 1.0,
+        "mrr.v1": 1.0,
+        "ndcg.v1": 0.0
+      },
+      "state": "APPLICABLE"
+    },
+    {
+      "name": "empty_artifact",
+      "artifact": {
+        "schema_version": "rag-evaluation-artifact.v2",
+        "artifact_id": "rag-eval://remote/r1",
+        "run_id": "remote",
+        "attempt_id": "remote",
+        "retrieval_id": "r1",
+        "invocation_index": 1,
+        "retrieval_status": "SUCCEEDED",
+        "query": "query",
+        "rewritten_query": "query",
+        "retrieved_items": [],
+        "ranked_items": [],
+        "selected_items": [],
+        "citations": [],
+        "total_latency_ms": 1,
+        "degraded": false,
+        "degradation_reasons": [],
+        "budget_usage": {},
+        "retrieval_strategy": null
+      },
+      "ground_truth": {
+        "relevant_chunks": [
+          {
+            "document_id": "d",
+            "chunk_id": "a"
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b"
+          }
+        ],
+        "graded_relevance": [
+          {
+            "document_id": "d",
+            "chunk_id": "a",
+            "relevance": 3
+          },
+          {
+            "document_id": "d",
+            "chunk_id": "b",
+            "relevance": 1
+          }
+        ]
+      },
+      "k": 5,
+      "expected": {
+        "recall@k.v1": 0.0,
+        "mrr.v1": 0.0,
+        "ndcg.v1": 0.0
+      },
+      "state": "APPLICABLE"
+    },
+    {
+      "name": "missing_gt",
+      "artifact": {
+        "schema_version": "rag-evaluation-artifact.v2",
+        "artifact_id": "rag-eval://remote/r1",
+        "run_id": "remote",
+        "attempt_id": "remote",
+        "retrieval_id": "r1",
+        "invocation_index": 1,
+        "retrieval_status": "SUCCEEDED",
+        "query": "query",
+        "rewritten_query": "query",
+        "retrieved_items": [],
+        "ranked_items": [],
+        "selected_items": [],
+        "citations": [],
+        "total_latency_ms": 1,
+        "degraded": false,
+        "degradation_reasons": [],
+        "budget_usage": {},
+        "retrieval_strategy": null
+      },
+      "ground_truth": null,
+      "k": 5,
+      "expected": {
+        "recall@k.v1": null,
+        "mrr.v1": null,
+        "ndcg.v1": null
+      },
+      "state": "MISSING_EVIDENCE"
+    },
+    {
+      "name": "declared_empty_gt",
+      "artifact": {
+        "schema_version": "rag-evaluation-artifact.v2",
+        "artifact_id": "rag-eval://remote/r1",
+        "run_id": "remote",
+        "attempt_id": "remote",
+        "retrieval_id": "r1",
+        "invocation_index": 1,
+        "retrieval_status": "SUCCEEDED",
+        "query": "query",
+        "rewritten_query": "query",
+        "retrieved_items": [],
+        "ranked_items": [],
+        "selected_items": [],
+        "citations": [],
+        "total_latency_ms": 1,
+        "degraded": false,
+        "degradation_reasons": [],
+        "budget_usage": {},
+        "retrieval_strategy": null
+      },
+      "ground_truth": {
+        "relevant_chunks": [],
+        "graded_relevance": []
+      },
+      "k": 5,
+      "expected": {
+        "recall@k.v1": null,
+        "mrr.v1": null,
+        "ndcg.v1": null
+      },
+      "state": "NOT_APPLICABLE"
+    }
+  ]
+}

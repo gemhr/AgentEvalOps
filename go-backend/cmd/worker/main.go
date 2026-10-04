@@ -19,6 +19,7 @@ func run() int {
 	flag.StringVar(&c.WorkerID, "worker-id", c.WorkerID, "Worker 审计身份，不是 authorization")
 	flag.IntVar(&c.ExecutionConcurrency, "execution-concurrency", c.ExecutionConcurrency, "独立 execution 容量；0 停用")
 	flag.IntVar(&c.EvaluatorConcurrency, "evaluator-concurrency", c.EvaluatorConcurrency, "独立 evaluator 容量；0 停用")
+	flag.IntVar(&c.OnlineConcurrency, "online-concurrency", c.OnlineConcurrency, "独立 online evaluator 容量；0 停用在线链路")
 	flag.IntVar(&c.ScanBatch, "scan-batch", c.ScanBatch, "每次候选读取上限 1–100")
 	flag.DurationVar(&c.PollInterval, "poll-interval", c.PollInterval, "有工作时轮询间隔")
 	flag.DurationVar(&c.MaxBackoff, "max-backoff", c.MaxBackoff, "空队列／DB 错误退避上限")

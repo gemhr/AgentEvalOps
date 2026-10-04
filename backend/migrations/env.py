@@ -23,10 +23,16 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
 target_metadata = Base.metadata
 
 
+def include_object(object_, name, type_, reflected, compare_to):
+    """保留旧 Python ORM 未描述的 Go evaluation 表及增量字段."""
+    table_name = name if type_ == "table" else getattr(getattr(object_, "table", None), "name", "")
+    return not (reflected and compare_to is None and table_name.startswith("evaluation_"))
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode (emit SQL to stdout)."""
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
+    context.configure(url=url, target_metadata=target_metadata, literal_binds=True, include_object=include_object)
 
     with context.begin_transaction():
         context.run_migrations()
@@ -41,7 +47,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(connection=connection, target_metadata=target_metadata, include_object=include_object)
         with context.begin_transaction():
             context.run_migrations()
 

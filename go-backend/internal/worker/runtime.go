@@ -46,6 +46,7 @@ type Evaluator interface {
 
 type Counters struct{ Claims, LostRaces, Renewed, RenewalErrors, OwnershipLost, Reconciled, Panics atomic.Uint64 }
 type Runtime struct {
+	Online    *OnlineRuntime
 	Config    Config
 	Backend   Backend
 	Target    ExecutionTarget
@@ -87,6 +88,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 	r.admission.Unlock()
 	var loops sync.WaitGroup
 	start := func(fn func()) { loops.Add(1); go func() { defer loops.Done(); fn() }() }
+	if r.Online != nil {
+		start(func() { r.Online.Run(ctx) })
+	}
 	// 固定 N/M 个 slot：每个循环在同步任务返回后才领取下一个任务，没有已 claim 的本地队列。
 	for i := 0; i < r.Config.ExecutionConcurrency; i++ {
 		start(func() {

@@ -10,7 +10,7 @@ import (
 
 type Config struct {
 	WorkerID                                                                        string
-	ExecutionConcurrency, EvaluatorConcurrency, ScanBatch                           int
+	ExecutionConcurrency, EvaluatorConcurrency, OnlineConcurrency, ScanBatch        int
 	PollInterval, MaxBackoff, LeaseDuration, RenewInterval, DrainTimeout, DBTimeout time.Duration
 	Reconcile, Coordinate                                                           bool
 }
@@ -25,6 +25,7 @@ func DefaultConfig() Config {
 func (c Config) Validate() error {
 	if !asset.Text(c.WorkerID) || c.ExecutionConcurrency < 0 || c.ExecutionConcurrency > 256 ||
 		c.EvaluatorConcurrency < 0 || c.EvaluatorConcurrency > 256 || c.ScanBatch < 1 || c.ScanBatch > 100 ||
+		c.OnlineConcurrency < 0 || c.OnlineConcurrency > 256 ||
 		c.PollInterval < time.Millisecond || c.MaxBackoff < c.PollInterval || c.MaxBackoff > time.Minute ||
 		c.LeaseDuration < time.Millisecond || c.LeaseDuration > 5*time.Minute ||
 		c.RenewInterval < time.Millisecond || c.DBTimeout < time.Millisecond ||

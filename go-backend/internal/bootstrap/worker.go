@@ -17,9 +17,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const WorkerSchema = "c12a00300001"
+const WorkerSchema = "c12a00500001"
 
 func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly bool, log *slog.Logger) (*worker.Runtime, func(), error) {
+	if log == nil {
+		log = slog.Default()
+	}
 	if url == "" {
 		return nil, nil, fmt.Errorf("缺少 DATABASE_URL")
 	}
@@ -30,7 +33,7 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 	if err != nil {
 		return nil, nil, fmt.Errorf("非法 DATABASE_URL")
 	}
-	poolConfig.MaxConns = int32(config.ExecutionConcurrency + config.EvaluatorConcurrency + 8)
+	poolConfig.MaxConns = int32(config.ExecutionConcurrency + config.EvaluatorConcurrency + config.OnlineConcurrency + 12)
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("数据库连接配置失败")
@@ -45,6 +48,7 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 	var evaluator worker.Evaluator = worker.FixtureEvaluator{DBTimeout: config.DBTimeout}
 	supported := worker.FixtureDefinitionSupported
 	closeAdapters := func() {}
+	var onlineJudge *provider.LLMJudgeEvaluator
 	if !fixtureOnly {
 		var targetConfig provider.LocalAgentConfig
 		httpConfig := provider.DefaultHTTPConfig()
@@ -60,6 +64,7 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 			pool.Close()
 			return nil, nil, e
 		}
+		onlineJudge = judge
 		var local *provider.LocalAgentHttpExecutionTarget
 		if config.ExecutionConcurrency > 0 {
 			j, e := asset.ParseJSON([]byte(os.Getenv("LOCALAGENT_TARGET_CONFIG")))
@@ -101,6 +106,20 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 	}
 	k.Capabilities = caps
 	r := &worker.Runtime{Config: config, Backend: k, Target: target, Evaluator: evaluator, Epoch: epoch, Log: log}
+	if config.OnlineConcurrency > 0 {
+		if onlineJudge == nil {
+			onlineJudge, err = provider.NewLLMJudgeEvaluator(provider.DefaultHTTPConfig(), config.DBTimeout, log)
+			if err != nil {
+				closeAdapters()
+				pool.Close()
+				return nil, nil, err
+			}
+			previous := closeAdapters
+			closeAdapters = func() { previous(); onlineJudge.Close() }
+		}
+		store := postgres.Online{Pool: pool}
+		r.Online = &worker.OnlineRuntime{Config: config, Store: store, Epoch: epoch, Log: log, Evaluator: provider.OnlineEvaluator{Judge: onlineJudge, Store: store, DBTimeout: config.DBTimeout}}
+	}
 	return r, func() { closeAdapters(); pool.Close() }, nil
 }
 

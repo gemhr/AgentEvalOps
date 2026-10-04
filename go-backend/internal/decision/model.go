@@ -13,7 +13,7 @@ import (
 )
 
 const Contract = "stage12.comparison-gate.v1"
-const Schema = "c12a00600001"
+const Schema = "c12a00700001"
 
 type Decision string
 

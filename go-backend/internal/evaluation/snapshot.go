@@ -1,4 +1,4 @@
-// Package evaluation 在 G1 仅拥有 Run 输入快照合同，不创建 Run/Attempt。
+// Package evaluation 拥有冻结的 Run 输入与 durable evaluation 合同。
 package evaluation
 
 import (

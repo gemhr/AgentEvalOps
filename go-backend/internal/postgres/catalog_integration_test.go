@@ -206,7 +206,7 @@ func testCase() catalog.CaseContent {
 
 func TestPostgresCatalogPublicationAndSnapshots(t *testing.T) {
 	db := newDatabase(t)
-	db.migrate(t, "head")
+	db.migrate(t, g1Revision)
 	ctx := context.Background()
 	a, b := seedProject(t, db.pool, asset.NewID()), seedProject(t, db.pool, asset.NewID())
 	pool := db.runtimePool(t)
@@ -509,7 +509,7 @@ func TestMigrationUpgradeAndHistoricalCompatibility(t *testing.T) {
 		return row
 	}
 	beforeRun, beforeAttempt, beforeResult := read("evaluation_runs", run), read("evaluation_attempts", attempt), read("evaluation_results", result)
-	db.migrate(t, "head")
+	db.migrate(t, g1Revision)
 	if read("evaluation_runs", run) != beforeRun || read("evaluation_attempts", attempt) != beforeAttempt || read("evaluation_results", result) != beforeResult {
 		t.Fatal("additive G1 migration rewrote UUID/content/digest/Result")
 	}

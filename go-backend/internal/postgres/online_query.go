@@ -143,36 +143,51 @@ func (k Online) ListFailureCandidates(ctx context.Context, s asset.Scope, c ob.C
 	}
 	out := []ob.FailureCandidate{}
 	for _, r := range results {
-		metricName := r.Binding.Metric.Definition.Name
-		var config map[string]asset.JSON
-		if r.Binding.Evaluator.Definition.Config.Decode(&config) == nil {
-			_ = config["metric"].Decode(&metricName)
-		}
-		classification := ob.Classify(r.Value, metricName)
-		if classification != "" {
-			out = append(out, ob.FailureCandidate{ProjectID: s.ProjectID, ObservationID: r.ObservationID, ResultID: r.ID, Source: "ONLINE_RESULT", Classification: classification, ClassifierVersion: "failure-source.v1"})
-		}
+		out = append(out, resultFailureCandidates(s.ProjectID, r)...)
 	}
 	observations, e := k.ListObservations(ctx, s, c, limit)
 	if e != nil {
 		return nil, e
 	}
 	for _, o := range observations {
-		if o.Status != "OK" {
-			out = append(out, ob.FailureCandidate{ProjectID: s.ProjectID, ObservationID: o.Ref.ID, Source: "OBSERVATION_RUNTIME_STATUS", Classification: "OBSERVED_RUNTIME_ERROR", ClassifierVersion: "failure-source.v1"})
-		}
-		var envelope map[string]asset.JSON
-		var attrs map[string]asset.JSON
-		var delivery string
-		_ = o.Envelope.Decode(&envelope)
-		_ = envelope["attributes"].Decode(&attrs)
-		_ = attrs["delivery_status"].Decode(&delivery)
-		if delivery == "OUTCOME_UNKNOWN" {
-			out = append(out, ob.FailureCandidate{ProjectID: s.ProjectID, ObservationID: o.Ref.ID, Source: "OBSERVATION_DELIVERY_STATUS", Classification: "OUTCOME_UNKNOWN", ClassifierVersion: "failure-source.v1"})
-		}
+		out = append(out, observationFailureCandidates(s.ProjectID, o)...)
 	}
 	if len(out) > limit {
 		out = out[:limit]
 	}
 	return out, nil
+}
+
+func resultFailureCandidates(project string, r ob.Result) []ob.FailureCandidate {
+	out := []ob.FailureCandidate{}
+
+	metricName := r.Binding.Metric.Definition.Name
+	var config map[string]asset.JSON
+	if r.Binding.Evaluator.Definition.Config.Decode(&config) == nil {
+		_ = config["metric"].Decode(&metricName)
+	}
+	classification := ob.Classify(r.Value, metricName)
+	if classification != "" {
+		out = append(out, ob.FailureCandidate{ProjectID: project, ObservationID: r.ObservationID, ResultID: r.ID, Source: "ONLINE_RESULT", Classification: classification, ClassifierVersion: "failure-source.v1"})
+	}
+
+	return out
+}
+func observationFailureCandidates(project string, o ob.Observation) []ob.FailureCandidate {
+	out := []ob.FailureCandidate{}
+
+	if o.Status != "OK" {
+		out = append(out, ob.FailureCandidate{ProjectID: project, ObservationID: o.Ref.ID, Source: "OBSERVATION_RUNTIME_STATUS", Classification: "OBSERVED_RUNTIME_ERROR", ClassifierVersion: "failure-source.v1"})
+	}
+	var envelope map[string]asset.JSON
+	var attrs map[string]asset.JSON
+	var delivery string
+	_ = o.Envelope.Decode(&envelope)
+	_ = envelope["attributes"].Decode(&attrs)
+	_ = attrs["delivery_status"].Decode(&delivery)
+	if delivery == "OUTCOME_UNKNOWN" {
+		out = append(out, ob.FailureCandidate{ProjectID: project, ObservationID: o.Ref.ID, Source: "OBSERVATION_DELIVERY_STATUS", Classification: "OUTCOME_UNKNOWN", ClassifierVersion: "failure-source.v1"})
+	}
+
+	return out
 }

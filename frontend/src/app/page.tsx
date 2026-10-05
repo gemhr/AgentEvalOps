@@ -11,8 +11,14 @@ import { STORAGE_KEYS } from "@/lib/utils/constants";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { GO_PRODUCT_ENABLED } from "@/lib/api/product-session";
+import { ProductShell } from "@/components/features/product/ProductShell";
 
 export default function RootPage() {
+  return GO_PRODUCT_ENABLED ? <ProductShell /> : <LegacyRootPage />;
+}
+
+function LegacyRootPage() {
   const router = useRouter();
   const { user, loading: authLoading, authEnabled } = useAuth();
   const [error, setError] = useState<string | null>(null);

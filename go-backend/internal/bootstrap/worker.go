@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const WorkerSchema = "c12a00700001"
+const WorkerSchema = "c12a00800001"
 
 func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly bool, log *slog.Logger) (*worker.Runtime, func(), error) {
 	if log == nil {

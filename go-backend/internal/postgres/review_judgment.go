@@ -304,7 +304,7 @@ func (k Reviews) GetReview(ctx context.Context, s rv.Scope, id string) (rv.ReadM
 	return out, tx.Commit(ctx)
 }
 func (k Reviews) ListReviewQueue(ctx context.Context, s rv.Scope, after string, limit int) ([]rv.Item, error) {
-	if s.ValidateReviewer() != nil || !s.Queue && !s.Review || limit < 1 || limit > 100 || after != "" && !asset.ValidID(after) {
+	if s.ValidateReviewer() != nil || !s.Queue && !s.Review || limit < 1 || limit > 101 || after != "" && !asset.ValidID(after) {
 		return nil, asset.ErrInvalid
 	}
 	rows, e := k.Pool.Query(ctx, `SELECT r.id::text FROM evaluation_review_items r JOIN projects p ON p.id=r.project_id WHERE r.project_id=$1 AND p.org_id=$2 AND r.status IN ('PENDING','IN_REVIEW','ADJUDICATION_REQUIRED') AND ($3::uuid IS NULL OR r.id>$3) ORDER BY r.id LIMIT $4`, s.ProjectID, s.OrganizationID, nullableID(after), limit)

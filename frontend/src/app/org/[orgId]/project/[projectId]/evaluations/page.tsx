@@ -4,8 +4,18 @@ import Link from "next/link";
 import { ListTree, Layers, Radio, Gauge } from "lucide-react";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useProjectPath } from "@/hooks/useNavigation";
+import { GO_PRODUCT_ENABLED } from "@/lib/api/product-session";
+import { ProductConsole } from "@/components/features/product/ProductConsole";
 
 export default function EvaluationsPage() {
+  return GO_PRODUCT_ENABLED ? (
+    <ProductConsole area="experiments" />
+  ) : (
+    <LegacyEvaluationsPage />
+  );
+}
+
+function LegacyEvaluationsPage() {
   const basePath = useProjectPath();
 
   useDocumentTitle("Evaluations");

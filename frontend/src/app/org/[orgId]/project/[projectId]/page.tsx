@@ -23,8 +23,14 @@ import { Button } from "@/components/ui/Button";
 import { LoadingState } from "@/components/common/LoadingState";
 import { InstructionSidebar } from "@/components/features/InstructionSidebar";
 import { SkillOnboarding } from "@/components/features/SkillOnboarding";
+import { GO_PRODUCT_ENABLED } from "@/lib/api/product-session";
+import { ProductConsole } from "@/components/features/product/ProductConsole";
 
 export default function ProjectHomePage() {
+  return GO_PRODUCT_ENABLED ? <ProductConsole /> : <LegacyProjectHomePage />;
+}
+
+function LegacyProjectHomePage() {
   const { orgId, projectId } = useParams();
   const [resourcesOpen, setResourcesOpen] = useState(false);
 

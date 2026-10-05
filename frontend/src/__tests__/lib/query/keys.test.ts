@@ -46,3 +46,18 @@ describe("queryKeys", () => {
     ]);
   });
 });
+describe("Go 产品查询权限隔离", () => {
+  it("按用户、项目和资源隔离缓存", () => {
+    expect(queryKeys.product.resource("A", "project", "reviews")).not.toEqual(
+      queryKeys.product.resource("B", "project", "reviews"),
+    );
+    expect(queryKeys.product.resource("A", "project", "reviews")).not.toEqual(
+      queryKeys.product.resource("A", "other", "reviews"),
+    );
+    expect(queryKeys.product.projects("A")).toEqual([
+      "go-product",
+      "A",
+      "projects",
+    ]);
+  });
+});

@@ -12,6 +12,8 @@
  * comparison result into the JS bundle at build time (constant folding).
  */
 
-export const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED !== "false";
+export const AUTH_ENABLED =
+  !process.env.NEXT_PUBLIC_GO_PRODUCT_API_URL &&
+  process.env.NEXT_PUBLIC_AUTH_ENABLED !== "false";
 
 export const SESSION_COOKIE_NAME = "__pp_session";

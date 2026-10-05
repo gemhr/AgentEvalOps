@@ -1,4 +1,11 @@
 export const queryKeys = {
+  product: {
+    all: ["go-product"] as const,
+    projects: (principal: string) =>
+      ["go-product", principal, "projects"] as const,
+    resource: (principal: string, project: string, path: string) =>
+      ["go-product", principal, project, path] as const,
+  },
   organizations: {
     all: ["organizations"] as const,
     list: () => [...queryKeys.organizations.all, "list"] as const,

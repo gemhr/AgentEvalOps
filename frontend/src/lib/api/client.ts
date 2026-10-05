@@ -3,6 +3,11 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 import { API_URL } from "@/lib/utils/constants";
+import {
+  isProductRequest,
+  productToken,
+  setProductToken,
+} from "./product-session";
 
 let getToken: (() => Promise<string | null>) | null = null;
 let forceRefreshToken: (() => Promise<string | null>) | null = null;
@@ -33,6 +38,11 @@ const client: AxiosInstance = axios.create({
 });
 
 client.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  if (isProductRequest(config)) {
+    const token = productToken();
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  }
   if (getToken) {
     const token = await getToken();
     if (token) {
@@ -63,6 +73,10 @@ client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
+    if (original && isProductRequest(original)) {
+      if (error.response?.status === 401) setProductToken(null);
+      return Promise.reject(error);
+    }
     if (
       error.response?.status === 401 &&
       !original._retry &&
@@ -105,6 +119,9 @@ export interface ApiError {
 
 export function extractErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
+    const productError = error.response?.data?.error;
+    if (productError?.code)
+      return `${productError.code}: ${productError.message}`;
     const data = error.response?.data as ApiError | undefined;
     if (data?.detail) return data.detail;
     if (error.message) return error.message;

@@ -2,6 +2,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,6 +22,7 @@ import (
 	"agentevalops/go-backend/internal/metric"
 	"agentevalops/go-backend/internal/postgres"
 	rv "agentevalops/go-backend/internal/review"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -97,6 +99,7 @@ func New(s Server) (*Server, error) {
 	s.catalogRoutes()
 	s.productRoutes()
 	s.reviewRoutes()
+	s.analyticsRoutes()
 	s.mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, _ *http.Request) { write(w, 200, map[string]string{"status": "live"}) })
 	s.mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), s.Config.DBTimeout)
@@ -250,6 +253,35 @@ func (s *Server) serve(w http.ResponseWriter, h *http.Request, e route) {
 			return
 		}
 	}
+	if immutableRoute(e) {
+		if conditional(w, h, projectionETag(s.Identity.Pepper, p.ID, project, h.URL.Path, raw)) {
+			status = 304
+			return
+		}
+	}
+	if strings.Contains(e.Path, "/exports/") && h.URL.Query().Get("format") == "ndjson" {
+		var page map[string]json.RawMessage
+		if err = json.Unmarshal(raw, &page); err != nil {
+			fail(err)
+			return
+		}
+		var items []json.RawMessage
+		if err = json.Unmarshal(page["items"], &items); err != nil {
+			fail(err)
+			return
+		}
+		delete(page, "items")
+		var buffer bytes.Buffer
+		enc := json.NewEncoder(&buffer)
+		_ = enc.Encode(map[string]any{"metadata": page})
+		for _, item := range items {
+			_ = enc.Encode(item)
+		}
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.WriteHeader(status)
+		_, _ = w.Write(buffer.Bytes())
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write(raw)
@@ -281,12 +313,12 @@ func (s *Server) Handler() http.Handler {
 				return
 			}
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID")
+			w.Header().Add("Vary", "Origin")
+			w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, ETag")
 		}
 		if r.Method == "OPTIONS" {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-API-Key")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-API-Key, If-None-Match")
 			w.WriteHeader(204)
 			return
 		}
@@ -325,6 +357,11 @@ func writeError(w http.ResponseWriter, status int, code, id string) {
 var messages = map[string]string{"INVALID_ARGUMENT": "请求参数无效", "UNAUTHENTICATED": "认证无效或已过期", "FORBIDDEN": "缺少操作权限", "NOT_FOUND": "资源不存在", "CONFLICT": "命令或资源内容冲突", "ALREADY_EXISTS": "资源已存在", "PRECONDITION_FAILED": "当前状态不允许此操作", "OWNERSHIP_LOST": "领取已失效，请重新查看任务", "INTEGRITY_BLOCKED": "事实完整性阻止操作", "RATE_LIMITED": "请求过于频繁", "INTERNAL": "服务内部错误", "UNAVAILABLE": "依赖暂不可用"}
 
 func mapError(err error) (int, string) {
+	var connection *pgconn.ConnectError
+	var pg *pgconn.PgError
+	if errors.As(err, &connection) || errors.As(err, &pg) && (strings.HasPrefix(pg.Code, "08") || strings.HasPrefix(pg.Code, "53") || pg.Code == "57P01" || pg.Code == "57014") {
+		return 503, "UNAVAILABLE"
+	}
 	switch {
 	case errors.Is(err, identity.ErrUnauthenticated):
 		return 401, "UNAUTHENTICATED"

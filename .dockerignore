@@ -1,0 +1,17 @@
+.git
+.ai
+.tmp
+.env*
+**/.env*
+**/.venv
+**/node_modules
+**/.next
+**/dist
+**/build
+**/__pycache__
+**/playwright-report
+**/test-results
+**/*.log
+**/*.exe
+**/*.pem
+**/*.key

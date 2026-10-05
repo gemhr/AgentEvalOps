@@ -33,7 +33,9 @@ func API(ctx context.Context, config httpapi.Config, controlledDev, fixtureOnly 
 	if err != nil {
 		return nil, nil, fmt.Errorf("DATABASE_CONFIG_REJECTED")
 	}
-	c.MaxConns = 24
+	if err = ConfigurePool(c, 24); err != nil {
+		return nil, nil, err
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, c)
 	if err != nil {
 		return nil, nil, fmt.Errorf("DATABASE_CONFIG_REJECTED")

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"agentevalops/go-backend/internal/analytics"
 	"agentevalops/go-backend/internal/asset"
 	"agentevalops/go-backend/internal/catalog"
 	"agentevalops/go-backend/internal/decision"
@@ -29,6 +30,21 @@ func (s *Server) responseSchema(r route) any {
 	path := strings.TrimPrefix(r.Path, "/api/v1/projects/{project_id}")
 	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	kind := parts[0]
+	if kind == "analytics" {
+		return fieldSchema(analytics.Response{})
+	}
+	if kind == "exports" && strings.Contains(path, "/analytics/") {
+		return objectSchema([]string{"items", "next_cursor", "projection_version", "as_of", "query", "unit", "denominator"}, map[string]any{"items": fieldSchema([]map[string]any{}), "next_cursor": fieldSchema((*string)(nil)), "projection_version": fieldSchema(""), "as_of": fieldSchema(time.Time{}), "query": fieldSchema(analytics.Query{}), "unit": fieldSchema(""), "denominator": fieldSchema("")})
+	}
+	if path == "/exports/online" {
+		return listSchema(map[string]any{"type": "object"})
+	}
+	if strings.HasPrefix(path, "/exports/gates/") {
+		return listSchema(fieldSchema(decision.CaseComparison{}))
+	}
+	if kind == "exports" && path == "/exports/results" || kind == "results" && len(parts) == 1 {
+		return listSchema(fieldSchema(resultResponse{}))
+	}
 	logicalSchema := objectSchema([]string{"id", "project_id", "name", "created_at"}, map[string]any{"id": fieldSchema(""), "project_id": fieldSchema(""), "name": fieldSchema(""), "created_by": fieldSchema(""), "created_at": fieldSchema(time.Time{})})
 	bodyTypes := map[string]any{"cases": catalog.CaseContent{}, "datasets": catalog.DatasetContent{}, "suites": catalog.SuiteContent{}, "metrics": metric.Definition{}, "evaluators": metric.EvaluatorDefinition{}, "policies": decision.Policy{}}
 	if body, ok := bodyTypes[kind]; ok {
@@ -60,7 +76,7 @@ func (s *Server) responseSchema(r route) any {
 		return fieldSchema(resultResponse{})
 	}
 	if kind == "overview" {
-		return fieldSchema(postgres.ProductProject{})
+		return objectSchema([]string{"id", "organization_id", "name", "created_at", "analytics"}, map[string]any{"id": fieldSchema(""), "organization_id": fieldSchema(""), "name": fieldSchema(""), "created_at": fieldSchema(time.Time{}), "analytics": fieldSchema(analytics.Response{})})
 	}
 	if kind == "api-keys" {
 		if r.Create {

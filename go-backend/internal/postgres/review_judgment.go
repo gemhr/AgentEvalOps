@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"time"
 
 	"agentevalops/go-backend/internal/asset"
 	rv "agentevalops/go-backend/internal/review"
@@ -307,33 +308,28 @@ func (k Reviews) ListReviewQueue(ctx context.Context, s rv.Scope, after string, 
 	if s.ValidateReviewer() != nil || !s.Queue && !s.Review || limit < 1 || limit > 101 || after != "" && !asset.ValidID(after) {
 		return nil, asset.ErrInvalid
 	}
-	rows, e := k.Pool.Query(ctx, `SELECT r.id::text FROM evaluation_review_items r JOIN projects p ON p.id=r.project_id WHERE r.project_id=$1 AND p.org_id=$2 AND r.status IN ('PENDING','IN_REVIEW','ADJUDICATION_REQUIRED') AND ($3::uuid IS NULL OR r.id>$3) ORDER BY r.id LIMIT $4`, s.ProjectID, s.OrganizationID, nullableID(after), limit)
+	rows, e := k.Pool.Query(ctx, `SELECT r.item_bytes,r.status,r.created_at FROM evaluation_review_items r JOIN projects p ON p.id=r.project_id WHERE r.project_id=$1 AND p.org_id=$2 AND r.status IN ('PENDING','IN_REVIEW','ADJUDICATION_REQUIRED') AND ($3::uuid IS NULL OR r.id>$3) ORDER BY r.id LIMIT $4`, s.ProjectID, s.OrganizationID, nullableID(after), limit)
 	if e != nil {
 		return nil, e
 	}
-	ids := []string{}
-	for rows.Next() {
-		var id string
-		if e = rows.Scan(&id); e != nil {
-			rows.Close()
-			return nil, e
-		}
-		ids = append(ids, id)
-	}
-	e = rows.Err()
-	rows.Close()
-	if e != nil {
-		return nil, e
-	}
+	defer rows.Close()
 	out := []rv.Item{}
-	for _, id := range ids {
-		item, e := reviewItem(ctx, k.Pool, s.Scope.Scope, id, false)
-		if e != nil {
+	for rows.Next() {
+		var item rv.Item
+		var raw []byte
+		var status string
+		var at time.Time
+		if e = rows.Scan(&raw, &status, &at); e != nil {
 			return nil, e
 		}
+		if e = json.Unmarshal(raw, &item); e != nil {
+			return nil, e
+		}
+		item.Status = status
+		item.CreatedAt = at
 		out = append(out, publicReviewItem(item))
 	}
-	return out, nil
+	return out, rows.Err()
 }
 func (k Reviews) GetHumanCoverage(ctx context.Context, s rv.Scope) (rv.Coverage, error) {
 	var c rv.Coverage

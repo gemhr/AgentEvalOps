@@ -18,8 +18,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "yarn dev",
+    command: process.env.G9_PRODUCTION_E2E === "1" ? "yarn start" : "yarn dev",
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer:
+      process.env.G9_PRODUCTION_E2E !== "1" && !process.env.CI,
   },
 });

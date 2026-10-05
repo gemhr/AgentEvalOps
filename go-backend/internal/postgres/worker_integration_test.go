@@ -36,6 +36,7 @@ type g3Fixture struct {
 
 func g3(t *testing.T, target worker.FixturePlan, evalPlan worker.FixturePlan) *g3Fixture {
 	t.Helper()
+	t.Setenv("APP_ENV", "test")
 	f := fixture(t)
 	var role string
 	if err := f.k.Pool.QueryRow(context.Background(), "SELECT current_user").Scan(&role); err != nil {

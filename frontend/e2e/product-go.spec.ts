@@ -13,7 +13,16 @@ async function login(page: Page) {
   await expect(page.getByRole("heading", { name: "项目概览" })).toBeVisible();
 }
 async function area(page: Page, name: string) {
-  await page.getByRole("link", { name, exact: true }).click();
+  const link = page.getByRole("link", { name, exact: true });
+  const href = await link.getAttribute("href");
+  await link.click();
+  const slug = href?.split("/").pop();
+  await expect(
+    page.getByRole("heading", {
+      name: slug === "analytics" ? "产品分析" : slug,
+      exact: true,
+    }),
+  ).toBeVisible();
 }
 test("F01 Login/dev auth → Project", async ({ page }) => {
   await login(page);
@@ -142,11 +151,60 @@ test("F09 explicit Dataset feedback publish", async ({ page }) => {
     .click();
   await expect(dataset.getByText(/命令已提交/)).toBeVisible();
 });
+test("G9 生产前端分析：真实分母、版本、UTC 桶、Gate 和校准引用", async ({
+  page,
+}) => {
+  await login(page);
+  await area(page, "产品分析");
+  await expect(page.getByTestId("analytics-as-of")).toContainText(
+    "stage12.analytics.v1",
+  );
+  await page.getByRole("button", { name: "质量", exact: true }).click();
+  await expect(
+    page.getByRole("columnheader", { name: "decidable", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("task_success.v1", { exact: true }).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "趋势", exact: true }).click();
+  await page.getByLabel("时间窗口").selectOption("24h");
+  await expect(
+    page.getByRole("columnheader", { name: "bucket", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("UTC 桶")).toHaveValue("hour");
+  await page.getByRole("button", { name: "门禁", exact: true }).click();
+  await expect(
+    page.getByRole("columnheader", { name: "blocked", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "人工与校准", exact: true }).click();
+  await expect(
+    page.getByText(fixture.calibration, { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/"MissingHuman":9/)).toBeVisible();
+});
+test("G9 结果与 Gate cases 使用实际 cursor 分页", async ({ page }) => {
+  await login(page);
+  await area(page, "结果");
+  await expect(
+    page.getByRole("button", { name: "下一页", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "下一页", exact: true }).click();
+  await area(page, "发布门禁");
+  await page.getByLabel("资源 ID").fill(fixture.gates.FAIL);
+  await expect(
+    page.getByRole("heading", { name: "门禁用例比较（分页）" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: "Classification", exact: true }),
+  ).toBeVisible();
+});
 test("F10 revoked project session denied", async ({ page, request }) => {
   await login(page);
   await request.post(`${fixture.api_url}/_test/revoke-session`, {
     headers: { "X-Control": fixture.control },
   });
   await area(page, "运行");
-  await expect(page.locator('p[role="alert"]').filter({hasText:"NOT_FOUND"})).toContainText("NOT_FOUND");
+  await expect(
+    page.locator('p[role="alert"]').filter({ hasText: "NOT_FOUND" }),
+  ).toContainText("NOT_FOUND");
 });

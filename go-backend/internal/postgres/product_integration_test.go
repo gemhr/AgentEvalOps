@@ -50,6 +50,9 @@ type g8Fixture struct {
 }
 
 func g8(t *testing.T) *g8Fixture {
+	return g8WithConfig(t, httpapi.DefaultConfig())
+}
+func g8WithConfig(t *testing.T, config httpapi.Config) *g8Fixture {
 	t.Helper()
 	f := g7(t)
 	ctx := context.Background()
@@ -104,7 +107,7 @@ func g8(t *testing.T) *g8Fixture {
 	mustG7(t, err)
 	k := f.k
 	k.Pool = pool
-	api, err := httpapi.New(httpapi.Server{Pool: pool, Identity: ident, Bearer: bearer, Config: httpapi.DefaultConfig(), Epoch: epoch, Kernel: k, Log: slog.New(slog.NewJSONHandler(x.logs, nil))})
+	api, err := httpapi.New(httpapi.Server{Pool: pool, Identity: ident, Bearer: bearer, Config: config, Epoch: epoch, Kernel: k, Log: slog.New(slog.NewJSONHandler(x.logs, nil))})
 	mustG7(t, err)
 	x.api = api
 	x.server = httptest.NewServer(api.Handler())

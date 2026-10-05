@@ -9,11 +9,15 @@ import (
 	"syscall"
 
 	"agentevalops/go-backend/internal/bootstrap"
+	"agentevalops/go-backend/internal/buildinfo"
 	"agentevalops/go-backend/internal/worker"
 )
 
 func main() { os.Exit(run()) }
 func run() int {
+	if buildinfo.Requested("worker") {
+		return 0
+	}
 	c := worker.DefaultConfig()
 	fixtureOnly := flag.Bool("fixture-only", false, "CONTROLLED / TEST ONLY：显式装配本地 fixture，无网络 provider")
 	flag.StringVar(&c.WorkerID, "worker-id", c.WorkerID, "Worker 审计身份，不是 authorization")
@@ -29,6 +33,9 @@ func run() int {
 	flag.DurationVar(&c.DBTimeout, "db-timeout", c.DBTimeout, "短 DB command 的本地时限")
 	flag.BoolVar(&c.Reconcile, "reconcile", c.Reconcile, "启用过期／缺槽扫描")
 	flag.BoolVar(&c.Coordinate, "coordinate", c.Coordinate, "启用 Run coordinator")
+	if bootstrap.ApplyFlagEnvironment(flag.CommandLine, "WORKER_") != nil {
+		return 2
+	}
 	flag.Parse()
 	log := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	if err := c.Validate(); err != nil {

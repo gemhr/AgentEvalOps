@@ -32,8 +32,23 @@ func (s *Server) OpenAPI() map[string]any {
 			parameters = append(parameters, map[string]any{"name": "Idempotency-Key", "in": "header", "required": true, "schema": map[string]any{"type": "string", "minLength": 1, "maxLength": 128}})
 		}
 		if r.Method == "GET" {
-			for _, name := range []string{"cursor", "limit"} {
+			names := []string{"cursor", "limit"}
+			if strings.Contains(r.Path, "/analytics/") || strings.HasSuffix(r.Path, "/overview") {
+				names = []string{"window", "from", "until", "bucket", "source_kind", "subject", "environment", "run_mode", "metric", "evaluator", "rule"}
+			}
+			if strings.Contains(r.Path, "/exports/") {
+				names = append(names, "format")
+				if strings.Contains(r.Path, "/analytics/") {
+					names = append(names, "cursor", "limit")
+				}
+				responses["200"].(map[string]any)["content"].(map[string]any)["application/x-ndjson"] = map[string]any{"schema": fieldSchema(""), "description": "首行为 metadata，随后每行一个安全公开事实；每页最多 100 条"}
+			}
+			for _, name := range names {
 				parameters = append(parameters, map[string]any{"name": name, "in": "query", "schema": map[string]any{"type": "string"}})
+			}
+			if immutableRoute(r) {
+				responses["304"] = map[string]any{"description": "经实时认证授权后，私有不可变公开投影未变化"}
+				parameters = append(parameters, map[string]any{"name": "If-None-Match", "in": "header", "schema": fieldSchema("")})
 			}
 		}
 		op := map[string]any{"operationId": strings.ReplaceAll(r.Method+r.Path, "/", "_"), "x-capability": r.Capability, "security": []any{map[string]any{"ApiKey": []string{}}, map[string]any{"Bearer": []string{}}}, "responses": responses, "parameters": parameters}

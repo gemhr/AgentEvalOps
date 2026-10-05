@@ -11,12 +11,16 @@ import (
 	"syscall"
 
 	"agentevalops/go-backend/internal/bootstrap"
+	"agentevalops/go-backend/internal/buildinfo"
 	"agentevalops/go-backend/internal/httpapi"
 	"agentevalops/go-backend/internal/postgres"
 )
 
 func main() { os.Exit(run()) }
 func run() int {
+	if buildinfo.Requested("api") {
+		return 0
+	}
 	config := httpapi.DefaultConfig()
 	listen := flag.String("listen", "127.0.0.1:8081", "Product API listener")
 	dev := flag.Bool("controlled-dev-auth", false, "development/test 显式用户认证；生产拒绝")
@@ -27,6 +31,9 @@ func run() int {
 	flag.DurationVar(&config.ShutdownTimeout, "shutdown-timeout", config.ShutdownTimeout, "graceful shutdown deadline")
 	flag.Int64Var(&config.BodyLimit, "body-limit", config.BodyLimit, "全局 JSON bytes 上限")
 	flag.IntVar(&config.RequestsPerMinute, "requests-per-minute", config.RequestsPerMinute, "BEST_EFFORT_LOCAL 请求限制")
+	if bootstrap.ApplyFlagEnvironment(flag.CommandLine, "PRODUCT_API_") != nil {
+		return 2
+	}
 	flag.Parse()
 	if *grants != "" {
 		os.Stdout.WriteString(postgres.ProductRoleGrants(*grants) + "\n")

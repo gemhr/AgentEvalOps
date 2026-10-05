@@ -28,10 +28,11 @@ import (
 
 type g6Fixture struct {
 	*g5Fixture
-	gate     postgres.Decisions
-	dataset  asset.Ref
-	bindings []catalog.EvaluatorBinding
-	refs     []asset.Ref
+	gate           postgres.Decisions
+	dataset        asset.Ref
+	bindings       []catalog.EvaluatorBinding
+	refs           []asset.Ref
+	runtimeCommand ev.CreateRun
 }
 
 func g6(t *testing.T) *g6Fixture {
@@ -44,7 +45,7 @@ func g6(t *testing.T) *g6Fixture {
 	if e != nil {
 		t.Fatal(e)
 	}
-	x := &g6Fixture{g5Fixture: f, gate: postgres.Decisions{Pool: f.k.Pool}, dataset: asset.Ref{EntityID: asset.NewID(), Version: "g6"}}
+	x := &g6Fixture{g5Fixture: f, gate: postgres.Decisions{Pool: f.k.Pool}, dataset: asset.Ref{EntityID: asset.NewID(), Version: "g6"}, runtimeCommand: f.cmd}
 	readers := g6Readers(x)
 	source := asset.Source{Kind: "TEST", Ref: "G6_CONTROLLED_CANONICAL_FACTS", Principal: f.s.Principal}
 	must := func(e error) {

@@ -30,6 +30,7 @@ export function useProductPrincipal() {
   return useContext(ProductContext);
 }
 export const productAreas = [
+  "analytics",
   "datasets",
   "cases",
   "suites",
@@ -43,6 +44,7 @@ export const productAreas = [
   "drafts",
 ] as const;
 const names: Record<string, string> = {
+  analytics: "产品分析",
   datasets: "数据集",
   cases: "用例",
   suites: "套件",

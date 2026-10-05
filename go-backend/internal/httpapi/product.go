@@ -11,7 +11,6 @@ import (
 	ob "agentevalops/go-backend/internal/observation"
 	"agentevalops/go-backend/internal/postgres"
 	"encoding/json"
-	"strconv"
 	"time"
 )
 
@@ -151,16 +150,17 @@ func (s *Server) productRoutes() {
 		})
 	}
 	s.add("GET", "/overview", identity.Read, false, nil, func(r *request) (any, error) {
-		projects, e := s.Identity.Projects(r.ctx(), r.Access.Principal)
+		q, e := analyticsQuery(r.HTTP.URL.Query(), "overview", time.Now())
 		if e != nil {
 			return nil, e
 		}
-		for _, p := range projects {
-			if p.ID == r.scope().ProjectID {
-				return p, nil
-			}
+		v, e := reader.Aggregate(r.ctx(), r.scope(), q, "overview")
+		if e != nil {
+			return nil, e
 		}
-		return nil, asset.ErrNotFound
+		var p postgres.ProductProject
+		e = s.Pool.QueryRow(r.ctx(), `SELECT id::text,org_id::text,name,created_at FROM projects WHERE id=$1 AND org_id=$2`, r.scope().ProjectID, r.scope().OrganizationID).Scan(&p.ID, &p.OrganizationID, &p.Name, &p.CreatedAt)
+		return map[string]any{"id": p.ID, "organization_id": p.OrganizationID, "name": p.Name, "created_at": p.CreatedAt, "analytics": v}, e
 	})
 	s.add("POST", "/api-keys", identity.ManageAPIKey, true, credentialRequest{}, func(r *request) (any, error) {
 		var d credentialRequest
@@ -204,49 +204,11 @@ func (s *Server) productRoutes() {
 			return runProjection(v), e
 		})
 	}
-	s.add("GET", "/runs/{id}/results", identity.Read, false, nil, func(r *request) (any, error) {
-		v, e := s.Kernel.ReadRunState(r.ctx(), r.scope(), r.HTTP.PathValue("id"))
-		if e != nil {
-			return nil, e
-		}
-		resource := "results:" + v.Run.ID
-		after, n, e := r.pagination(resource)
-		if e != nil {
-			return nil, e
-		}
-		items := []resultResponse{}
-		for _, x := range v.Results {
-			if x.ID > after {
-				items = append(items, resultProjection(x))
-			}
-		}
-		sortResults(items)
-		out := page{Items: items}
-		if len(items) > n {
-			out.Items = items[:n]
-			out.NextCursor = s.encodeCursor(r.scope().ProjectID, resource, items[n-1].ID)
-		}
-		return out, nil
-	})
+	s.add("GET", "/runs/{id}/results", identity.Read, false, nil, func(r *request) (any, error) { return r.resultPage(r.HTTP.PathValue("id"), false) })
+	s.add("GET", "/results", identity.Read, false, nil, func(r *request) (any, error) { return r.resultPage("", false) })
 	s.add("GET", "/results/{id}", identity.Read, false, nil, func(r *request) (any, error) {
-		id := r.HTTP.PathValue("id")
-		if !asset.ValidID(id) {
-			return nil, asset.ErrInvalid
-		}
-		run, e := reader.ResultRun(r.ctx(), r.scope(), id)
-		if e != nil {
-			return nil, e
-		}
-		v, e := s.Kernel.ReadRunState(r.ctx(), r.scope(), run)
-		if e != nil {
-			return nil, e
-		}
-		for _, x := range v.Results {
-			if x.ID == id {
-				return resultProjection(x), nil
-			}
-		}
-		return nil, asset.ErrNotFound
+		v, e := reader.Result(r.ctx(), r.scope(), r.HTTP.PathValue("id"))
+		return resultProjection(v), e
 	})
 	s.add("POST", "/experiments", identity.Execute, true, experimentRequest{}, func(r *request) (any, error) {
 		var d experimentRequest
@@ -302,30 +264,7 @@ func (s *Server) productRoutes() {
 		v, e := decisions.GetGateReceipt(r.ctx(), r.scope(), r.HTTP.PathValue("id"))
 		return gateProjection(v), e
 	})
-	s.add("GET", "/gates/{id}/cases", identity.Read, false, nil, func(r *request) (any, error) {
-		v, e := decisions.GetGateReceipt(r.ctx(), r.scope(), r.HTTP.PathValue("id"))
-		if e != nil {
-			return nil, e
-		}
-		resource := "gate-cases:" + v.GateID
-		key, n, e := r.pagination(resource)
-		if e != nil {
-			return nil, e
-		}
-		offset := 0
-		if key != "" {
-			offset, e = strconv.Atoi(key)
-			if e != nil || offset < 0 || offset > len(v.Cases) {
-				return nil, asset.ErrInvalid
-			}
-		}
-		end := min(offset+n, len(v.Cases))
-		out := page{Items: v.Cases[offset:end]}
-		if end < len(v.Cases) {
-			out.NextCursor = s.encodeCursor(r.scope().ProjectID, resource, strconv.Itoa(end))
-		}
-		return out, nil
-	})
+	s.add("GET", "/gates/{id}/cases", identity.Read, false, nil, func(r *request) (any, error) { return r.gateCasePage() })
 	s.add("GET", "/gates/{id}/regressions", identity.Read, false, nil, func(r *request) (any, error) {
 		return decisions.GetRegressionSummary(r.ctx(), r.scope(), r.HTTP.PathValue("id"))
 	})

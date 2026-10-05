@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/buildinfo"
 	"agentevalops/go-backend/internal/decision"
 	"agentevalops/go-backend/internal/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -109,6 +110,9 @@ func execute(args []string, out, errOut io.Writer) int {
 	return decision.ExitCode(receipt.Decision)
 }
 func main() {
+	if buildinfo.Requested("evalgate") {
+		return
+	}
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	os.Exit(execute(os.Args[1:], os.Stdout, os.Stderr))
 }

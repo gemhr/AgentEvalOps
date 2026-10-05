@@ -1,0 +1,77 @@
+# 独立受控栈；不自动替换既有 Python 服务或执行 cutover。
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: product_rehearsal
+      POSTGRES_PASSWORD: ${REHEARSAL_POSTGRES_PASSWORD:?required}
+    ports: ["127.0.0.1:55433:5432"]
+    volumes: ["go-rehearsal-db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d product_rehearsal"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  migrate:
+    build: ./backend
+    entrypoint: ["/app/.venv/bin/alembic"]
+    command: ["upgrade", "head"]
+    environment:
+      DATABASE_URL: ${REHEARSAL_MIGRATION_DATABASE_URL:?offline migration role required}
+      APP_ENV: test
+      AUTH_ENABLED: "true"
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+  api:
+    build:
+      context: .
+      dockerfile: go-backend/Dockerfile
+      target: api
+      args:
+        GIT_SHA: ${GIT_SHA:?required}
+        GIT_DIRTY: ${GIT_DIRTY:?required}
+        BUILD_TIME: ${BUILD_TIME:?required}
+    environment:
+      DATABASE_URL: ${REHEARSAL_API_DATABASE_URL:?restricted API role required}
+      PRODUCT_API_PEPPER: ${PRODUCT_API_PEPPER:?required}
+      PRODUCT_API_CORS_ORIGINS: ${PUBLIC_FRONTEND_ORIGIN:?required}
+      APP_ENV: ${APP_ENV:-production}
+      DB_POOL_MAX_CONNS: "24"
+      DB_POOL_MIN_CONNS: "0"
+      DB_POOL_MAX_CONN_LIFETIME: 30m
+      DB_POOL_MAX_CONN_IDLE_TIME: 5m
+      DB_POOL_HEALTH_CHECK_PERIOD: 30s
+    ports: ["127.0.0.1:8081:8081"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+  worker:
+    build:
+      context: .
+      dockerfile: go-backend/Dockerfile
+      target: worker
+      args:
+        GIT_SHA: ${GIT_SHA:?required}
+        GIT_DIRTY: ${GIT_DIRTY:?required}
+        BUILD_TIME: ${BUILD_TIME:?required}
+    environment:
+      DATABASE_URL: ${REHEARSAL_WORKER_DATABASE_URL:?restricted Worker role required}
+      LOCALAGENT_TARGET_CONFIG: ${LOCALAGENT_TARGET_CONFIG:?inline JSON required}
+      APP_ENV: production
+      DB_POOL_MAX_CONNS: "24"
+      WORKER_ONLINE_CONCURRENCY: "2"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+  frontend:
+    build:
+      context: ./frontend
+      target: runner
+      args:
+        NEXT_PUBLIC_GO_PRODUCT_API_URL: ${PUBLIC_GO_API_ORIGIN:?browser reachable Go origin required}
+        NEXT_PUBLIC_AUTH_ENABLED: "false"
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [api]
+volumes:
+  go-rehearsal-db:

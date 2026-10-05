@@ -15,6 +15,8 @@ import {
 import { extractErrorMessage } from "@/lib/api/client";
 import { queryKeys } from "@/lib/query/keys";
 import { useProductPrincipal } from "./ProductShell";
+import { ProductAnalytics } from "./ProductAnalytics";
+import { AnalyticsTable } from "./ProductAnalytics";
 
 export function ProductFacts({ value }: { value: ProductRecord }) {
   const fields: Record<string, string> = {
@@ -91,6 +93,13 @@ export function ProductFacts({ value }: { value: ProductRecord }) {
 }
 
 export function ProductConsole({ area = "overview" }: { area?: string }) {
+  return area === "overview" || area === "analytics" ? (
+    <ProductAnalytics overview={area === "overview"} />
+  ) : (
+    <ProductResources key={area} area={area} />
+  );
+}
+function ProductResources({ area }: { area: string }) {
   const params = useParams<{ projectId: string }>();
   const principal = useProductPrincipal();
   const [cursor, setCursor] = useState<string | null>(null);
@@ -106,7 +115,7 @@ export function ProductConsole({ area = "overview" }: { area?: string }) {
       path,
     ),
     queryFn: () => productGet<ProductPage & ProductRecord>(path),
-    enabled: !!principal && area !== "results",
+    enabled: !!principal,
     staleTime: 0,
     refetchInterval: ["runs", "rules", "reviews"].includes(area)
       ? 10000
@@ -171,6 +180,16 @@ export function ProductConsole({ area = "overview" }: { area?: string }) {
       )}
       {detail.error && <p role="alert">{extractErrorMessage(detail.error)}</p>}
       {detail.data && !detail.error && <ProductFacts value={detail.data} />}
+      {id && ["runs", "gates"].includes(area) && (
+        <ProductFactPage
+          key={`${area}:${id}`}
+          project={params.projectId}
+          resource={
+            area === "runs" ? `runs/${id}/results` : `gates/${id}/cases`
+          }
+          cases={area === "gates"}
+        />
+      )}
       {area === "reviews" && id && (
         <ProductReview key={id} id={id} project={params.projectId} />
       )}
@@ -233,6 +252,75 @@ export function ProductConsole({ area = "overview" }: { area?: string }) {
         />
       )}
     </main>
+  );
+}
+
+function ProductFactPage({
+  project,
+  resource,
+  cases,
+}: {
+  project: string;
+  resource: string;
+  cases: boolean;
+}) {
+  const principal = useProductPrincipal();
+  const [cursor, setCursor] = useState<string | null>(null);
+  const path = productPath(
+    project,
+    `${resource}?limit=25${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+  );
+  const result = useQuery({
+    queryKey: queryKeys.product.resource(
+      principal?.principal_id ?? "",
+      project,
+      path,
+    ),
+    queryFn: () => productGet<ProductPage>(path),
+    enabled: !!principal,
+    retry: false,
+    staleTime: 0,
+  });
+  return (
+    <section className="space-y-3">
+      <h2>{cases ? "门禁用例比较（分页）" : "评估结果（分页）"}</h2>
+      {result.isFetching && <p role="status">正在读取…</p>}
+      {result.error && <p role="alert">{extractErrorMessage(result.error)}</p>}
+      {result.data && !result.error && (
+        <>
+          {result.data.items.length === 0 && <p>没有事实。</p>}
+          {cases ? (
+            <AnalyticsTable
+              rows={result.data.items}
+              fields={[
+                "CaseID",
+                "CaseVersion",
+                "Criticality",
+                "BaselineOutcome",
+                "CandidateOutcome",
+                "BaselineTask",
+                "CandidateTask",
+                "TaskTransition",
+                "Classification",
+                "Reasons",
+              ]}
+            />
+          ) : (
+            result.data.items.map((row) => (
+              <ProductFacts key={String(row.id)} value={row} />
+            ))
+          )}
+          {cursor && (
+            <button onClick={() => setCursor(null)}>返回第一页</button>
+          )}
+          {result.data.next_cursor && (
+            <button onClick={() => setCursor(result.data?.next_cursor ?? null)}>
+              下一页结果
+            </button>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

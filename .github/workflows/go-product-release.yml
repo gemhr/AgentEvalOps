@@ -1,0 +1,40 @@
+name: Go Product Controlled Release
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  verify-package:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: g9-ci-isolated
+        ports: [55432:5432]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 2s --health-retries 30
+    env:
+      G1_TEST_POSTGRES_URL: postgres://postgres:g9-ci-isolated@127.0.0.1:55432/postgres?sslmode=disable
+      G3_RACE_WORKER: "1"
+      GORACE: halt_on_error=1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go-backend/go.mod }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen --project backend
+      - run: go test ./... && go test -tags integration ./... && go test -race ./... && go test -race -tags integration ./... && go vet ./... && go vet -tags integration ./...
+        working-directory: go-backend
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: corepack enable && yarn install --frozen-lockfile && yarn lint && yarn typecheck && yarn format:check && yarn test --runInBand && yarn build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_GO_PRODUCT_API_URL: http://127.0.0.1:8081
+      - shell: pwsh
+        run: ./scripts/release-g9.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: go-product-controlled-release
+          path: go-backend/dist/g9-release

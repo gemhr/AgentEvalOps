@@ -20,6 +20,9 @@ import (
 const WorkerSchema = "c12a00800001"
 
 func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly bool, log *slog.Logger) (*worker.Runtime, func(), error) {
+	if fixtureOnly && os.Getenv("APP_ENV") != "test" && os.Getenv("APP_ENV") != "development" {
+		return nil, nil, fmt.Errorf("CONTROLLED_MODE_PRODUCTION_FORBIDDEN")
+	}
 	if log == nil {
 		log = slog.Default()
 	}
@@ -33,7 +36,9 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 	if err != nil {
 		return nil, nil, fmt.Errorf("非法 DATABASE_URL")
 	}
-	poolConfig.MaxConns = int32(config.ExecutionConcurrency + config.EvaluatorConcurrency + config.OnlineConcurrency + 12)
+	if err = ConfigurePool(poolConfig, int32(config.ExecutionConcurrency+config.EvaluatorConcurrency+config.OnlineConcurrency+12)); err != nil {
+		return nil, nil, err
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("数据库连接配置失败")
@@ -43,6 +48,12 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 	if err != nil {
 		pool.Close()
 		return nil, nil, err
+	}
+	var safe bool
+	err = pool.QueryRow(ctx, `SELECT NOT (r.rolcreatedb OR r.rolcreaterole OR r.rolbypassrls OR has_schema_privilege(current_user,'public','CREATE') OR has_table_privilege(current_user,'evaluation_results','UPDATE,DELETE,TRUNCATE')) AND has_table_privilege(current_user,'evaluation_results','INSERT') AND has_table_privilege(current_user,'evaluation_attempts','UPDATE') AND has_table_privilege(current_user,'evaluation_evaluator_works','UPDATE') FROM pg_roles r WHERE r.rolname=current_user`).Scan(&safe)
+	if err != nil || !safe {
+		pool.Close()
+		return nil, nil, fmt.Errorf("WORKER_ROLE_PRIVILEGES_REJECTED")
 	}
 	var target worker.ExecutionTarget = worker.FixtureExecutionTarget{}
 	var evaluator worker.Evaluator = worker.FixtureEvaluator{DBTimeout: config.DBTimeout}

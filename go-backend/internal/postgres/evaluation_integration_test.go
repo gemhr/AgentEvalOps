@@ -50,10 +50,16 @@ type kernelFixture struct {
 }
 
 func fixture(t *testing.T) *kernelFixture {
+	return fixtureWithWriter(t, true)
+}
+func fixtureWithWriter(t *testing.T, activate bool) *kernelFixture {
 	t.Helper()
 	d := newDatabase(t)
 	d.migrate(t, "head")
-	epoch := g2Writer(t, d)
+	epoch := int64(1)
+	if activate {
+		epoch = g2Writer(t, d)
+	}
 	a := seedProject(t, d.pool, asset.NewID())
 	pool := g2Pool(t, d)
 	ctx := context.Background()

@@ -69,7 +69,7 @@ func (s *Server) responseSchema(r route) any {
 		}
 		return fieldSchema(runResponse{})
 	}
-	if kind == "runs" && r.Method == "POST" || kind == "online" && r.Method == "POST" || kind == "rules" && r.Method == "POST" && len(parts) > 2 {
+	if kind == "trace-envelopes" || kind == "runs" && r.Method == "POST" || kind == "online" && r.Method == "POST" || kind == "rules" && r.Method == "POST" && len(parts) > 2 {
 		return objectSchema([]string{"id", "status", "command_status"}, map[string]any{"id": fieldSchema(""), "status": fieldSchema(""), "command_status": fieldSchema("")})
 	}
 	if kind == "results" {

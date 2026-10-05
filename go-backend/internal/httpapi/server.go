@@ -9,6 +9,7 @@ import (
 
 	"io"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"reflect"
@@ -64,6 +65,7 @@ type request struct {
 	Access        identity.Access
 	ID, CommandID string
 	Body          asset.JSON
+	Raw           []byte
 }
 
 func (r *request) ctx() context.Context      { return r.HTTP.Context() }
@@ -100,6 +102,7 @@ func New(s Server) (*Server, error) {
 	s.productRoutes()
 	s.reviewRoutes()
 	s.analyticsRoutes()
+	s.traceRoutes()
 	s.mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, _ *http.Request) { write(w, 200, map[string]string{"status": "live"}) })
 	s.mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), s.Config.DBTimeout)
@@ -178,6 +181,14 @@ func (s *Server) serve(w http.ResponseWriter, h *http.Request, e route) {
 	r := &request{server: s, HTTP: h, Access: a, ID: id}
 	if h.Method == "POST" {
 		limit := s.Config.BodyLimit
+		if strings.HasSuffix(e.Path, "/trace-envelopes") {
+			media, _, parseErr := mime.ParseMediaType(h.Header.Get("Content-Type"))
+			if parseErr != nil || media != "application/json" {
+				fail(asset.ErrInvalid)
+				return
+			}
+			limit = 16384
+		}
 		if e.Capability == identity.ManageAPIKey || strings.HasSuffix(e.Path, "/claim") || strings.HasSuffix(e.Path, "/renew") || strings.HasSuffix(e.Path, "/release") {
 			limit = min(limit, 16384)
 		}
@@ -200,6 +211,7 @@ func (s *Server) serve(w http.ResponseWriter, h *http.Request, e route) {
 			fail(asset.ErrInvalid)
 			return
 		}
+		r.Raw = raw
 	}
 	var cmd *postgres.ProductCommand
 	if e.Create {

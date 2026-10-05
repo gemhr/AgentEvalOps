@@ -36,8 +36,12 @@ type g3Fixture struct {
 
 func g3(t *testing.T, target worker.FixturePlan, evalPlan worker.FixturePlan) *g3Fixture {
 	t.Helper()
-	t.Setenv("APP_ENV", "test")
 	f := fixture(t)
+	return g3FromKernel(t, f, target, evalPlan)
+}
+func g3FromKernel(t *testing.T, f *kernelFixture, target worker.FixturePlan, evalPlan worker.FixturePlan) *g3Fixture {
+	t.Helper()
+	t.Setenv("APP_ENV", "test")
 	var role string
 	if err := f.k.Pool.QueryRow(context.Background(), "SELECT current_user").Scan(&role); err != nil {
 		t.Fatal(err)

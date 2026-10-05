@@ -53,7 +53,13 @@ func (s *Server) OpenAPI() map[string]any {
 		}
 		op := map[string]any{"operationId": strings.ReplaceAll(r.Method+r.Path, "/", "_"), "x-capability": r.Capability, "security": []any{map[string]any{"ApiKey": []string{}}, map[string]any{"Bearer": []string{}}}, "responses": responses, "parameters": parameters}
 		if r.Input != nil {
-			op["requestBody"] = map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": schema(r.Input, 0)}}}
+			input := schema(r.Input, 0)
+			if strings.HasSuffix(r.Path, "/trace-envelopes") {
+				input.(map[string]any)["properties"].(map[string]any)["duration_ms"] = map[string]any{"type": "number", "minimum": 0}
+				op["security"] = []any{map[string]any{"ApiKey": []string{}}}
+				op["x-max-body-bytes"] = 16384
+			}
+			op["requestBody"] = map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": input}}}
 		}
 		path[strings.ToLower(r.Method)] = op
 	}

@@ -78,3 +78,11 @@ func ProductRoleGrants(role string) string {
 	}
 	return sql
 }
+
+// TraceIngestRoleGrants 由 offline operator 显式启用 G5 strict ingest 所需权限。
+func TraceIngestRoleGrants(role string) string {
+	id := pgx.Identifier{role}.Sanitize()
+	return "GRANT SELECT,INSERT ON localagent_trace_envelope_sidecars,traces,spans TO " + id + ";" +
+		"GRANT SELECT,INSERT,UPDATE ON localagent_external_trace_identity,localagent_external_span_identity TO " + id + ";" +
+		"GRANT INSERT ON evaluation_observations TO " + id + ";"
+}

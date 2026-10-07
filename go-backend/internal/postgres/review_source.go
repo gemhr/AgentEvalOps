@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/catalog"
 	"agentevalops/go-backend/internal/decision"
 	ev "agentevalops/go-backend/internal/evaluation"
 	ob "agentevalops/go-backend/internal/observation"
@@ -80,6 +81,20 @@ func reviewAutomatic(ref rv.SourceRef, value, category string, prov asset.JSON, 
 func resolveReviewSource(ctx context.Context, tx pgx.Tx, s asset.Scope, ref rv.SourceRef) (rv.Source, error) {
 	source := rv.Source{Ref: ref, BodyAvailability: "UNAVAILABLE", Retention: "REFERENCE_ONLY", Evidence: []ev.Binding{}}
 	switch ref.Type {
+	case "CONTROLLED_CASE":
+		v, e := loadVersion[catalog.CaseContent](ctx, tx, caseTables, s, *ref.Case)
+		if e != nil {
+			return source, e
+		}
+		body := v.Content().Body
+		if body.Capability != "CI_FAILURE_TRIAGE" || v.Content().Source.Kind != "EVALUATION_DATASET_GENERATION" {
+			return source, asset.ErrForbidden
+		}
+		source.Case = ref.Case
+		source.CaseBody = &body
+		source.BodyAvailability = "AVAILABLE"
+		source.Retention = string(body.BodyPolicy)
+		source.Evidence = []ev.Binding{{ProjectID: s.ProjectID, Ref: "controlled-input:" + v.Ref().EntityID, Digest: body.Input.Digest(), Schema: "stage13.triage-input.v1", Availability: "AVAILABLE", Body: body.Input}}
 	case "OFFLINE_RESULT", "CALIBRATION_SAMPLE":
 		state, e := decisionRun(ctx, tx, s, ref.RunID)
 		if e != nil {

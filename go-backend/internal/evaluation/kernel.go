@@ -2,9 +2,12 @@ package evaluation
 
 import (
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/catalog"
+	"agentevalops/go-backend/internal/cigovernance"
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 )
 
@@ -136,6 +139,7 @@ func (c EvaluatorExecutionCapability) Supports(e EvaluatorSpec) bool {
 }
 
 type RunSnapshot struct {
+	Intent                      string `json:"Intent,omitempty"`
 	Contract                    string
 	Input                       SnapshotInput
 	InputBytes                  []byte
@@ -146,6 +150,7 @@ type RunSnapshot struct {
 	Capabilities                []Capability
 }
 type CreateRun struct {
+	Intent    string `json:"Intent,omitempty"`
 	CommandID string
 	Snapshot  Snapshot
 	Target    Target
@@ -155,6 +160,42 @@ type CreateRun struct {
 
 func FreezeRun(c CreateRun, project string, caps EvaluatorExecutionCapability) (RunSnapshot, error) {
 	in := c.Snapshot.Input()
+	governed := false
+	for _, item := range in.Manifest {
+		p, err := cigovernance.ReadPolicy(item.Case.Metadata)
+		if err != nil {
+			return RunSnapshot{}, err
+		}
+		if p != nil {
+			governed = true
+			if cigovernance.CheckIntent(p.Role, c.Intent) != nil || !cigovernance.HardGolden(p.State) {
+				return RunSnapshot{}, asset.ErrForbidden
+			}
+		}
+	}
+	if c.Intent != "" && !governed {
+		return RunSnapshot{}, asset.ErrForbidden
+	}
+	if governed {
+		if in.Dataset == nil {
+			return RunSnapshot{}, asset.ErrForbidden
+		}
+		var content asset.Content[catalog.DatasetContent]
+		if in.Dataset.CanonicalContent.Decode(&content) != nil {
+			return RunSnapshot{}, asset.ErrInvalid
+		}
+		p, err := cigovernance.ReadPolicy(content.Body.Metadata)
+		if err != nil || p == nil || cigovernance.CheckIntent(p.Role, c.Intent) != nil {
+			return RunSnapshot{}, asset.ErrForbidden
+		}
+		actual := []asset.Ref{}
+		for _, item := range in.Manifest {
+			actual = append(actual, item.Identity.Ref)
+		}
+		if !slices.Equal(actual, content.Body.Cases) {
+			return RunSnapshot{}, asset.ErrForbidden
+		}
+	}
 	if !asset.ValidID(c.CommandID) || in.Contract != SnapshotContract || in.ProjectID != project || in.Origin != PublishedCatalog || len(in.Manifest) == 0 || len(in.Evaluators) == 0 || !asset.Text(c.Target.ID) || !asset.Text(c.Target.Kind) || !asset.Text(c.Target.Version) || c.Target.TimeoutMilliseconds <= 0 || c.Subject.String() == "null" || c.Retry.Validate() != nil {
 		return RunSnapshot{}, asset.ErrInvalid
 	}
@@ -177,7 +218,7 @@ func FreezeRun(c CreateRun, project string, caps EvaluatorExecutionCapability) (
 	}
 	retry := c.Retry
 	retry.Allowed = append([]OutcomeKind(nil), c.Retry.Allowed...)
-	return RunSnapshot{DurableContract, in, c.Snapshot.Bytes(), c.Snapshot.Digest(), c.Snapshot.Algorithm(), c.Target, c.Subject, retry, append([]Capability(nil), caps.Bindings...)}, nil
+	return RunSnapshot{Intent: c.Intent, Contract: DurableContract, Input: in, InputBytes: c.Snapshot.Bytes(), InputDigest: c.Snapshot.Digest(), InputAlgorithm: c.Snapshot.Algorithm(), Target: c.Target, Subject: c.Subject, Retry: retry, Capabilities: append([]Capability(nil), caps.Bindings...)}, nil
 }
 
 type Binding struct {

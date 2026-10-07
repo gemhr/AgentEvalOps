@@ -41,6 +41,7 @@ type targetRequest struct {
 	Timeout      int64      `json:"timeout_milliseconds"`
 }
 type runRequest struct {
+	Intent     string                     `json:"intent,omitempty"`
 	Suite      *asset.Ref                 `json:"suite"`
 	Dataset    *asset.Ref                 `json:"dataset"`
 	Cases      []asset.Ref                `json:"selected_cases"`
@@ -58,7 +59,7 @@ func (r *request) runCommand(d runRequest) (ev.CreateRun, error) {
 	if d.Retry.Version == "" {
 		d.Retry = ev.RetryPolicy{Version: "NO_RETRY.v1", MaxAttempts: 1}
 	}
-	return ev.CreateRun{CommandID: r.CommandID, Snapshot: snapshot, Target: ev.Target{ID: d.Target.ID, Kind: d.Target.Kind, Version: d.Target.Version, Config: d.Target.Config, Capabilities: d.Target.Capabilities, TimeoutMilliseconds: d.Target.Timeout}, Subject: d.Subject, Retry: d.Retry}, nil
+	return ev.CreateRun{Intent: d.Intent, CommandID: r.CommandID, Snapshot: snapshot, Target: ev.Target{ID: d.Target.ID, Kind: d.Target.Kind, Version: d.Target.Version, Config: d.Target.Config, Capabilities: d.Target.Capabilities, TimeoutMilliseconds: d.Target.Timeout}, Subject: d.Subject, Retry: d.Retry}, nil
 }
 
 type experimentRequest struct {

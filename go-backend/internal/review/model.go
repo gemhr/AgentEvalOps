@@ -101,12 +101,20 @@ func Decidable(v string) bool {
 type SourceRef struct {
 	Type                                   string
 	RunID, ResultID, ObservationID, GateID string
+	Case                                   *asset.Ref `json:"Case,omitempty"`
 	// FailureCandidate 来源由 G5 分类函数重新核对，caller 不能编造类别。
 	CandidateSource, Classification string
 }
 
 func (r SourceRef) Validate() error {
+	if r.Type != "CONTROLLED_CASE" && r.Case != nil {
+		return asset.ErrInvalid
+	}
 	switch r.Type {
+	case "CONTROLLED_CASE":
+		if r.Case == nil || r.Case.Validate() != nil || r.RunID != "" || r.ResultID != "" || r.ObservationID != "" || r.GateID != "" || r.CandidateSource != "" || r.Classification != "" {
+			return asset.ErrInvalid
+		}
 	case "OFFLINE_RESULT", "CALIBRATION_SAMPLE":
 		if !asset.ValidID(r.RunID) || !asset.ValidID(r.ResultID) || r.ObservationID != "" || r.GateID != "" || r.CandidateSource != "" || r.Classification != "" {
 			return asset.ErrInvalid

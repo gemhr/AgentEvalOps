@@ -154,6 +154,10 @@ func (s *Server) catalogRoutes() {
 	evaluators := metric.EvaluatorDefinitionService{Store: postgres.EvaluatorDefinitions{Pool: s.Pool}, Metrics: postgres.MetricDefinitions{Pool: s.Pool}}
 	registerCatalog(s, "cases", identity.PublishDataset, cases.CreateCase, cases.GetCase, cases.PublishCaseVersion, cases.GetCaseVersion)
 	registerCatalog(s, "datasets", identity.PublishDataset, datasets.CreateDataset, datasets.GetDataset, datasets.PublishDatasetVersion, datasets.GetDatasetVersion)
+	s.add("GET", "/datasets/{id}/versions/{version}/development-export", identity.Read, false, nil, func(r *request) (any, error) {
+		cases, err := datasets.ExportDevelopment(r.ctx(), r.scope(), asset.Ref{EntityID: r.HTTP.PathValue("id"), Version: r.HTTP.PathValue("version")})
+		return map[string]any{"ref": asset.Ref{EntityID: r.HTTP.PathValue("id"), Version: r.HTTP.PathValue("version")}, "cases": cases}, err
+	})
 	registerCatalog(s, "suites", identity.Write, suites.CreateSuite, suites.GetSuite, suites.PublishSuiteVersion, suites.GetSuiteVersion)
 	registerCatalog(s, "metrics", identity.ManagePolicy, metrics.CreateMetricDefinition, metrics.GetMetricDefinition, metrics.PublishMetricDefinitionVersion, metrics.GetMetricDefinitionVersion)
 	registerCatalog(s, "evaluators", identity.ManagePolicy, evaluators.CreateEvaluatorDefinition, evaluators.GetEvaluatorDefinition, evaluators.PublishEvaluatorDefinitionVersion, evaluators.GetEvaluatorDefinitionVersion)

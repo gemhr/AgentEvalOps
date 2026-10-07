@@ -11,17 +11,18 @@ import (
 )
 
 type reviewSourceRequest struct {
-	Type            string `json:"type"`
-	RunID           string `json:"run_id"`
-	ResultID        string `json:"result_id"`
-	ObservationID   string `json:"observation_id"`
-	GateID          string `json:"gate_id"`
-	CandidateSource string `json:"candidate_source"`
-	Classification  string `json:"classification"`
+	Case            *asset.Ref `json:"case,omitempty"`
+	Type            string     `json:"type"`
+	RunID           string     `json:"run_id"`
+	ResultID        string     `json:"result_id"`
+	ObservationID   string     `json:"observation_id"`
+	GateID          string     `json:"gate_id"`
+	CandidateSource string     `json:"candidate_source"`
+	Classification  string     `json:"classification"`
 }
 
 func (d reviewSourceRequest) domain() rv.SourceRef {
-	return rv.SourceRef{Type: d.Type, RunID: d.RunID, ResultID: d.ResultID, ObservationID: d.ObservationID, GateID: d.GateID, CandidateSource: d.CandidateSource, Classification: d.Classification}
+	return rv.SourceRef{Type: d.Type, RunID: d.RunID, ResultID: d.ResultID, ObservationID: d.ObservationID, GateID: d.GateID, CandidateSource: d.CandidateSource, Classification: d.Classification, Case: d.Case}
 }
 
 type enqueueRequest struct {

@@ -30,6 +30,9 @@ func (s *Server) responseSchema(r route) any {
 	path := strings.TrimPrefix(r.Path, "/api/v1/projects/{project_id}")
 	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	kind := parts[0]
+	if kind == "datasets" && strings.HasSuffix(path, "/development-export") {
+		return objectSchema([]string{"ref", "cases"}, map[string]any{"ref": fieldSchema(asset.Ref{}), "cases": fieldSchema([]catalog.DevelopmentCase{})})
+	}
 	if kind == "analytics" {
 		return fieldSchema(analytics.Response{})
 	}

@@ -3,6 +3,7 @@ package catalog
 
 import (
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/cigovernance"
 	"agentevalops/go-backend/internal/citriage"
 )
 
@@ -54,6 +55,9 @@ type CaseContent struct {
 }
 
 func (c CaseContent) Validate() error {
+	if _, err := cigovernance.ReadPolicy(c.Metadata); err != nil {
+		return err
+	}
 	if c.Capability == "CI_FAILURE_TRIAGE" {
 		gt, err := citriage.ReadGroundTruth(c.GroundTruth)
 		if err != nil || gt.Criticality != string(c.Criticality) || citriage.ValidateInput(c.Input) != nil || c.ExpectedOutput.String() != "null" {
@@ -109,7 +113,12 @@ func validateCases(refs []asset.Ref) error {
 	}
 	return nil
 }
-func (d DatasetContent) Validate() error { return validateCases(d.Cases) }
+func (d DatasetContent) Validate() error {
+	if _, err := cigovernance.ReadPolicy(d.Metadata); err != nil {
+		return err
+	}
+	return validateCases(d.Cases)
+}
 
 type EvaluatorBinding struct {
 	Evaluator asset.Ref   `json:"evaluator"`

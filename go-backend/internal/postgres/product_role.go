@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"agentevalops/go-backend/internal/asset"
+	gov "agentevalops/go-backend/internal/cigovernance"
 	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5"
@@ -26,7 +27,15 @@ func (k ProductReader) GetPolicy(ctx context.Context, s asset.Scope, id string) 
 func (k ProductIdentity) VerifyAPI(ctx context.Context) (int64, error) {
 	epoch, err := (Evaluation{Pool: k.Pool}).VerifyWorker(ctx, ProductSchema)
 	if err != nil {
-		return 0, fmt.Errorf("API_SCHEMA_WRITER_ROLE_REJECTED")
+		epoch, err = (Evaluation{Pool: k.Pool}).VerifyWorker(ctx, gov.Schema)
+		if err != nil {
+			return 0, fmt.Errorf("API_SCHEMA_WRITER_ROLE_REJECTED")
+		}
+		var accessible bool
+		err = k.Pool.QueryRow(ctx, `SELECT has_table_privilege(current_user,'evaluation_stage13_gt_reviews','SELECT') AND has_table_privilege(current_user,'evaluation_stage13_feedback','SELECT')`).Scan(&accessible)
+		if err != nil || !accessible {
+			return 0, fmt.Errorf("API_GOVERNANCE_TABLE_ACCESS_REJECTED")
+		}
 	}
 	var unsafe bool
 	err = k.Pool.QueryRow(ctx, `SELECT r.rolcreatedb OR r.rolcreaterole OR r.rolbypassrls OR has_schema_privilege(current_user,'public','CREATE') OR has_table_privilege(current_user,'evaluation_results','UPDATE,DELETE,TRUNCATE') OR has_table_privilege(current_user,'evaluation_evaluator_works','INSERT,UPDATE,DELETE,TRUNCATE') OR has_table_privilege(current_user,'evaluation_writer_control','TRUNCATE,DELETE,INSERT') OR has_table_privilege(current_user,'product_project_memberships','INSERT,UPDATE,DELETE') FROM pg_roles r WHERE r.rolname=current_user`).Scan(&unsafe)
@@ -75,6 +84,10 @@ func ProductRoleGrants(role string) string {
 	}
 	for _, table := range []string{"evaluation_adjudication_inputs", "evaluation_golden_annotation_inputs", "evaluation_calibration_samples"} {
 		sql += "GRANT INSERT ON " + table + " TO " + id + ";"
+	}
+	// Stage12 的离线授权仍可使用；WP07 新表仅在已经执行 migration 时授权。
+	for _, table := range []string{"evaluation_stage13_gt_reviews", "evaluation_stage13_feedback"} {
+		sql += "DO $$ BEGIN IF to_regclass('" + table + "') IS NOT NULL THEN GRANT SELECT,INSERT ON " + table + " TO " + id + "; END IF; END $$;"
 	}
 	return sql
 }

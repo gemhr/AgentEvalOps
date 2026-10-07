@@ -132,7 +132,11 @@ func (k Reviews) EnqueueReview(ctx context.Context, s rv.Scope, c rv.Enqueue) (r
 		if e != nil {
 			return e
 		}
-		_, e = tx.Exec(ctx, `INSERT INTO evaluation_review_items(id,project_id,schema_id,schema_version,source_type,source_key,policy_digest,intent_digest,source_digest,item_bytes,offline_result_id,online_result_id,observation_id,gate_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, c.ID, s.ProjectID, c.Schema.EntityID, c.Schema.Version, c.Source.Type, key, policy, intent, source.Digest, raw, offline, online, observation, gate)
+		if c.Source.Type == "CONTROLLED_CASE" {
+			_, e = tx.Exec(ctx, `INSERT INTO evaluation_review_items(id,project_id,schema_id,schema_version,source_type,source_key,policy_digest,intent_digest,source_digest,item_bytes,controlled_case_id,controlled_case_version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, c.ID, s.ProjectID, c.Schema.EntityID, c.Schema.Version, c.Source.Type, key, policy, intent, source.Digest, raw, c.Source.Case.EntityID, c.Source.Case.Version)
+		} else {
+			_, e = tx.Exec(ctx, `INSERT INTO evaluation_review_items(id,project_id,schema_id,schema_version,source_type,source_key,policy_digest,intent_digest,source_digest,item_bytes,offline_result_id,online_result_id,observation_id,gate_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, c.ID, s.ProjectID, c.Schema.EntityID, c.Schema.Version, c.Source.Type, key, policy, intent, source.Digest, raw, offline, online, observation, gate)
+		}
 		if e != nil {
 			return e
 		}

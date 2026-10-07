@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/citriage"
 	ev "agentevalops/go-backend/internal/evaluation"
 )
 
@@ -230,10 +231,23 @@ func (t *Stage13Target) Execute(parent context.Context, s ev.Scope, q ev.Request
 	expectedConfig, _ := asset.Freeze(t.config)
 	var manifest triageManifest
 	_ = t.config.ExpectedSubjectManifest.Decode(&manifest)
+	// WP05 的 Case.Input 是两侧共用的可见 episode；subject 由冻结 Target 拥有。
+	var fields map[string]asset.JSON
+	_ = q.Case.Case.Input.Decode(&fields)
+	var inputVersion string
+	_ = fields["schema_version"].Decode(&inputVersion)
+	if inputVersion == "stage13.triage-input.v1" {
+		if citriage.ValidateInput(q.Case.Case.Input) != nil {
+			return out, nil
+		}
+		input.Agent, input.Query = manifest.AgentID, q.Case.Case.Input.String()
+	} else if q.Case.Case.Input.Decode(&input) != nil {
+		return out, nil
+	}
 	if q.Target.ID != Stage13TargetID || q.Target.Version != Stage13TargetVersion || q.Target.Kind != "LOCALAGENT_HTTP" ||
 		q.Target.Config.String() != expectedConfig.String() || q.Target.TimeoutMilliseconds <= 0 || q.Target.TimeoutMilliseconds > 180000 ||
 		!asset.ValidID(q.AttemptID) || !asset.ValidID(q.ID) || !asset.ValidID(q.RunID) || s.ProjectID != q.Case.Identity.ProjectID ||
-		q.Case.Case.Input.Decode(&input) != nil || input.Agent != manifest.AgentID {
+		input.Agent != manifest.AgentID {
 		return out, nil
 	}
 	parsed, parseErr := asset.ParseJSON([]byte(input.Query))

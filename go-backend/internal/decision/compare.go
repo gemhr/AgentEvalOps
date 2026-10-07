@@ -450,6 +450,7 @@ func Compare(s Snapshot) (Receipt, error) {
 			}
 		}
 	}
+	applyStage13(s, &r)
 	for _, c := range r.Cases {
 		switch c.Classification {
 		case Regressed, CriticalRegression:

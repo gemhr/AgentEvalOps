@@ -311,6 +311,7 @@ type CaseComparison struct {
 }
 type Summary struct{ Regressions, Improvements, Unchanged, Insufficient, Incomparable int }
 type Receipt struct {
+	Stage13             *Stage13Gate  `json:"stage13,omitempty"`
 	GateID              string        `json:"gate_id"`
 	ProjectID           string        `json:"project_id"`
 	Version             string        `json:"comparison_version"`

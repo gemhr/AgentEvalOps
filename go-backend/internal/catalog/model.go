@@ -1,7 +1,10 @@
 // Package catalog 拥有项目内 Case/Dataset/Suite 的发布身份。
 package catalog
 
-import "agentevalops/go-backend/internal/asset"
+import (
+	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/citriage"
+)
 
 type CaseType string
 
@@ -51,6 +54,12 @@ type CaseContent struct {
 }
 
 func (c CaseContent) Validate() error {
+	if c.Capability == "CI_FAILURE_TRIAGE" {
+		gt, err := citriage.ReadGroundTruth(c.GroundTruth)
+		if err != nil || gt.Criticality != string(c.Criticality) || citriage.ValidateInput(c.Input) != nil || c.ExpectedOutput.String() != "null" {
+			return asset.ErrInvalid
+		}
+	}
 	switch c.Type {
 	case AgentTask, Golden, Regression, Security, RAG:
 	default:

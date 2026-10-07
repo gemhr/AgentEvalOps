@@ -142,6 +142,9 @@ func NonApplicable(in worker.EvaluationInput, state asset.ApplicabilityState, me
 	return worker.EvaluationOutput{Value: v}
 }
 func DeterministicSupported(d metric.EvaluatorDefinition) bool {
+	if CITriageSupported(d) {
+		return true
+	}
 	var c Config
 	return d.Validate() == nil && d.Availability != asset.Unsupported && d.Kind == metric.Deterministic && d.ImplementationRef == DeterministicImplementation && d.InputContract == InputContract && d.SchemaVersion == JudgeSchema && d.Normalization == Normalization && len(d.OutputMetrics) == 1 && d.Config.Decode(&c) == nil && oneOf(c.Metric, "task_success.v1", "answer_correctness.v1", "recall@k.v1", "mrr.v1", "ndcg.v1") && (oneOf(c.Metric, "task_success.v1", "answer_correctness.v1") || c.K > 0)
 }
@@ -153,6 +156,9 @@ func (DeterministicEvaluator) Evaluate(ctx context.Context, in worker.Evaluation
 		return worker.EvaluationOutput{}, e
 	}
 	d := in.Work.Metadata.Spec.Definition
+	if CITriageSupported(d) {
+		return evaluateCITriage(ctx, in)
+	}
 	var cfg Config
 	if !DeterministicSupported(d) {
 		return NonApplicable(in, asset.UnsupportedEvidence, "unknown", "DETERMINISTIC"), nil

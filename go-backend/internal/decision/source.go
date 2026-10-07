@@ -64,6 +64,16 @@ func Offline(ref SourceRef, states []ev.RunState) (Source, error) {
 		for _, c := range in.Manifest {
 			u := Unit{Key: fmt.Sprintf("%s/%d", c.Identity.Ref.EntityID, n+1), CaseID: c.Identity.Ref.EntityID, CaseVersion: c.Identity.Ref.Version, CaseDigest: c.Identity.ContentDigest, Criticality: string(c.Case.Criticality), RunID: state.Run.ID, Repeat: n + 1, Task: "MISSING_EVIDENCE", TaskAvailability: "MISSING_EVIDENCE", Metrics: []MetricFact{}}
 			a, ok := latest[u.CaseID]
+			if c.Case.Capability == "CI_FAILURE_TRIAGE" {
+				actual, valid := stage13Identity(a, state.Run.Snapshot.Target.Config, c.Case.Input)
+				if !valid {
+					s.Reasons = append(s.Reasons, "STAGE13_ACTUAL_MODEL_IDENTITY_BLOCKED")
+				} else if previous, exists := s.Dimensions["ci_actual_model"]; exists && previous != actual {
+					s.Reasons = append(s.Reasons, "STAGE13_ACTUAL_MODEL_IDENTITY_MISMATCH")
+				} else {
+					s.Dimensions["ci_actual_model"] = actual
+				}
+			}
 			if !ok || a.Status != "TERMINAL" || a.CaseVersion != u.CaseVersion {
 				s.Reasons = append(s.Reasons, "CASE_MANIFEST_INCOMPLETE")
 			} else {
@@ -129,6 +139,12 @@ func Offline(ref SourceRef, states []ev.RunState) (Source, error) {
 					}
 					u.TaskAvailability = string(m.Applicability)
 				}
+				if spec.Definition.ImplementationRef == "stage13.ci-triage-deterministic.v1" && metricKey(spec) == "ci_triage_decidability.v1" {
+					u.Task = "INCONCLUSIVE"
+					if m.Verdict == "PASS" {
+						u.Task = "SUCCESS"
+					}
+				}
 				u.Metrics = append(u.Metrics, m)
 			}
 			s.Units = append(s.Units, u)
@@ -146,6 +162,60 @@ func Offline(ref SourceRef, states []ev.RunState) (Source, error) {
 	s.Reasons = unique(s.Reasons)
 	s.Digest = digest(s)
 	return s, nil
+}
+
+// stage13Identity 只消费本 Attempt 正式 Target 保存的实际回执，不使用历史 probe。
+func stage13Identity(a ev.Attempt, config, input asset.JSON) (string, bool) {
+	var cfg struct {
+		ExpectedSubjectManifest asset.JSON `json:"expected_subject_manifest"`
+	}
+	if config.Decode(&cfg) != nil {
+		return "", false
+	}
+	var cleanup struct {
+		Comparability string `json:"comparability"`
+		Model         struct {
+			Policy     string  `json:"policy_version"`
+			Comparable bool    `json:"comparable"`
+			Provider   *string `json:"actual_provider"`
+			Model      *string `json:"actual_model"`
+		} `json:"model_comparability_decision"`
+	}
+	// 该事实由正式 Go Target 独立重算并绑定本 Attempt，不能用客户端声明替代。
+	if a.Metadata.Observation.Cleanup.Decode(&cleanup) != nil || cleanup.Comparability != "COMPARABLE" || cleanup.Model.Policy != "stage13.model-comparability.v2" || !cleanup.Model.Comparable || cleanup.Model.Provider == nil || cleanup.Model.Model == nil {
+		return "", false
+	}
+	for _, e := range a.Metadata.Observation.Evidence {
+		if e.Schema != "stage13-subject-receipt.v1" {
+			continue
+		}
+		var wire map[string]asset.JSON
+		_ = e.Body.Decode(&wire)
+		var selected string
+		_ = wire["selected_final_run_id"].Decode(&selected)
+		receipts := []asset.JSON{wire["actual_subject_receipt"]}
+		var children []asset.JSON
+		_ = wire["child_subject_receipts"].Decode(&children)
+		receipts = append(receipts, children...)
+		for _, receipt := range receipts {
+			var r struct {
+				Run      string     `json:"run_id"`
+				Attempt  *string    `json:"evaluation_attempt_id"`
+				Input    string     `json:"actual_input_digest"`
+				Manifest asset.JSON `json:"actual_subject_manifest"`
+			}
+			if receipt.Decode(&r) != nil || r.Run != selected || r.Attempt == nil || *r.Attempt != a.ID || r.Input != input.Digest() || r.Manifest.String() != cfg.ExpectedSubjectManifest.String() {
+				continue
+			}
+			var m map[string]asset.JSON
+			_ = r.Manifest.Decode(&m)
+			return digest(struct {
+				Provider, Model *string
+				Profile, Schema asset.JSON
+			}{cleanup.Model.Provider, cleanup.Model.Model, m["model_profile_digest"], m["output_schema_digest"]}), true
+		}
+	}
+	return "", false
 }
 func metricKey(s ev.EvaluatorSpec) string {
 	var cfg struct {

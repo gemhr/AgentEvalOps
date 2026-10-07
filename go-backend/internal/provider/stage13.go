@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptrace"
@@ -19,27 +20,32 @@ import (
 const Stage13TargetID = "localagent-ci-triage-http"
 const Stage13TargetVersion = "stage13-evaluation-v1"
 const Stage13Protocol = "localagent-ci-triage-evaluation-execute.v1"
+const Stage13ExecutionPolicyVersion = citriage.ExecutionPolicyVersion
+
+type Stage13ExecutionPolicy = citriage.ExecutionPolicy
 
 type Stage13Config struct {
+	ExecutionPolicyVersion  string                 `json:"execution_policy_version,omitempty"`
 	Transport               LocalAgentConfig       `json:"transport"`
 	ExpectedSubjectManifest asset.JSON             `json:"expected_subject_manifest"`
 	ModelIdentityEvidence   []Stage13ModelEvidence `json:"model_identity_evidence,omitempty"`
 }
 
 type Stage13Target struct {
-	config Stage13Config
-	client *http.Client
+	config           Stage13Config
+	client           *http.Client
+	ReserveExecution func(context.Context, ev.Scope, ev.Request) (asset.JSON, error)
 }
 
 func NewStage13Target(c Stage13Config) (*Stage13Target, error) {
-	if c.Transport.Validate() != nil || validateManifest(c.ExpectedSubjectManifest) != nil {
+	if c.Transport.Validate() != nil || validateManifest(c.ExpectedSubjectManifest) != nil || (c.ExecutionPolicyVersion != "" && c.ExecutionPolicyVersion != Stage13ExecutionPolicyVersion) {
 		return nil, asset.ErrInvalid
 	}
 	client, err := newClient(c.Transport.HTTP)
 	if err != nil {
 		return nil, err
 	}
-	return &Stage13Target{c, client}, nil
+	return &Stage13Target{config: c, client: client}, nil
 }
 func (t *Stage13Target) Close() { t.client.CloseIdleConnections() }
 
@@ -122,6 +128,9 @@ type triageCall struct {
 	State            string     `json:"state"`
 }
 type triageReceipt struct {
+	SemanticDigest  string       `json:"semantic_input_digest,omitempty"`
+	ExecutionDigest string       `json:"execution_request_digest,omitempty"`
+	ExecutionPolicy asset.JSON   `json:"execution_policy,omitempty"`
 	Version         string       `json:"receipt_version"`
 	RunID           string       `json:"run_id"`
 	Anchor          string       `json:"anchor_run_id"`
@@ -259,6 +268,37 @@ func (t *Stage13Target) Execute(parent context.Context, s ev.Scope, q ev.Request
 		return out, nil
 	}
 	body, _ := asset.Freeze(map[string]any{"run_id": q.AttemptID, "agent_id": input.Agent, "query": input.Query, "timeout_seconds": float64(q.Target.TimeoutMilliseconds) / 1000, "expected_subject_manifest": t.config.ExpectedSubjectManifest})
+	var executionPolicy asset.JSON
+	if t.config.ExecutionPolicyVersion != "" {
+		if t.ReserveExecution == nil {
+			return out, asset.ErrInvalid
+		}
+		body, err = t.ReserveExecution(parent, s, q)
+		if err != nil {
+			return out, err
+		}
+		var materialized struct {
+			Query  string     `json:"query"`
+			Policy asset.JSON `json:"execution_policy"`
+		}
+		if json.Unmarshal(body.Bytes(), &materialized) != nil {
+			return out, asset.ErrInvalid
+		}
+		input.Query, executionPolicy = materialized.Query, materialized.Policy
+		parsed, parseErr = asset.ParseJSON([]byte(input.Query))
+		if parseErr != nil {
+			return out, parseErr
+		}
+		var p Stage13ExecutionPolicy
+		if executionPolicy.Decode(&p) != nil {
+			return out, asset.ErrInvalid
+		}
+		if !p.DeadlineAt.After(time.Now()) {
+			out.ErrorCategory = "ATTEMPT_EXECUTION_DEADLINE_EXPIRED"
+			out.Reason = "已冻结的执行期限耗尽；未派发模型"
+			return out, nil
+		}
+	}
 	ctx, cancel := context.WithTimeout(parent, time.Duration(t.config.Transport.CallMilliseconds)*time.Millisecond)
 	defer cancel()
 	var gotConn, failedConnect atomic.Bool
@@ -307,6 +347,16 @@ func (t *Stage13Target) Execute(parent context.Context, s ev.Scope, q ev.Request
 	if e != nil || initial.EffectiveDigest != rawDigest(input.Query) {
 		return out, nil
 	}
+	checkExecution := func(r triageReceipt) bool {
+		if t.config.ExecutionPolicyVersion == "" {
+			return r.SemanticDigest == "" && r.ExecutionDigest == "" && r.ExecutionPolicy.String() == "null"
+		}
+		semantic, e := citriage.SemanticInput(q.Case.Case.Input)
+		return e == nil && r.SemanticDigest == semantic.Digest() && r.ExecutionDigest == body.Digest() && r.ExecutionPolicy.String() == executionPolicy.String()
+	}
+	if !checkExecution(initial) {
+		return out, nil
+	}
 	selected := initial
 	selectedStatus := wire.Status
 	if wire.Selected != q.AttemptID {
@@ -322,6 +372,9 @@ func (t *Stage13Target) Execute(parent context.Context, s ev.Scope, q ev.Request
 		}
 		selected, e = t.validateReceipt(child.Receipt, q.AttemptID, child.RunID, "SCHEMA_REPAIR", parsed.Digest(), seen)
 		if e != nil {
+			return out, nil
+		}
+		if !checkExecution(selected) {
 			return out, nil
 		}
 		selectedStatus = child.Status

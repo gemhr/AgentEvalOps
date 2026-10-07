@@ -278,7 +278,15 @@ func CompareStage13Models(doc Stage13PolicyDocument) Stage13PairDecision {
 	if lm.SchemaDigest != rm.SchemaDigest {
 		d.Reasons = append(d.Reasons, "OUTPUT_SCHEMA_DIGEST_MISMATCH")
 	}
-	if lr.InputDigest != rr.InputDigest {
+	leftInput, rightInput := lr.InputDigest, rr.InputDigest
+	if lr.SemanticDigest != "" || rr.SemanticDigest != "" {
+		var lp, rp Stage13ExecutionPolicy
+		if lr.ExecutionPolicy.Decode(&lp) != nil || rr.ExecutionPolicy.Decode(&rp) != nil || lp.Version != Stage13ExecutionPolicyVersion || rp.Version != Stage13ExecutionPolicyVersion || lp.SemanticDigest != lr.SemanticDigest || rp.SemanticDigest != rr.SemanticDigest || lr.SemanticDigest == "" || rr.SemanticDigest == "" {
+			d.Reasons = append(d.Reasons, "EXECUTION_POLICY_BINDING_MISMATCH")
+		}
+		leftInput, rightInput = lr.SemanticDigest, rr.SemanticDigest
+	}
+	if leftInput != rightInput {
 		d.Reasons = append(d.Reasons, "INPUT_BINDING_MISMATCH")
 	}
 	differences := []string{}

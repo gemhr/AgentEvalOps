@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const WorkerSchema = "c12a00800001"
+const WorkerSchema = "c13a00100001"
 
 func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly bool, log *slog.Logger) (*worker.Runtime, func(), error) {
 	if fixtureOnly && os.Getenv("APP_ENV") != "test" && os.Getenv("APP_ENV") != "development" {
@@ -93,6 +93,9 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 				}
 				var stage13Target *provider.Stage13Target
 				stage13Target, e = provider.NewStage13Target(stage13Config)
+				if e == nil {
+					stage13Target.ReserveExecution = k.ReserveStage13Execution
+				}
 				local, target = stage13Target, stage13Target
 			} else {
 				var legacy *provider.LocalAgentHttpExecutionTarget

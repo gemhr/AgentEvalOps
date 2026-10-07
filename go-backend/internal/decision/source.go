@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/citriage"
 	ev "agentevalops/go-backend/internal/evaluation"
 )
 
@@ -45,6 +46,19 @@ func Offline(ref SourceRef, states []ev.RunState) (Source, error) {
 		dims["target_kind"] = state.Run.Snapshot.Target.Kind
 		dims["target_version"] = state.Run.Snapshot.Target.Version
 		dims["target_config"] = state.Run.Snapshot.Target.Config.Digest()
+		// 执行 materialization 版本单独比较；复用原 Subject/transport 的 Gate proof。
+		if state.Run.Snapshot.Target.ID == "localagent-ci-triage-http" {
+			var cfg map[string]asset.JSON
+			_ = state.Run.Snapshot.Target.Config.Decode(&cfg)
+			var version string
+			_ = cfg["execution_policy_version"].Decode(&version)
+			if version == "stage13.attempt-execution.v1" {
+				dims["stage13_execution_policy"] = version
+				delete(cfg, "execution_policy_version")
+				legacy, _ := asset.Freeze(cfg)
+				dims["target_config"] = legacy.Digest()
+			}
+		}
 		dims["dataset"] = digest(in.Dataset)
 		dims["suite"] = digest(in.Suite)
 		for k, v := range dims {
@@ -168,8 +182,9 @@ func Offline(ref SourceRef, states []ev.RunState) (Source, error) {
 func stage13Identity(a ev.Attempt, config, input asset.JSON) (string, bool) {
 	var cfg struct {
 		ExpectedSubjectManifest asset.JSON `json:"expected_subject_manifest"`
+		ExecutionPolicyVersion  string     `json:"execution_policy_version"`
 	}
-	if config.Decode(&cfg) != nil {
+	if json.Unmarshal(config.Bytes(), &cfg) != nil {
 		return "", false
 	}
 	var cleanup struct {
@@ -182,7 +197,7 @@ func stage13Identity(a ev.Attempt, config, input asset.JSON) (string, bool) {
 		} `json:"model_comparability_decision"`
 	}
 	// 该事实由正式 Go Target 独立重算并绑定本 Attempt，不能用客户端声明替代。
-	if a.Metadata.Observation.Cleanup.Decode(&cleanup) != nil || cleanup.Comparability != "COMPARABLE" || cleanup.Model.Policy != "stage13.model-comparability.v2" || !cleanup.Model.Comparable || cleanup.Model.Provider == nil || cleanup.Model.Model == nil {
+	if json.Unmarshal(a.Metadata.Observation.Cleanup.Bytes(), &cleanup) != nil || cleanup.Comparability != "COMPARABLE" || cleanup.Model.Policy != "stage13.model-comparability.v2" || !cleanup.Model.Comparable || cleanup.Model.Provider == nil || cleanup.Model.Model == nil {
 		return "", false
 	}
 	for _, e := range a.Metadata.Observation.Evidence {
@@ -199,12 +214,32 @@ func stage13Identity(a ev.Attempt, config, input asset.JSON) (string, bool) {
 		receipts = append(receipts, children...)
 		for _, receipt := range receipts {
 			var r struct {
-				Run      string     `json:"run_id"`
-				Attempt  *string    `json:"evaluation_attempt_id"`
-				Input    string     `json:"actual_input_digest"`
-				Manifest asset.JSON `json:"actual_subject_manifest"`
+				Semantic  string     `json:"semantic_input_digest"`
+				Execution string     `json:"execution_request_digest"`
+				Policy    asset.JSON `json:"execution_policy"`
+				Run       string     `json:"run_id"`
+				Attempt   *string    `json:"evaluation_attempt_id"`
+				Input     string     `json:"actual_input_digest"`
+				Manifest  asset.JSON `json:"actual_subject_manifest"`
 			}
-			if receipt.Decode(&r) != nil || r.Run != selected || r.Attempt == nil || *r.Attempt != a.ID || r.Input != input.Digest() || r.Manifest.String() != cfg.ExpectedSubjectManifest.String() {
+			inputMatches := false
+			if json.Unmarshal(receipt.Bytes(), &r) == nil {
+				inputMatches = r.Input == input.Digest()
+				if cfg.ExecutionPolicyVersion == "stage13.attempt-execution.v1" {
+					var p citriage.ExecutionPolicy
+					inputMatches = false
+					if r.Policy.Decode(&p) == nil {
+						body, err := citriage.MaterializeExecution(input, cfg.ExpectedSubjectManifest, a.RunID, a.ID, 180000, p.StartedAt)
+						var fields map[string]asset.JSON
+						_ = body.Decode(&fields)
+						var query string
+						_ = fields["query"].Decode(&query)
+						actual, parseErr := asset.ParseJSON([]byte(query))
+						inputMatches = err == nil && parseErr == nil && r.Input == actual.Digest() && r.Execution == body.Digest() && r.Policy.String() == fields["execution_policy"].String() && r.Semantic == p.SemanticDigest
+					}
+				}
+			}
+			if !inputMatches || r.Run != selected || r.Attempt == nil || *r.Attempt != a.ID || r.Manifest.String() != cfg.ExpectedSubjectManifest.String() {
 				continue
 			}
 			var m map[string]asset.JSON

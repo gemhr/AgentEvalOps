@@ -70,7 +70,9 @@ func main() {
 	url := os.Getenv("STAGE13_WP05_DATABASE_URL")
 	cfg, e := pgxpool.ParseConfig(url)
 	must(e)
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 55432 || cfg.ConnConfig.Database != "stage13_wp05_evalops_test" {
+	wp05aReplay := len(os.Args) == 3 && os.Args[2] == "--wp05a-replay"
+	wp05a := len(os.Args) == 3 && (os.Args[2] == "--wp05a" || wp05aReplay)
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Port != 55432 || (cfg.ConnConfig.Database != "stage13_wp05_evalops_test" && !(wp05a && cfg.ConnConfig.Database == "stage13_wp05a_evalops_test")) {
 		panic("ISOLATED_TEST_DATABASE_REQUIRED")
 	}
 	cfg.MaxConns = 32
@@ -81,12 +83,24 @@ func main() {
 	defer pool.Close()
 	must(pool.Ping(ctx))
 	k := postgres.Evaluation{Pool: pool}
-	epoch, e := k.VerifyWorker(ctx, "c12a00800001")
+	schema := "c12a00800001"
+	if wp05a {
+		schema = "c13a00100001"
+	}
+	epoch, e := k.VerifyWorker(ctx, schema)
 	must(e)
 	var doc export
 	load(filepath.Join(out, "case-export.json"), &doc)
 	var plan provider.Stage13PolicyDocument
 	load(filepath.Join(out, "frozen-subject-plan.json"), &plan)
+	if wp05a {
+		if wp05aReplay {
+			replayWP05A(ctx, out, k, epoch, plan)
+			return
+		}
+		executeWP05A(ctx, out, pool, k, epoch, plan)
+		return
+	}
 	if len(os.Args) == 3 && os.Args[2] == "--resume" {
 		resume(ctx, out, pool, k, epoch, plan)
 		return

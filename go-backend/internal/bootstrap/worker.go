@@ -76,21 +76,34 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 			return nil, nil, e
 		}
 		onlineJudge = judge
-		var local *provider.LocalAgentHttpExecutionTarget
+		var local interface{ Close() }
 		if config.ExecutionConcurrency > 0 {
 			j, e := asset.ParseJSON([]byte(os.Getenv("LOCALAGENT_TARGET_CONFIG")))
-			if e != nil || j.Decode(&targetConfig) != nil {
+			if e != nil || (os.Getenv("LOCALAGENT_STAGE13_ENABLED") != "1" && j.Decode(&targetConfig) != nil) {
 				judge.Close()
 				pool.Close()
 				return nil, nil, fmt.Errorf("缺少有效 LOCALAGENT_TARGET_CONFIG")
 			}
-			local, e = provider.NewLocalAgentHttpExecutionTarget(targetConfig, log)
+			if os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
+				var stage13Config provider.Stage13Config
+				if j.Decode(&stage13Config) != nil {
+					judge.Close()
+					pool.Close()
+					return nil, nil, asset.ErrInvalid
+				}
+				var stage13Target *provider.Stage13Target
+				stage13Target, e = provider.NewStage13Target(stage13Config)
+				local, target = stage13Target, stage13Target
+			} else {
+				var legacy *provider.LocalAgentHttpExecutionTarget
+				legacy, e = provider.NewLocalAgentHttpExecutionTarget(targetConfig, log)
+				local, target = legacy, legacy
+			}
 			if e != nil {
 				judge.Close()
 				pool.Close()
 				return nil, nil, e
 			}
-			target = local
 		} else {
 			target = nil
 		}

@@ -103,6 +103,7 @@ func New(s Server) (*Server, error) {
 	s.reviewRoutes()
 	s.analyticsRoutes()
 	s.traceRoutes()
+	s.stage13DeliveryRoutes()
 	s.mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, _ *http.Request) { write(w, 200, map[string]string{"status": "live"}) })
 	s.mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), s.Config.DBTimeout)

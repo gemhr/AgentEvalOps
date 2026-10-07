@@ -17,6 +17,8 @@ func stage13UnitManifest(t *testing.T) asset.JSON {
 		"agent_definition_digest": strings.Repeat("a", 64), "prompt_version": "stage13.triage-prompt.v1", "prompt_digest": strings.Repeat("b", 64),
 		"model_profile_id": "remote_advanced", "model_profile_digest": strings.Repeat("c", 64), "requested_provider": "deepseek", "requested_model": "unit-model", "requested_revision": "unit-revision",
 		"tool_profile_id": "stage13.read-only-evidence.v1", "tool_profile_digest": strings.Repeat("d", 64), "output_schema_version": "stage13.triage-output.v1", "output_schema_digest": "9fb6df7454482257b9358a887e0b5c41871a6e66db9b462f6e7f3c1810f0dca4", "execution_enabled": true}
+	cfg, _ := asset.Freeze(map[string]any{"provider": "deepseek", "model": "unit-model", "revision": "unit-revision", "endpoint_digest": rawDigest("http://controlled-unit")})
+	m["model_profile_digest"] = cfg.Digest()
 	body, _ := asset.Freeze(m)
 	m["subject_manifest_digest"] = body.Digest()
 	result, _ := asset.Freeze(m)
@@ -36,6 +38,11 @@ func stage13UnitWire(m asset.JSON, runID, query string) map[string]any {
 		"requested_provider": "deepseek", "requested_model": "unit-model", "requested_revision": "unit-revision", "reported_provider": "deepseek", "reported_model": "unit-model", "reported_revision": "unit-revision", "actual_revision": "unit-revision",
 		"dispatch_certainty": "PROVIDER_RESPONDED", "verification_status": "VERIFIED_BY_PROVIDER_RESPONSE", "input_tokens": nil, "output_tokens": nil, "cost": nil, "state": "COMPLETED",
 		"effective_messages_digest": strings.Repeat("e", 64), "effective_system_prompt_digest": strings.Repeat("f", 64)}
+	var manifest triageManifest
+	_ = m.Decode(&manifest)
+	cfg := map[string]any{"provider": "deepseek", "model": "unit-model", "revision": manifest.Revision, "endpoint_digest": rawDigest("http://controlled-unit")}
+	call["resolved_profile_digest"], call["model_config_digest"] = manifest.ModelDigest, manifest.ModelDigest
+	call["resolved_provider"], call["resolved_provider_source"], call["resolved_endpoint"], call["resolved_model_config"] = "deepseek", "CONFIGURED_TRANSPORT", "http://controlled-unit", cfg
 	receipt := map[string]any{"receipt_version": "stage13.actual-subject-receipt.v1", "run_id": runID, "anchor_run_id": runID, "analysis_job_id": nil, "evaluation_attempt_id": runID, "role": "INITIAL",
 		"actual_subject_manifest": m, "actual_input_digest": input.Digest(), "effective_payload_digest": rawDigest(query), "prompt_template_digest": rawDigest("仅分析下面原始授权输入；输出一个严格七字段 JSON 对象。"), "resolved_toolset_identity": strings.Repeat("d", 64), "final_answer_digest": rawDigest(raw), "model_call_receipts": []any{call}, "model_identity_verification": "VERIFIED_BY_PROVIDER_RESPONSE"}
 	sealReceipt(receipt)
@@ -44,7 +51,7 @@ func stage13UnitWire(m asset.JSON, runID, query string) map[string]any {
 		"final_answer_evidence":      map[string]any{"schema_version": "stage13-final-answer.v1", "evidence_id": "final-answer://" + runID, "run_id": runID, "attempt_id": runID, "producer_run_id": runID, "content": raw, "content_sha256": rawDigest(raw)}}
 }
 func TestStage13ReceiptIdentityAndComparability(t *testing.T) {
-	for _, mode := range []string{"valid", "baseline", "candidate_actual_baseline", "manifest", "tool", "schema", "missing_receipt", "profile", "actual_model", "echoed_revision", "run", "attempt", "producer", "answer_digest", "raw_answer", "protocol", "unknown_revision", "receipt_digest", "extra_child"} {
+	for _, mode := range []string{"valid", "baseline", "provider_model_match", "candidate_actual_baseline", "manifest", "tool", "schema", "missing_receipt", "profile", "actual_model", "echoed_revision", "run", "attempt", "producer", "answer_digest", "raw_answer", "protocol", "unknown_revision", "receipt_digest", "extra_child", "empty_revision", "alias_only", "requested_as_actual", "proof_model_mismatch", "proof_deployment_mismatch", "proof_digest_mismatch", "proof_outside_validity", "proof_wrong_call_binding"} {
 		t.Run(mode, func(t *testing.T) {
 			manifest := stage13UnitManifest(t)
 			baselineManifest := func() asset.JSON {
@@ -63,6 +70,15 @@ func TestStage13ReceiptIdentityAndComparability(t *testing.T) {
 			if mode == "baseline" {
 				manifest = baselineManifest()
 			}
+			if mode == "empty_revision" {
+				var mm map[string]asset.JSON
+				_ = manifest.Decode(&mm)
+				mm["requested_revision"], _ = asset.Freeze(nil)
+				delete(mm, "subject_manifest_digest")
+				j, _ := asset.Freeze(mm)
+				mm["subject_manifest_digest"], _ = asset.Freeze(j.Digest())
+				manifest, _ = asset.Freeze(mm)
+			}
 			runID, project := asset.NewID(), asset.NewID()
 			query := `{"schema_version":"stage13.triage-input.v1"}`
 			wire := stage13UnitWire(manifest, runID, query)
@@ -70,6 +86,9 @@ func TestStage13ReceiptIdentityAndComparability(t *testing.T) {
 			call := receipt["model_call_receipts"].([]any)[0].(map[string]any)
 			answer := wire["final_answer_evidence"].(map[string]any)
 			switch mode {
+			case "provider_model_match":
+				call["reported_provider"], call["reported_revision"], call["actual_revision"] = nil, nil, nil
+				call["verification_status"], receipt["model_identity_verification"] = "PROVIDER_MODEL_MATCH", "PROVIDER_MODEL_MATCH"
 			case "candidate_actual_baseline":
 				receipt["actual_subject_manifest"] = baselineManifest()
 			case "tool", "schema":
@@ -96,6 +115,21 @@ func TestStage13ReceiptIdentityAndComparability(t *testing.T) {
 				call["reported_model"] = "different"
 			case "echoed_revision":
 				call["reported_revision"] = nil
+			case "requested_as_actual":
+				call["reported_model"] = call["requested_model"]
+				call["reported_revision"] = nil
+				call["actual_revision"] = call["requested_revision"]
+			case "empty_revision":
+				call["requested_revision"] = nil
+				call["reported_revision"], call["actual_revision"] = "", ""
+			case "alias_only":
+				call["reported_model"] = "provider-canonical-alias"
+				call["reported_revision"], call["actual_revision"] = nil, nil
+			case "proof_model_mismatch", "proof_deployment_mismatch", "proof_digest_mismatch", "proof_outside_validity", "proof_wrong_call_binding":
+				// 本轮没有受控部署 proof 合同；拒绝未知 proof，不能信任自报 VERIFIED。
+				call["verification_status"] = "VERIFIED_BY_CONTROLLED_DEPLOYMENT_PROOF"
+				receipt["model_identity_verification"] = call["verification_status"]
+				call["controlled_deployment_proof"] = map[string]any{"model": "wrong-model", "deployment": "wrong-deployment", "proof_digest": "invalid", "valid_until": "2000-01-01T00:00:00Z", "call_id": asset.NewID(), "negative_case": mode}
 			case "run":
 				receipt["run_id"] = asset.NewID()
 			case "attempt":
@@ -154,12 +188,8 @@ func TestStage13ReceiptIdentityAndComparability(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if mode == "valid" || mode == "baseline" {
+			if mode == "valid" || mode == "baseline" || mode == "unknown_revision" || mode == "provider_model_match" {
 				if out.Kind != ev.Success || out.Artifact == nil {
-					t.Fatalf("%+v", out)
-				}
-			} else if mode == "unknown_revision" {
-				if out.ErrorCategory != "MODEL_IDENTITY_UNKNOWN" || out.TerminalCertainty != "REMOTE_CONFIRMED" || len(out.Evidence) != 2 {
 					t.Fatalf("%+v", out)
 				}
 			} else if out.Kind == ev.Success {

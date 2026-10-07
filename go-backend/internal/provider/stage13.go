@@ -20,8 +20,9 @@ const Stage13TargetVersion = "stage13-evaluation-v1"
 const Stage13Protocol = "localagent-ci-triage-evaluation-execute.v1"
 
 type Stage13Config struct {
-	Transport               LocalAgentConfig `json:"transport"`
-	ExpectedSubjectManifest asset.JSON       `json:"expected_subject_manifest"`
+	Transport               LocalAgentConfig       `json:"transport"`
+	ExpectedSubjectManifest asset.JSON             `json:"expected_subject_manifest"`
+	ModelIdentityEvidence   []Stage13ModelEvidence `json:"model_identity_evidence,omitempty"`
 }
 
 type Stage13Target struct {
@@ -90,27 +91,34 @@ func validateManifest(j asset.JSON) error {
 }
 
 type triageCall struct {
-	MessagesDigest   string   `json:"effective_messages_digest"`
-	SystemDigest     string   `json:"effective_system_prompt_digest"`
-	ID               string   `json:"call_id"`
-	RunID            string   `json:"run_id"`
-	Role             string   `json:"role"`
-	Profile          string   `json:"resolved_profile_id"`
-	ProfileDigest    string   `json:"resolved_profile_digest"`
-	ConfigDigest     string   `json:"model_config_digest"`
-	Provider         string   `json:"requested_provider"`
-	Model            string   `json:"requested_model"`
-	Revision         *string  `json:"requested_revision"`
-	ReportedProvider *string  `json:"reported_provider"`
-	ReportedModel    *string  `json:"reported_model"`
-	ReportedRevision *string  `json:"reported_revision"`
-	ActualRevision   *string  `json:"actual_revision"`
-	Certainty        string   `json:"dispatch_certainty"`
-	Verification     string   `json:"verification_status"`
-	InputTokens      *int64   `json:"input_tokens"`
-	OutputTokens     *int64   `json:"output_tokens"`
-	Cost             *float64 `json:"cost"`
-	State            string   `json:"state"`
+	ArtifactDigest   *string    `json:"reported_artifact_digest"`
+	DeploymentID     *string    `json:"reported_deployment_id"`
+	ResolvedProvider string     `json:"resolved_provider"`
+	ProviderSource   string     `json:"resolved_provider_source"`
+	Endpoint         string     `json:"resolved_endpoint"`
+	Config           asset.JSON `json:"resolved_model_config"`
+	Fingerprint      *string    `json:"system_fingerprint"`
+	MessagesDigest   string     `json:"effective_messages_digest"`
+	SystemDigest     string     `json:"effective_system_prompt_digest"`
+	ID               string     `json:"call_id"`
+	RunID            string     `json:"run_id"`
+	Role             string     `json:"role"`
+	Profile          string     `json:"resolved_profile_id"`
+	ProfileDigest    string     `json:"resolved_profile_digest"`
+	ConfigDigest     string     `json:"model_config_digest"`
+	Provider         string     `json:"requested_provider"`
+	Model            string     `json:"requested_model"`
+	Revision         *string    `json:"requested_revision"`
+	ReportedProvider *string    `json:"reported_provider"`
+	ReportedModel    *string    `json:"reported_model"`
+	ReportedRevision *string    `json:"reported_revision"`
+	ActualRevision   *string    `json:"actual_revision"`
+	Certainty        string     `json:"dispatch_certainty"`
+	Verification     string     `json:"verification_status"`
+	InputTokens      *int64     `json:"input_tokens"`
+	OutputTokens     *int64     `json:"output_tokens"`
+	Cost             *float64   `json:"cost"`
+	State            string     `json:"state"`
 }
 type triageReceipt struct {
 	Version         string       `json:"receipt_version"`
@@ -137,6 +145,7 @@ type triageChild struct {
 	Receipt asset.JSON `json:"actual_subject_receipt"`
 }
 type triageResponse struct {
+	ModelDecision asset.JSON    `json:"model_comparability_decision"`
 	Anchor        string        `json:"anchor_run_id"`
 	ChildReceipts []asset.JSON  `json:"child_subject_receipts"`
 	Capture       string        `json:"triage_capture_status"`
@@ -185,10 +194,10 @@ func (t *Stage13Target) validateReceipt(j asset.JSON, anchor, runID, role, input
 	if r.TemplateDigest != rawDigest(template) {
 		return r, &Error{Kind: IdentityMismatch}
 	}
-	if !contains(r.Verification, "UNKNOWN", "VERIFIED_BY_PROVIDER_RESPONSE") {
+	if !contains(r.Verification, "UNKNOWN", "VERIFIED_BY_PROVIDER_RESPONSE", "PROVIDER_MODEL_MATCH", "EXACT_DEPLOYMENT_VERIFIED", "MODEL_IDENTITY_UNKNOWN", "MODEL_IDENTITY_MISMATCH") {
 		return r, &Error{Kind: IdentityMismatch}
 	}
-	if len(r.Calls) == 0 && r.Verification != "UNKNOWN" {
+	if len(r.Calls) == 0 && !contains(r.Verification, "UNKNOWN", "MODEL_IDENTITY_UNKNOWN") {
 		return r, &Error{Kind: IdentityMismatch}
 	}
 	for _, c := range r.Calls {
@@ -198,13 +207,14 @@ func (t *Stage13Target) validateReceipt(j asset.JSON, anchor, runID, role, input
 			return r, &Error{Kind: IdentityMismatch}
 		}
 		seen[c.ID] = true
-		if c.Verification == "VERIFIED_BY_PROVIDER_RESPONSE" {
-			if c.ReportedProvider == nil || *c.ReportedProvider != m.Provider || c.ReportedModel == nil || *c.ReportedModel != m.Model ||
+		if contains(c.Verification, "VERIFIED_BY_PROVIDER_RESPONSE", "EXACT_DEPLOYMENT_VERIFIED") {
+			if c.ReportedModel == nil || *c.ReportedModel != m.Model ||
 				c.ReportedRevision == nil || c.ActualRevision == nil || !sameOptional(c.ReportedRevision, c.ActualRevision) ||
+				strings.TrimSpace(*c.ReportedRevision) == "" ||
 				(m.Revision != nil && !sameOptional(m.Revision, c.ActualRevision)) || c.State != "COMPLETED" || c.Certainty != "PROVIDER_RESPONDED" {
 				return r, &Error{Kind: IdentityMismatch}
 			}
-		} else if c.ActualRevision != nil {
+		} else if c.ActualRevision != nil && (c.ReportedRevision == nil || !sameOptional(c.ReportedRevision, c.ActualRevision) || strings.TrimSpace(*c.ActualRevision) == "") {
 			return r, &Error{Kind: IdentityMismatch}
 		}
 	}
@@ -325,10 +335,28 @@ func (t *Stage13Target) Execute(parent context.Context, s ev.Scope, q ev.Request
 	}
 	envelope, _ := asset.ParseJSON(raw)
 	out.Evidence = []ev.Binding{binding(s, q, "subject-receipt://"+q.AttemptID, "stage13-subject-receipt.v1", envelope), binding(s, q, answer.ID, answer.Schema, wire.Answer)}
-	out.Cleanup, _ = asset.Freeze(map[string]any{"comparability": "BLOCKED", "runtime_status": wire.Status, "selected_status": selectedStatus, "validation": wire.Validation, "model_identity_verification": selected.Verification, "target_version": Stage13TargetVersion})
-	if initial.Verification != "VERIFIED_BY_PROVIDER_RESPONSE" || selected.Verification != "VERIFIED_BY_PROVIDER_RESPONSE" {
+	evidenceFor := func(r triageReceipt) []Stage13ModelEvidence {
+		var result []Stage13ModelEvidence
+		for _, e := range t.config.ModelIdentityEvidence {
+			if e.RunID == r.RunID {
+				result = append(result, e)
+			}
+		}
+		return result
+	}
+	initialDecision := ProjectStage13ModelIdentity(Stage13PolicyInput{Manifest: t.config.ExpectedSubjectManifest, Receipt: wire.Receipt, Evidence: evidenceFor(initial)}, "AGENT_REGRESSION")
+	selectedReceipt := wire.Receipt
+	if wire.Selected != q.AttemptID {
+		selectedReceipt = wire.Children[0].Receipt
+	}
+	modelDecision := ProjectStage13ModelIdentity(Stage13PolicyInput{Manifest: t.config.ExpectedSubjectManifest, Receipt: selectedReceipt, Evidence: evidenceFor(selected)}, "AGENT_REGRESSION")
+	out.Cleanup, _ = asset.Freeze(map[string]any{"comparability": "BLOCKED", "runtime_status": wire.Status, "selected_status": selectedStatus, "validation": wire.Validation, "model_identity_verification": modelDecision.Level, "model_comparability_decision": modelDecision, "target_version": Stage13TargetVersion})
+	if !initialDecision.Comparable || !modelDecision.Comparable {
 		out.ErrorCategory = "MODEL_IDENTITY_UNKNOWN"
-		out.Reason = "Provider revision 不可验证；禁止可比较执行"
+		if initialDecision.Level == "MODEL_IDENTITY_MISMATCH" || modelDecision.Level == "MODEL_IDENTITY_MISMATCH" {
+			out.ErrorCategory = "MODEL_IDENTITY_MISMATCH"
+		}
+		out.Reason = "v2 模型身份策略未满足；禁止可比较执行"
 		return out, nil
 	}
 	if selectedStatus != "SUCCEEDED" {
@@ -342,6 +370,6 @@ func (t *Stage13Target) Execute(parent context.Context, s ev.Scope, q ev.Request
 	value, _ := asset.Freeze(answer.Content)
 	artifact := binding(s, q, answer.ID, "artifact.v1", value)
 	out.Artifact = &artifact
-	out.Cleanup, _ = asset.Freeze(map[string]any{"comparability": "VERIFIED", "runtime_status": wire.Status, "selected_status": selectedStatus, "validation": wire.Validation, "model_identity_verification": selected.Verification, "target_version": Stage13TargetVersion})
+	out.Cleanup, _ = asset.Freeze(map[string]any{"comparability": "COMPARABLE", "runtime_status": wire.Status, "selected_status": selectedStatus, "validation": wire.Validation, "model_identity_verification": modelDecision.Level, "model_comparability_decision": modelDecision, "target_version": Stage13TargetVersion})
 	return out, nil
 }

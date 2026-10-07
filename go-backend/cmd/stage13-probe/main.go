@@ -12,6 +12,22 @@ import (
 )
 
 func main() {
+	if len(os.Args) == 3 && os.Args[1] == "--policy" {
+		raw, err := os.ReadFile(os.Args[2])
+		if err != nil {
+			panic(err)
+		}
+		frozen, err := asset.ParseJSON(raw)
+		if err != nil {
+			panic(err)
+		}
+		var document provider.Stage13PolicyDocument
+		if err = frozen.Decode(&document); err != nil {
+			panic(err)
+		}
+		_ = json.NewEncoder(os.Stdout).Encode(provider.CompareStage13Models(document))
+		return
+	}
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "request file required")
 		os.Exit(2)

@@ -46,7 +46,9 @@ func stage13Score(u Unit) (citriage.Scores, bool) {
 	}
 	return citriage.Scores{Critical: "BLOCKED", Reason: "MISSING_RESULT", Values: map[string]float64{}}, false
 }
-func stage13Aggregate(source Source) Stage13Aggregate {
+
+// SummarizeStage13 复用 Release Gate 的冻结计划分母口径，供受限开发结果投影使用。
+func SummarizeStage13(source Source) Stage13Aggregate {
 	a := Stage13Aggregate{Total: len(source.Units), Scores: map[string]*float64{}}
 	sums := map[string]float64{}
 	eligible := map[string]int{}
@@ -104,7 +106,7 @@ func applyStage13(s Snapshot, r *Receipt) {
 	if !enabled {
 		return
 	}
-	g := &Stage13Gate{Version: "stage13.ci-triage-release.v1", Baseline: stage13Aggregate(s.Baseline), Candidate: stage13Aggregate(s.Candidate), Thresholds: map[string]float64{}, AbsoluteMetricGate: Pass, RegressionGate: Pass, CriticalGate: Pass, ComparabilityGate: Pass, BaselineValid: true, Cases: []Stage13Case{}, FailingMetrics: []string{}, CriticalCases: []string{}, BlockedReasons: []string{}}
+	g := &Stage13Gate{Version: "stage13.ci-triage-release.v1", Baseline: SummarizeStage13(s.Baseline), Candidate: SummarizeStage13(s.Candidate), Thresholds: map[string]float64{}, AbsoluteMetricGate: Pass, RegressionGate: Pass, CriticalGate: Pass, ComparabilityGate: Pass, BaselineValid: true, Cases: []Stage13Case{}, FailingMetrics: []string{}, CriticalCases: []string{}, BlockedReasons: []string{}}
 	r.Stage13 = g
 	// Stage13 critical status 来自完整可决性，不能把 invalid 的零分误记为已知 critical wrong。
 	r.CriticalRegressions = []string{}

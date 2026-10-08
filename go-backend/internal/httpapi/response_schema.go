@@ -67,6 +67,9 @@ func (s *Server) responseSchema(r route) any {
 		return listSchema(fieldSchema(postgres.ProductRow{}))
 	}
 	if kind == "runs" && r.Method == "GET" {
+		if strings.HasSuffix(path, "/development-evidence") {
+			return fieldSchema(triageDevelopmentEvidence{})
+		}
 		if strings.HasSuffix(path, "/results") {
 			return listSchema(fieldSchema(resultResponse{}))
 		}

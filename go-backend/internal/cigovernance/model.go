@@ -53,7 +53,9 @@ type Policy struct {
 }
 
 func (p Policy) Validate() error {
-	if p.Version != Contract || !slices.Contains(Roles, p.Role) || p.GTMapping != GTMapping || p.Split != SplitVersion || p.Profile != Profile || !p.Frozen {
+	profileValid := p.Profile == Profile && p.GTMapping == GTMapping && p.Split == SplitVersion
+	profileValid = profileValid || p.Profile == ProfileV2 && p.GTMapping == GTMappingV2 && p.Split == SplitVersionV2 && p.Role == "HOLDOUT"
+	if p.Version != Contract || !slices.Contains(Roles, p.Role) || !profileValid || !p.Frozen {
 		return asset.ErrInvalid
 	}
 	if p.Family != "" && (!asset.Text(p.Family) || !slices.Contains(ReviewStates, p.State)) {

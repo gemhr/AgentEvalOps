@@ -37,5 +37,10 @@ logs/
 # AI
 .ai/
 
+# 受控 Holdout 生成器、fixture 与映射迁至仓库外 operator-only 工作区。
+/go-backend/internal/cigovernance/renewal.go
+/go-backend/internal/cigovernance/renewal_test.go
+/go-backend/cmd/stage13-renewal/
+
 # 临时文件
 .tmp/

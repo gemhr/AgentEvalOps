@@ -140,6 +140,12 @@ cd frontend && yarn format:check
 
 ## 12. Git / Worktree Safety and Scope
 
+### 受控 Holdout 源码与开发访问边界
+
+- 新 Holdout 的生成器、场景、evaluator-side GT、fixture 和答案映射均为 `HOLDOUT_RELEASE_ONLY / operator-only`，不得进入普通 Git 提交、远端或开发侧输出；受控源码保存在仓库外的独立 operator 工作区。
+- 当前完整工作区可能含 `.ai/` 受控证据，禁止将其提供给 Candidate 开发进程。开发侧仅获得预生成的 `DEVELOPMENT_VISIBLE` 安全投影、必要开发代码及对应 scoped credential，不得获得 Holdout 源码、operator 目录或 Holdout/Calibration 凭据。
+- Git ignore、迁出目录和净化环境变量不等同于 OS 级隔离。若无法落实开发进程的可读范围，必须先隔离运行环境或仅提供安全投影；未核实访问边界时，不得声称新 Holdout 未曝光。
+
 开始修改前必须执行并理解：
 
 ```bash

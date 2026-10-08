@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/cigovernance"
 	ev "agentevalops/go-backend/internal/evaluation"
 	"context"
 	"encoding/json"
@@ -311,6 +312,16 @@ func (k Evaluation) CreateRun(ctx context.Context, s ev.Scope, c ev.CreateRun) (
 	if e != nil {
 		return ev.Reply{Code: ev.Rejected, Reason: e.Error()}, nil
 	}
+	metadata := map[string]any{"Actor": s.Principal}
+	if snap.Intent == "RELEASE_EVALUATION" {
+		manifest, err := cigovernance.ReleaseSubject(snap.Target.Config)
+		if err != nil || snap.Target.ID != "localagent-ci-triage-http" {
+			return ev.Reply{Code: ev.Rejected, Reason: "RELEASE_SUBJECT_INVALID"}, nil
+		}
+		// 复用原 Run 的原子幂等命令；换 command ID 不能重抽同一主体/完整 Holdout。
+		c.CommandID = cigovernance.ID("stage13.holdout-consumption.v1", s.ProjectID, snap.Input.Dataset.Ref.EntityID, snap.Input.Dataset.Ref.Version, manifest.ID, manifest.Version)
+		metadata["holdout_consumption"] = map[string]any{"version": "stage13.holdout-consumption.v1", "state": "CONSUMED", "candidate_subject_manifest_digest": manifest.Digest, "consumption_reason": "FIRST_FORMAL_RELEASE_EVALUATION_CREATED", "consumed_at_source": "evaluation_runs.created_at", "gate_source": "evaluation_gate_receipts joined through evaluation_comparisons"}
+	}
 	digest, e := ev.Intent(struct {
 		Snapshot ev.RunSnapshot
 		Actor    string
@@ -367,7 +378,7 @@ func (k Evaluation) CreateRun(ctx context.Context, s ev.Scope, c ev.CreateRun) (
 				return ev.Reply{}, stop(ev.IntegrityBlocked, "PINNED_IDENTITY_MISMATCH")
 			}
 		}
-		return insertRun(ctx, tx, s, snap, c.CommandID, digest, nil, "", struct{ Actor string }{s.Principal})
+		return insertRun(ctx, tx, s, snap, c.CommandID, digest, nil, "", metadata)
 	})
 }
 func (k Evaluation) ClaimExecutionAttempt(ctx context.Context, s ev.Scope, o ev.Owned, owner string, d time.Duration) (ev.Reply, error) {

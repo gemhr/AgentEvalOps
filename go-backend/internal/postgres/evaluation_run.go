@@ -106,6 +106,9 @@ func (k Evaluation) CreateRunRerun(ctx context.Context, s ev.Scope, c ev.Rerun) 
 		return ev.Reply{Code: ev.Rejected}, nil
 	}
 	return k.transact(ctx, s, c.SourceRunID, true, func(tx pgx.Tx, r ev.Run, _ string) (ev.Reply, error) {
+		if r.Snapshot.Intent == "RELEASE_EVALUATION" {
+			return ev.Reply{}, stop(ev.Rejected, "HOLDOUT_ALREADY_CONSUMED")
+		}
 		if !r.Status.Terminal() {
 			return ev.Reply{}, stop(ev.Rejected, "SOURCE_NOT_TERMINAL")
 		}

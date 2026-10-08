@@ -55,6 +55,7 @@ type Policy struct {
 func (p Policy) Validate() error {
 	profileValid := p.Profile == Profile && p.GTMapping == GTMapping && p.Split == SplitVersion
 	profileValid = profileValid || p.Profile == ProfileV2 && p.GTMapping == GTMappingV2 && p.Split == SplitVersionV2 && p.Role == "HOLDOUT"
+	profileValid = profileValid || p.Profile == ProfileV3 && p.GTMapping == GTMappingV3 && p.Split == SplitVersionV3 && p.Role == "HOLDOUT"
 	if p.Version != Contract || !slices.Contains(Roles, p.Role) || !profileValid || !p.Frozen {
 		return asset.ErrInvalid
 	}

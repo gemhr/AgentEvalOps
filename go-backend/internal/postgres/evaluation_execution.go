@@ -292,7 +292,7 @@ func insertRun(ctx context.Context, tx pgx.Tx, s ev.Scope, snapshot ev.RunSnapsh
 		for _, item := range snapshot.Input.Manifest {
 			cases = append(cases, item.Identity.Ref)
 		}
-		if cigovernance.WP09Retired(snapshot.Input.Dataset.Ref, cases) {
+		if cigovernance.WP09Retired(snapshot.Input.Dataset.Ref, cases) || cigovernance.WP11Retired(snapshot.Input.Dataset.Ref, cases) {
 			return ev.Reply{}, stop(ev.Rejected, "HOLDOUT_CONSUMED_EXPOSED")
 		}
 	}

@@ -161,6 +161,9 @@ func (s *Server) catalogRoutes() {
 		cases, err := datasets.ExportDevelopment(r.ctx(), r.scope(), asset.Ref{EntityID: r.HTTP.PathValue("id"), Version: r.HTTP.PathValue("version")})
 		return map[string]any{"ref": asset.Ref{EntityID: r.HTTP.PathValue("id"), Version: r.HTTP.PathValue("version")}, "cases": cases}, err
 	})
+	s.add("GET", "/datasets/{id}/versions/{version}/exposed-analysis-export", identity.Read, false, nil, func(r *request) (any, error) {
+		return datasets.ExportExposedAnalysis(r.ctx(), r.scope(), asset.Ref{EntityID: r.HTTP.PathValue("id"), Version: r.HTTP.PathValue("version")})
+	})
 	registerCatalog(s, "suites", identity.Write, suites.CreateSuite, suites.GetSuite, suites.PublishSuiteVersion, suites.GetSuiteVersion)
 	registerCatalog(s, "metrics", identity.ManagePolicy, metrics.CreateMetricDefinition, metrics.GetMetricDefinition, metrics.PublishMetricDefinitionVersion, metrics.GetMetricDefinitionVersion)
 	registerCatalog(s, "evaluators", identity.ManagePolicy, evaluators.CreateEvaluatorDefinition, evaluators.GetEvaluatorDefinition, evaluators.PublishEvaluatorDefinitionVersion, evaluators.GetEvaluatorDefinitionVersion)

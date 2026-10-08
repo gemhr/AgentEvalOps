@@ -36,6 +36,9 @@ func (s *Server) responseSchema(r route) any {
 	if kind == "datasets" && strings.HasSuffix(path, "/development-export") {
 		return objectSchema([]string{"ref", "cases"}, map[string]any{"ref": fieldSchema(asset.Ref{}), "cases": fieldSchema([]catalog.DevelopmentCase{})})
 	}
+	if kind == "datasets" && strings.HasSuffix(path, "/exposed-analysis-export") {
+		return fieldSchema(catalog.ExposedAnalysis{})
+	}
 	if kind == "analytics" {
 		return fieldSchema(analytics.Response{})
 	}
@@ -70,6 +73,9 @@ func (s *Server) responseSchema(r route) any {
 		return listSchema(fieldSchema(postgres.ProductRow{}))
 	}
 	if kind == "runs" && r.Method == "GET" {
+		if strings.HasSuffix(path, "/exposed-analysis-evidence") {
+			return objectSchema([]string{"source_role", "usage", "evidence"}, map[string]any{"source_role": fieldSchema(""), "usage": fieldSchema(""), "evidence": fieldSchema(triageDevelopmentEvidence{})})
+		}
 		if strings.HasSuffix(path, "/development-evidence") {
 			return fieldSchema(triageDevelopmentEvidence{})
 		}

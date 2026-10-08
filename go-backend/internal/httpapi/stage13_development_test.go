@@ -36,3 +36,24 @@ func TestDevelopmentEvidenceNeverExportsFrozenGroundTruth(t *testing.T) {
 		t.Fatal("GT escaped projection", string(raw))
 	}
 }
+
+func TestWP10BExposedResultBoundary(t *testing.T) {
+	state := ev.RunState{}
+	state.Run.ID = asset.NewID()
+	state.Run.Snapshot.Target.ID = provider.Stage13TargetID
+	raw, _ := asset.Freeze(asset.Content[catalog.DatasetContent]{Body: catalog.DatasetContent{Metadata: gov.Metadata(gov.Policy{Version: gov.Contract, Role: "HOLDOUT", GTMapping: gov.GTMapping, Split: gov.SplitVersion, Profile: gov.Profile, Frozen: true})}})
+	state.Run.Snapshot.Input.Dataset = &ev.AssetIdentity{CanonicalContent: raw}
+	for _, ref := range []asset.Ref{{EntityID: "e7a70b04-0712-58bc-a0c8-655eac0aa463", Version: "golden-v2"}, {EntityID: "6fb67037-6512-562a-8227-e842851e6f0f", Version: "golden-v2"}} {
+		state.Run.Snapshot.Input.Dataset.Ref = ref
+		if _, err := projectTriageEvidence(state, true); err != asset.ErrForbidden {
+			t.Fatal("unexposed result exported", err)
+		}
+	}
+	state.Run.Snapshot.Input.Dataset.Ref = asset.Ref{EntityID: "6fb67037-6512-562a-8227-e842851e6f0f", Version: "golden-v1"}
+	if _, err := projectTriageEvidence(state, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := projectTriageDevelopment(state); err != asset.ErrForbidden {
+		t.Fatal("ordinary development projection opened HOLDOUT", err)
+	}
+}

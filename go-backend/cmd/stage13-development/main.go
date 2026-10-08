@@ -77,7 +77,12 @@ func main() {
 	defer stop()
 	cfg, e := pgxpool.ParseConfig(os.Getenv("WP08_OPERATOR_DATABASE_URL"))
 	must(e)
-	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Database != "stage13_wp08_evalops_test" {
+	expectedDatabase := "stage13_wp08_evalops_test"
+	wp10b := os.Getenv("WP10B_OPERATOR_BOOTSTRAP") == "1"
+	if wp10b {
+		expectedDatabase = "stage13_wp10b_evalops_test"
+	}
+	if cfg.ConnConfig.Host != "127.0.0.1" || cfg.ConnConfig.Database != expectedDatabase {
 		panic("ISOLATED_WP08_REQUIRED")
 	}
 	pool, e := pgxpool.NewWithConfig(ctx, cfg)
@@ -164,6 +169,53 @@ func main() {
 	access := identity.Access{Scope: scope, Principal: identity.Principal{ID: scope.Principal, Capabilities: append(caps, identity.ManageAPIKey)}}
 	credential, key, e := ident.CreateCredential(ctx, access, asset.NewID(), "WP08 Development-only", caps, nil)
 	must(e)
+	var retiredDataset asset.Ref
+	var retiredMapping map[string]string
+	operatorKeys := map[string]any{}
+	if wp10b {
+		ref := asset.Ref{EntityID: "6fb67037-6512-562a-8227-e842851e6f0f", Version: "golden-v1"}
+		var oldProject, oldOrg string
+		must(pool.QueryRow(ctx, "SELECT d.project_id::text,p.org_id::text FROM evaluation_dataset_versions d JOIN projects p ON p.id=d.project_id WHERE d.entity_id=$1 AND d.version=$2", ref.EntityID, ref.Version).Scan(&oldProject, &oldOrg))
+		oldScope := asset.Scope{ProjectID: oldProject, OrganizationID: oldOrg, Principal: scope.Principal}
+		export, err := ds.ExportExposedAnalysis(ctx, oldScope, ref)
+		must(err)
+		must(os.MkdirAll(filepath.Join(os.Args[1], "development"), 0700))
+		raw, err := json.Marshal(export)
+		must(err)
+		must(os.WriteFile(filepath.Join(os.Args[1], "development", "wp09-exposed-export.json"), raw, 0600))
+		refs := []asset.Ref{}
+		retiredMapping = map[string]string{}
+		for _, item := range export.Cases {
+			original, err := readers.Cases.GetCaseVersion(ctx, oldScope, item.Case)
+			must(err)
+			body := original.Content().Body
+			body.Metadata = freeze(map[string]any{"usage": "EXPOSED_SET", "source_role": "CONSUMED_EXPOSED", "source_case": item.Case, "generalization_proof": false})
+			r := asset.Ref{EntityID: asset.NewID(), Version: "wp10b-exposed-v1"}
+			_, err = cs.CreateCase(ctx, scope, asset.Create{ID: r.EntityID, Name: "WP09 CONSUMED_EXPOSED " + item.Case.EntityID})
+			must(err)
+			_, err = cs.PublishCaseVersion(ctx, scope, asset.Publish[catalog.CaseContent]{Ref: r, Body: body, Source: source})
+			must(err)
+			refs = append(refs, r)
+			retiredMapping[r.EntityID] = item.Case.EntityID
+		}
+		retiredDataset = asset.Ref{EntityID: asset.NewID(), Version: "wp10b-exposed-v1"}
+		_, err = ds.CreateDataset(ctx, scope, asset.Create{ID: retiredDataset.EntityID, Name: "WP09 EXPOSED_DEVELOPMENT_ANALYSIS"})
+		must(err)
+		_, err = ds.PublishDatasetVersion(ctx, scope, asset.Publish[catalog.DatasetContent]{Ref: retiredDataset, Body: catalog.DatasetContent{Cases: refs, Metadata: freeze(map[string]any{"usage": "EXPOSED_SET", "source_role": "CONSUMED_EXPOSED", "source_dataset": ref, "generalization_proof": false})}, Source: source})
+		must(err)
+		// 这些 READ key 只留在 operator 匿名管道，绝不传给开发 runner。
+		for _, project := range []struct{ id, org, label string }{{oldProject, oldOrg, "retired"}, {"7134c30f-894a-5e26-b782-bb8b996596eb", "", "metadata"}} {
+			orgID := project.org
+			if orgID == "" {
+				must(pool.QueryRow(ctx, "SELECT org_id::text FROM projects WHERE id=$1", project.id).Scan(&orgID))
+			}
+			a := identity.Access{Scope: asset.Scope{ProjectID: project.id, OrganizationID: orgID, Principal: scope.Principal}, Principal: identity.Principal{ID: scope.Principal, Capabilities: []identity.Capability{identity.Read, identity.ManageAPIKey}}}
+			_, readKey, err := ident.CreateCredential(ctx, a, asset.NewID(), "WP10B operator "+project.label, []identity.Capability{identity.Read}, nil)
+			must(err)
+			operatorKeys[project.label+"_api_key"] = readKey
+			operatorKeys[project.label+"_project_id"] = project.id
+		}
+	}
 	k.Capabilities, e = k.LoadEvaluatorCapabilities(ctx, agentquality.DeterministicSupported)
 	must(e)
 	apiPoolCfg, e := pgxpool.ParseConfig(os.Getenv("WP08_OPERATOR_API_DATABASE_URL"))
@@ -189,6 +241,12 @@ func main() {
 	runtime := worker.Runtime{Config: wc, Backend: k, Target: target{k}, Evaluator: agentquality.DeterministicEvaluator{}, Epoch: epoch, Log: slog.Default()}
 	// stdout 是 operator 内部匿名管道，含 secret 的 ready 消息不得写入日志或 evidence。
 	ready := map[string]any{"base_url": "http://" + listener.Addr().String(), "api_key": key, "credential_id": credential.ID, "project_id": developmentProject, "evaluators": bindings, "historical_dataset": historicalDataset, "historical_case_mapping": mapping}
+	if wp10b {
+		ready["wp09_exposed_dataset"], ready["wp09_exposed_case_mapping"] = retiredDataset, retiredMapping
+		for k, v := range operatorKeys {
+			ready[k] = v
+		}
+	}
 	encoded, _ := json.Marshal(ready)
 	fmt.Println(string(encoded))
 	done := make(chan error, 1)

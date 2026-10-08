@@ -28,6 +28,10 @@ type triageDevelopmentEvidence struct {
 
 // 仅导出开发用途的实际执行回执/输出，不返回 snapshot、Case GT 或隐藏 descriptor。
 func projectTriageDevelopment(state ev.RunState) (triageDevelopmentEvidence, error) {
+	return projectTriageEvidence(state, false)
+}
+
+func projectTriageEvidence(state ev.RunState, exposedAnalysis bool) (triageDevelopmentEvidence, error) {
 	out := triageDevelopmentEvidence{RunID: state.Run.ID, Attempts: []triageDevelopmentAttempt{}}
 	if state.Run.Snapshot.Target.ID != provider.Stage13TargetID || state.Run.Snapshot.Input.Dataset == nil {
 		return out, asset.ErrForbidden
@@ -42,7 +46,8 @@ func projectTriageDevelopment(state ev.RunState) (triageDevelopmentEvidence, err
 	}
 	var exposed map[string]asset.JSON
 	_ = dataset.Body.Metadata.Decode(&exposed)
-	if !(policy != nil && policy.Role == "DEVELOPMENT") && exposed["usage"].String() != `"EXPOSED_SET"` {
+	retired := exposedAnalysis && state.Run.Snapshot.Input.Dataset.Ref.EntityID == "6fb67037-6512-562a-8227-e842851e6f0f" && state.Run.Snapshot.Input.Dataset.Ref.Version == "golden-v1" && policy != nil && policy.Role == "HOLDOUT"
+	if exposedAnalysis && !retired || !exposedAnalysis && !(policy != nil && policy.Role == "DEVELOPMENT") && exposed["usage"].String() != `"EXPOSED_SET"` {
 		return out, asset.ErrForbidden
 	}
 	for _, a := range state.Attempts {
@@ -58,6 +63,14 @@ func projectTriageDevelopment(state ev.RunState) (triageDevelopmentEvidence, err
 	return out, nil
 }
 func (s *Server) stage13DevelopmentRoutes() {
+	s.add("GET", "/runs/{id}/exposed-analysis-evidence", identity.Read, false, nil, func(r *request) (any, error) {
+		state, e := s.Kernel.ReadRunState(r.ctx(), r.scope(), r.HTTP.PathValue("id"))
+		if e != nil {
+			return nil, e
+		}
+		evidence, e := projectTriageEvidence(state, true)
+		return map[string]any{"source_role": "CONSUMED_EXPOSED", "usage": "EXPOSED_DEVELOPMENT_ANALYSIS", "evidence": evidence}, e
+	})
 	s.add("GET", "/runs/{id}/development-evidence", identity.Read, false, nil, func(r *request) (any, error) {
 		state, e := s.Kernel.ReadRunState(r.ctx(), r.scope(), r.HTTP.PathValue("id"))
 		if e != nil {

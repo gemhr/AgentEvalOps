@@ -92,20 +92,35 @@ type MetricRule struct {
 	TargetRange *[2]float64
 }
 type Policy struct {
-	Offline, Online     bool
-	Criticalities       []string
-	CriticalMissing     bool
-	BlockPerCase        bool
-	Coverage            CoveragePolicy
-	TaskSuccess         *MetricRule
-	Metrics             []MetricRule
-	AcceptedDifferences []AcceptedDifference
-	Exceptions          []Exception
+	// 显式 opt-in；缺省保留历史 Stage13 v1 的判断和 canonical bytes。
+	Stage13ReleaseVersion string `json:"stage13_release_version,omitempty"`
+	Offline, Online       bool
+	Criticalities         []string
+	CriticalMissing       bool
+	BlockPerCase          bool
+	Coverage              CoveragePolicy
+	TaskSuccess           *MetricRule
+	Metrics               []MetricRule
+	AcceptedDifferences   []AcceptedDifference
+	Exceptions            []Exception
 }
 type EvaluationPolicyVersion = asset.Version[Policy]
 type PolicyVersion = EvaluationPolicyVersion
 
 func (p Policy) Validate() error {
+	if p.Stage13ReleaseVersion != "" && p.Stage13ReleaseVersion != Stage13ReleaseV2 {
+		return asset.ErrInvalid
+	}
+	if p.Stage13ReleaseVersion == Stage13ReleaseV2 {
+		if !p.Offline || !p.CriticalMissing || !p.BlockPerCase || !one("CRITICAL", p.Criticalities...) || len(p.Exceptions) != 0 || p.Coverage != (CoveragePolicy{MinimumDecision: 1, MinimumEvaluation: 1}) {
+			return asset.ErrInvalid
+		}
+		for _, rule := range p.Metrics {
+			if rule.AbsoluteTolerance != nil && *rule.AbsoluteTolerance != 0 || rule.RelativeTolerance != nil && *rule.RelativeTolerance != 0 {
+				return asset.ErrInvalid
+			}
+		}
+	}
 	if !p.Offline && !p.Online {
 		return asset.ErrInvalid
 	}

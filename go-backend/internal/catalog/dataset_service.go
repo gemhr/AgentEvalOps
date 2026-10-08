@@ -57,7 +57,7 @@ func (s DatasetService) PublishDatasetVersion(ctx context.Context, scope asset.S
 		}
 		if policy != nil {
 			p, err := cigovernance.ReadPolicy(v.Content().Body.Metadata)
-			if err != nil || p == nil || p.Role != policy.Role || !cigovernance.HardGolden(p.State) || p.ReviewID == "" || slices.Contains(families, p.Family) {
+			if err != nil || p == nil || p.Role != policy.Role || p.Profile != policy.Profile || p.GTMapping != policy.GTMapping || p.Split != policy.Split || !cigovernance.HardGolden(p.State) || p.ReviewID == "" || slices.Contains(families, p.Family) {
 				return DatasetVersion{}, asset.ErrInvalid
 			}
 			families = append(families, p.Family)

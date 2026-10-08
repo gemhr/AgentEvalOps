@@ -5,6 +5,8 @@ import (
 	"agentevalops/go-backend/internal/citriage"
 )
 
+const Stage13ReleaseV2 = "stage13.ci-triage-release.v2"
+
 type Stage13Aggregate struct {
 	Total, Valid, Invalid, Evaluated, Decidable int
 	Scores                                      map[string]*float64
@@ -17,6 +19,9 @@ type Stage13Case struct {
 	CriticalRegression  bool
 }
 type Stage13Gate struct {
+	BaselineQualityStatus                                               string   `json:"baseline_quality_status,omitempty"`
+	EvidenceCoverageGate                                                Decision `json:"evidence_coverage_gate,omitempty"`
+	RegressionPolicy                                                    string   `json:"regression_policy,omitempty"`
 	Version                                                             string
 	Baseline, Candidate                                                 Stage13Aggregate
 	Cases                                                               []Stage13Case
@@ -108,6 +113,13 @@ func applyStage13(s Snapshot, r *Receipt) {
 	}
 	g := &Stage13Gate{Version: "stage13.ci-triage-release.v1", Baseline: SummarizeStage13(s.Baseline), Candidate: SummarizeStage13(s.Candidate), Thresholds: map[string]float64{}, AbsoluteMetricGate: Pass, RegressionGate: Pass, CriticalGate: Pass, ComparabilityGate: Pass, BaselineValid: true, Cases: []Stage13Case{}, FailingMetrics: []string{}, CriticalCases: []string{}, BlockedReasons: []string{}}
 	r.Stage13 = g
+	v2 := s.Policy.Stage13ReleaseVersion == Stage13ReleaseV2
+	if v2 {
+		g.Version = Stage13ReleaseV2
+		g.BaselineQualityStatus = "BASELINE_QUALITY_MEETS_THRESHOLD"
+		g.EvidenceCoverageGate = Pass
+		g.RegressionPolicy = "stage13.regression.zero-tolerance.v2"
+	}
 	// Stage13 critical status 来自完整可决性，不能把 invalid 的零分误记为已知 critical wrong。
 	r.CriticalRegressions = []string{}
 	kept := r.Issues[:0]
@@ -133,6 +145,13 @@ func applyStage13(s Snapshot, r *Receipt) {
 	if g.Baseline.Total == 0 || g.Baseline.Decidable != g.Baseline.Total || g.Baseline.Evaluated != g.Baseline.Total {
 		g.BaselineValid = false
 	}
+	if v2 && (r.Compatibility == Incomparable || !stage13EvidenceValid(s.Baseline)) {
+		g.BaselineValid = false
+	}
+	if v2 && (!g.BaselineValid || !stage13EvidenceValid(s.Candidate)) {
+		g.EvidenceCoverageGate = Blocked
+		issue("CI_EVIDENCE_COVERAGE_INVALID", "coverage", Blocked)
+	}
 	if g.Candidate.Total == 0 || g.Candidate.Decidable != g.Candidate.Total || g.Candidate.Evaluated != g.Candidate.Total {
 		issue("CI_DECISION_COVERAGE_INSUFFICIENT", "coverage", Blocked)
 		g.AbsoluteMetricGate = Blocked
@@ -145,7 +164,11 @@ func applyStage13(s Snapshot, r *Receipt) {
 		g.Thresholds[m] = threshold
 		b, c := g.Baseline.Scores[m], g.Candidate.Scores[m]
 		if b == nil || *b < threshold {
-			g.BaselineValid = false
+			if v2 {
+				g.BaselineQualityStatus = "BASELINE_QUALITY_BELOW_THRESHOLD"
+			} else {
+				g.BaselineValid = false
+			}
 		}
 		if c == nil {
 			g.AbsoluteMetricGate = Blocked
@@ -199,7 +222,11 @@ func applyStage13(s Snapshot, r *Receipt) {
 		}
 		if u.Criticality == "CRITICAL" {
 			if bs.Critical != "PASS" {
-				g.BaselineValid = false
+				if v2 {
+					g.BaselineQualityStatus = "BASELINE_QUALITY_BELOW_THRESHOLD"
+				} else {
+					g.BaselineValid = false
+				}
 			}
 			status := Decision(cs.Critical)
 			if !cok {
@@ -244,8 +271,46 @@ func applyStage13(s Snapshot, r *Receipt) {
 		issue("CI_REGRESSION_GATE", "regression", g.RegressionGate)
 	}
 	if !g.BaselineValid {
-		issue("BASELINE_INVALID", "baseline", Blocked)
+		if v2 {
+			g.BaselineQualityStatus = "BASELINE_QUALITY_UNAVAILABLE"
+			issue("COMPARATOR_INVALID", "baseline", Blocked)
+		} else {
+			issue("BASELINE_INVALID", "baseline", Blocked)
+		}
 	}
 	r.CriticalRegressions = unique(r.CriticalRegressions)
 	g.BlockedReasons = unique(g.BlockedReasons)
+}
+
+// Result binding/实际身份由 Offline 与 Compare 核验；此处保证每案七项完整且同源。
+func stage13EvidenceValid(source Source) bool {
+	if len(source.Reasons) != 0 || len(source.Units) == 0 || source.ExpectedSlots != source.CompletedSlots {
+		return false
+	}
+	for _, u := range source.Units {
+		score, ok := stage13Score(u)
+		if !ok || !score.SchemaValid || !score.SemanticValid || !score.Decidable {
+			return false
+		}
+		seen := map[string]bool{}
+		for _, m := range u.Metrics {
+			if m.Evaluator.Definition.ImplementationRef != citriage.Implementation {
+				continue
+			}
+			name := metricKey(m.Evaluator)
+			value, exists := score.Values[name]
+			if !exists || !one(name, citriage.Metrics...) || seen[name] || !finite(value) || value < 0 || value > 1 || m.ResultID == "" || m.Applicability != asset.Applicable || !one(m.Verdict, "PASS", "FAIL") || m.Value == nil || *m.Value != value {
+				return false
+			}
+			other, valid := stage13Score(Unit{Metrics: []MetricFact{m}})
+			if !valid || digest(other) != digest(score) {
+				return false
+			}
+			seen[name] = true
+		}
+		if len(seen) != len(citriage.Metrics) {
+			return false
+		}
+	}
+	return true
 }

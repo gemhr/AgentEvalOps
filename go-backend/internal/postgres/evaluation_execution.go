@@ -287,6 +287,15 @@ func insertRun(ctx context.Context, tx pgx.Tx, s ev.Scope, snapshot ev.RunSnapsh
 	if !errors.As(e, &cs) || cs.reply.Code != ev.NotFound {
 		return ev.Reply{}, e
 	}
+	if snapshot.Intent == "RELEASE_EVALUATION" {
+		dataset := asset.Ref{}
+		if snapshot.Input.Dataset != nil {
+			dataset = snapshot.Input.Dataset.Ref
+		}
+		if cigovernance.WP12BRetired(s.ProjectID, dataset) {
+			return ev.Reply{}, stop(ev.Rejected, "HOLDOUT_EXPOSED")
+		}
+	}
 	if snapshot.Intent == "RELEASE_EVALUATION" && snapshot.Input.Dataset != nil {
 		cases := []asset.Ref{}
 		for _, item := range snapshot.Input.Manifest {

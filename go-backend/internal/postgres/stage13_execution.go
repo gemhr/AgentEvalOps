@@ -31,7 +31,7 @@ func (k Evaluation) ReserveStage13Execution(ctx context.Context, s ev.Scope, q e
 		ExecutionPolicyVersion  string     `json:"execution_policy_version"`
 		ExpectedSubjectManifest asset.JSON `json:"expected_subject_manifest"`
 	}
-	if json.Unmarshal(q.Target.Config.Bytes(), &cfg) != nil || cfg.ExecutionPolicyVersion != citriage.ExecutionPolicyVersion {
+	if json.Unmarshal(q.Target.Config.Bytes(), &cfg) != nil || (cfg.ExecutionPolicyVersion != citriage.ExecutionPolicyVersion && cfg.ExecutionPolicyVersion != citriage.ExecutionPolicyV2) || (cfg.ExecutionPolicyVersion == citriage.ExecutionPolicyV2) != (citriage.InputVersion(q.Case.Case.Input) == citriage.InputV2) {
 		return asset.JSON{}, asset.ErrInvalid
 	}
 	body, err := citriage.MaterializeExecution(q.Case.Case.Input, cfg.ExpectedSubjectManifest, q.RunID, q.AttemptID, q.Target.TimeoutMilliseconds, started)

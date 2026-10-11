@@ -153,7 +153,7 @@ func Offline(ref SourceRef, states []ev.RunState) (Source, error) {
 					}
 					u.TaskAvailability = string(m.Applicability)
 				}
-				if spec.Definition.ImplementationRef == "stage13.ci-triage-deterministic.v1" && metricKey(spec) == "ci_triage_decidability.v1" {
+				if citriage.IsImplementation(spec.Definition.ImplementationRef) && metricKey(spec) == "ci_triage_decidability.v1" {
 					u.Task = "INCONCLUSIVE"
 					if m.Verdict == "PASS" {
 						u.Task = "SUCCESS"
@@ -197,7 +197,11 @@ func stage13Identity(a ev.Attempt, config, input asset.JSON) (string, bool) {
 		} `json:"model_comparability_decision"`
 	}
 	// 该事实由正式 Go Target 独立重算并绑定本 Attempt，不能用客户端声明替代。
-	if json.Unmarshal(a.Metadata.Observation.Cleanup.Bytes(), &cleanup) != nil || cleanup.Comparability != "COMPARABLE" || cleanup.Model.Policy != "stage13.model-comparability.v2" || !cleanup.Model.Comparable || cleanup.Model.Provider == nil || cleanup.Model.Model == nil {
+	expectedPolicy := "stage13.model-comparability.v2"
+	if cfg.ExecutionPolicyVersion == citriage.ExecutionPolicyV2 {
+		expectedPolicy = "stage13.model-comparability.v3"
+	}
+	if json.Unmarshal(a.Metadata.Observation.Cleanup.Bytes(), &cleanup) != nil || cleanup.Comparability != "COMPARABLE" || cleanup.Model.Policy != expectedPolicy || !cleanup.Model.Comparable || cleanup.Model.Provider == nil || cleanup.Model.Model == nil {
 		return "", false
 	}
 	for _, e := range a.Metadata.Observation.Evidence {
@@ -225,7 +229,7 @@ func stage13Identity(a ev.Attempt, config, input asset.JSON) (string, bool) {
 			inputMatches := false
 			if json.Unmarshal(receipt.Bytes(), &r) == nil {
 				inputMatches = r.Input == input.Digest()
-				if cfg.ExecutionPolicyVersion == "stage13.attempt-execution.v1" {
+				if cfg.ExecutionPolicyVersion == "stage13.attempt-execution.v1" || cfg.ExecutionPolicyVersion == citriage.ExecutionPolicyV2 {
 					var p citriage.ExecutionPolicy
 					inputMatches = false
 					if r.Policy.Decode(&p) == nil {
@@ -236,6 +240,9 @@ func stage13Identity(a ev.Attempt, config, input asset.JSON) (string, bool) {
 						_ = fields["query"].Decode(&query)
 						actual, parseErr := asset.ParseJSON([]byte(query))
 						inputMatches = err == nil && parseErr == nil && r.Input == actual.Digest() && r.Execution == body.Digest() && r.Policy.String() == fields["execution_policy"].String() && r.Semantic == p.SemanticDigest
+						if cfg.ExecutionPolicyVersion == citriage.ExecutionPolicyV2 {
+							inputMatches = inputMatches && citriage.ValidateReceiptV2(receipt, cfg.ExpectedSubjectManifest, fields["execution_policy"], body.Digest()) == nil
+						}
 					}
 				}
 			}
@@ -244,6 +251,13 @@ func stage13Identity(a ev.Attempt, config, input asset.JSON) (string, bool) {
 			}
 			var m map[string]asset.JSON
 			_ = r.Manifest.Decode(&m)
+			if cfg.ExecutionPolicyVersion == citriage.ExecutionPolicyV2 {
+				return digest(struct {
+					Provider, Model *string
+					Profile, Schema asset.JSON
+					Domain          string
+				}{cleanup.Model.Provider, cleanup.Model.Model, m["model_profile_digest"], m["output_schema_digest"], citriage.ComparisonDomain().Digest()}), true
+			}
 			return digest(struct {
 				Provider, Model *string
 				Profile, Schema asset.JSON

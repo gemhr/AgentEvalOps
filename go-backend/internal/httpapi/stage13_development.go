@@ -46,7 +46,7 @@ func projectTriageEvidence(state ev.RunState, exposedAnalysis bool) (triageDevel
 	}
 	var exposed map[string]asset.JSON
 	_ = dataset.Body.Metadata.Decode(&exposed)
-	retired := exposedAnalysis && state.Run.Snapshot.Input.Dataset.Ref.EntityID == "6fb67037-6512-562a-8227-e842851e6f0f" && state.Run.Snapshot.Input.Dataset.Ref.Version == "golden-v1" && policy != nil && policy.Role == "HOLDOUT"
+	retired := exposedAnalysis && gov.ExposedAnalysisDataset(state.Run.Snapshot.Input.Dataset.Ref) && policy != nil && policy.Role == "HOLDOUT"
 	if exposedAnalysis && !retired || !exposedAnalysis && !(policy != nil && policy.Role == "DEVELOPMENT") && exposed["usage"].String() != `"EXPOSED_SET"` {
 		return out, asset.ErrForbidden
 	}

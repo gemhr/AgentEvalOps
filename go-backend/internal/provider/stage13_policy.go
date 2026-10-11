@@ -2,11 +2,13 @@ package provider
 
 import (
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/citriage"
 	"encoding/json"
 	"strings"
 )
 
 const Stage13ModelPolicy = "stage13.model-comparability.v2"
+const Stage13ModelPolicyV3 = "stage13.model-comparability.v3"
 
 // Stage13ModelEvidence 仅用于显式绑定的历史取证投影，不回写原 receipt。
 type Stage13ModelEvidence struct {
@@ -66,6 +68,9 @@ func ProjectStage13ModelIdentity(in Stage13PolicyInput, mode string) Stage13Mode
 	var m triageManifest
 	_ = in.Manifest.Decode(&m)
 	d := Stage13ModelDecision{Policy: Stage13ModelPolicy, EvaluatedPolicy: Stage13ModelPolicy, Mode: mode, Level: "MODEL_IDENTITY_UNKNOWN", ExpectedProvider: m.Provider, ExpectedModel: m.Model, RevisionStatus: "UNAVAILABLE", FingerprintStatus: "UNAVAILABLE", Warnings: []string{}, Reasons: []string{}}
+	if citriage.HasContractIdentity(in.Manifest) {
+		d.Policy, d.EvaluatedPolicy = Stage13ModelPolicyV3, Stage13ModelPolicyV3
+	}
 	reject := func(reason string, mismatch bool) Stage13ModelDecision {
 		if mismatch {
 			d.Level = "MODEL_IDENTITY_MISMATCH"
@@ -79,6 +84,9 @@ func ProjectStage13ModelIdentity(in Stage13PolicyInput, mode string) Stage13Mode
 	var r triageReceipt
 	if validateManifest(in.Manifest) != nil || in.Receipt.Decode(&r) != nil || r.Manifest.String() != in.Manifest.String() || r.Digest != hashWithout(in.Receipt, "receipt_digest") || r.ToolIdentity != m.ToolDigest {
 		return reject("SUBJECT_RECEIPT_MISMATCH", true)
+	}
+	if m.ContractBinding != nil && citriage.ValidateReceiptV2(in.Receipt, in.Manifest, r.ExecutionPolicy, r.ExecutionDigest) != nil {
+		return reject("RECEIPT_CONTRACT_BINDING_MISMATCH", true)
 	}
 	if len(r.Calls) == 0 {
 		return reject("MODEL_CALL_MISSING", false)
@@ -242,6 +250,20 @@ func CompareStage13Models(doc Stage13PolicyDocument) Stage13PairDecision {
 		intended = []string{}
 	}
 	d := Stage13PairDecision{Policy: Stage13ModelPolicy, EvaluatedPolicy: Stage13ModelPolicy, Mode: doc.Mode, Baseline: left, Candidate: right, Intended: intended, Comparability: "BLOCKED", FingerprintStatus: "UNAVAILABLE", Warnings: []string{}, Reasons: []string{}}
+	v2 := citriage.HasContractIdentity(doc.Baseline.Manifest) || citriage.HasContractIdentity(doc.Candidate.Manifest)
+	if v2 {
+		d.Policy, d.EvaluatedPolicy = Stage13ModelPolicyV3, Stage13ModelPolicyV3
+		var lb, rb map[string]asset.JSON
+		_ = doc.Baseline.Receipt.Decode(&lb)
+		_ = doc.Candidate.Receipt.Decode(&rb)
+		var ld, rd string
+		_ = lb["comparison_domain_digest"].Decode(&ld)
+		_ = rb["comparison_domain_digest"].Decode(&rd)
+		if !citriage.HasContractIdentity(doc.Baseline.Manifest) || !citriage.HasContractIdentity(doc.Candidate.Manifest) || ld != rd || ld != citriage.ComparisonDomain().Digest() {
+			d.Reasons = append(d.Reasons, "DOMAIN_MISMATCH")
+			return d
+		}
+	}
 	if !left.Comparable || !right.Comparable {
 		d.Reasons = append(d.Reasons, "SUBJECT_IDENTITY_BLOCKED")
 		return d
@@ -280,8 +302,12 @@ func CompareStage13Models(doc Stage13PolicyDocument) Stage13PairDecision {
 	}
 	leftInput, rightInput := lr.InputDigest, rr.InputDigest
 	if lr.SemanticDigest != "" || rr.SemanticDigest != "" {
+		expectedPolicy := Stage13ExecutionPolicyVersion
+		if v2 {
+			expectedPolicy = citriage.ExecutionPolicyV2
+		}
 		var lp, rp Stage13ExecutionPolicy
-		if lr.ExecutionPolicy.Decode(&lp) != nil || rr.ExecutionPolicy.Decode(&rp) != nil || lp.Version != Stage13ExecutionPolicyVersion || rp.Version != Stage13ExecutionPolicyVersion || lp.SemanticDigest != lr.SemanticDigest || rp.SemanticDigest != rr.SemanticDigest || lr.SemanticDigest == "" || rr.SemanticDigest == "" {
+		if lr.ExecutionPolicy.Decode(&lp) != nil || rr.ExecutionPolicy.Decode(&rp) != nil || lp.Version != expectedPolicy || rp.Version != expectedPolicy || lp.SemanticDigest != lr.SemanticDigest || rp.SemanticDigest != rr.SemanticDigest || lr.SemanticDigest == "" || rr.SemanticDigest == "" || v2 && (lp.SourceSemanticDigest != rp.SourceSemanticDigest || lp.ProjectedDigest != rp.ProjectedDigest || lp.TimeoutSeconds != 180 || rp.TimeoutSeconds != 180) {
 			d.Reasons = append(d.Reasons, "EXECUTION_POLICY_BINDING_MISMATCH")
 		}
 		leftInput, rightInput = lr.SemanticDigest, rr.SemanticDigest

@@ -2,6 +2,23 @@ package cigovernance
 
 import "agentevalops/go-backend/internal/asset"
 
+// ExposedAnalysisDataset 仅授权已退役的原 WP09/WP11 冻结版本。
+func ExposedAnalysisDataset(ref asset.Ref) bool {
+	return ref.EntityID == "6fb67037-6512-562a-8227-e842851e6f0f" && ref.Version == "golden-v1" ||
+		ref.EntityID == "e7a70b04-0712-58bc-a0c8-655eac0aa463" && ref.Version == "golden-v2"
+}
+
+// ExposedAnalysisCase 不允许跨退役集合混入 Case 或导出其新版本。
+func ExposedAnalysisCase(dataset, ref asset.Ref) bool {
+	if !ExposedAnalysisDataset(dataset) || ref.Version != dataset.Version {
+		return false
+	}
+	if dataset.Version == "golden-v1" {
+		return WP09Retired(asset.Ref{}, []asset.Ref{ref})
+	}
+	return WP11Retired(asset.Ref{}, []asset.Ref{ref})
+}
+
 // WP09Retired 是不可撤销的披露 incident 投影；拒绝新 Release，保留历史消费重放。
 // 对原 Dataset 和六个 Case 的新版本/重包装同样生效；family 重新生成另由 AuditRenewal 拒绝。
 func WP09Retired(dataset asset.Ref, cases []asset.Ref) bool {

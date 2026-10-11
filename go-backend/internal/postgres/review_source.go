@@ -8,6 +8,7 @@ import (
 
 	"agentevalops/go-backend/internal/asset"
 	"agentevalops/go-backend/internal/catalog"
+	"agentevalops/go-backend/internal/citriage"
 	"agentevalops/go-backend/internal/decision"
 	ev "agentevalops/go-backend/internal/evaluation"
 	ob "agentevalops/go-backend/internal/observation"
@@ -94,7 +95,7 @@ func resolveReviewSource(ctx context.Context, tx pgx.Tx, s asset.Scope, ref rv.S
 		source.CaseBody = &body
 		source.BodyAvailability = "AVAILABLE"
 		source.Retention = string(body.BodyPolicy)
-		source.Evidence = []ev.Binding{{ProjectID: s.ProjectID, Ref: "controlled-input:" + v.Ref().EntityID, Digest: body.Input.Digest(), Schema: "stage13.triage-input.v1", Availability: "AVAILABLE", Body: body.Input}}
+		source.Evidence = []ev.Binding{{ProjectID: s.ProjectID, Ref: "controlled-input:" + v.Ref().EntityID, Digest: body.Input.Digest(), Schema: citriage.InputVersion(body.Input), Availability: "AVAILABLE", Body: body.Input}}
 	case "OFFLINE_RESULT", "CALIBRATION_SAMPLE":
 		state, e := decisionRun(ctx, tx, s, ref.RunID)
 		if e != nil {

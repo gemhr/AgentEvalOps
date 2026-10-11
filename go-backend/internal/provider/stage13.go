@@ -38,7 +38,7 @@ type Stage13Target struct {
 }
 
 func NewStage13Target(c Stage13Config) (*Stage13Target, error) {
-	if c.Transport.Validate() != nil || validateManifest(c.ExpectedSubjectManifest) != nil || (c.ExecutionPolicyVersion != "" && c.ExecutionPolicyVersion != Stage13ExecutionPolicyVersion) {
+	if c.Transport.Validate() != nil || validateManifest(c.ExpectedSubjectManifest) != nil || (c.ExecutionPolicyVersion != "" && c.ExecutionPolicyVersion != Stage13ExecutionPolicyVersion && c.ExecutionPolicyVersion != citriage.ExecutionPolicyV2) || (c.ExecutionPolicyVersion == citriage.ExecutionPolicyV2) != citriage.HasContractIdentity(c.ExpectedSubjectManifest) {
 		return nil, asset.ErrInvalid
 	}
 	client, err := newClient(c.Transport.HTTP)
@@ -50,6 +50,7 @@ func NewStage13Target(c Stage13Config) (*Stage13Target, error) {
 func (t *Stage13Target) Close() { t.client.CloseIdleConnections() }
 
 type triageManifest struct {
+	*citriage.ContractBinding
 	SubjectID      string  `json:"subject_id"`
 	SubjectVersion string  `json:"subject_version"`
 	AgentID        string  `json:"agent_id"`
@@ -84,6 +85,15 @@ func hashWithout(j asset.JSON, field string) string {
 }
 func validateManifest(j asset.JSON) error {
 	var m triageManifest
+	if citriage.HasContractIdentity(j) {
+		var schema map[string]asset.JSON
+		_ = citriage.ComparisonDomain().Decode(&schema)
+		var raw map[string]asset.JSON
+		_ = j.Decode(&raw)
+		if citriage.ValidateContractIdentity(j) != nil || raw["output_schema_digest"].String() != schema["output_schema_digest"].String() {
+			return asset.ErrInvalid
+		}
+	}
 	if j.Decode(&m) != nil || !m.Enabled || m.SubjectID != m.AgentID || m.SubjectVersion != m.AgentVersion ||
 		m.AgentID == "" || m.AgentVersion == "" || m.PromptVersion == "" || m.ModelProfile == "" || m.Provider == "" || m.Model == "" ||
 		m.ToolProfile == "" || m.SchemaVersion != "stage13.triage-output.v1" || m.Digest != hashWithout(j, "subject_manifest_digest") {
@@ -128,24 +138,29 @@ type triageCall struct {
 	State            string     `json:"state"`
 }
 type triageReceipt struct {
-	SemanticDigest  string       `json:"semantic_input_digest,omitempty"`
-	ExecutionDigest string       `json:"execution_request_digest,omitempty"`
-	ExecutionPolicy asset.JSON   `json:"execution_policy,omitempty"`
-	Version         string       `json:"receipt_version"`
-	RunID           string       `json:"run_id"`
-	Anchor          string       `json:"anchor_run_id"`
-	JobID           *string      `json:"analysis_job_id"`
-	AttemptID       *string      `json:"evaluation_attempt_id"`
-	Role            string       `json:"role"`
-	Manifest        asset.JSON   `json:"actual_subject_manifest"`
-	InputDigest     string       `json:"actual_input_digest"`
-	EffectiveDigest string       `json:"effective_payload_digest"`
-	TemplateDigest  string       `json:"prompt_template_digest"`
-	ToolIdentity    string       `json:"resolved_toolset_identity"`
-	AnswerDigest    string       `json:"final_answer_digest"`
-	Calls           []triageCall `json:"model_call_receipts"`
-	Verification    string       `json:"model_identity_verification"`
-	Digest          string       `json:"receipt_digest"`
+	*citriage.ContractBinding
+	SourceInputDigest    string       `json:"source_input_digest,omitempty"`
+	SourceSemanticDigest string       `json:"source_semantic_input_digest,omitempty"`
+	ProjectedDigest      string       `json:"projected_input_digest,omitempty"`
+	DomainDigest         string       `json:"comparison_domain_digest,omitempty"`
+	SemanticDigest       string       `json:"semantic_input_digest,omitempty"`
+	ExecutionDigest      string       `json:"execution_request_digest,omitempty"`
+	ExecutionPolicy      asset.JSON   `json:"execution_policy,omitempty"`
+	Version              string       `json:"receipt_version"`
+	RunID                string       `json:"run_id"`
+	Anchor               string       `json:"anchor_run_id"`
+	JobID                *string      `json:"analysis_job_id"`
+	AttemptID            *string      `json:"evaluation_attempt_id"`
+	Role                 string       `json:"role"`
+	Manifest             asset.JSON   `json:"actual_subject_manifest"`
+	InputDigest          string       `json:"actual_input_digest"`
+	EffectiveDigest      string       `json:"effective_payload_digest"`
+	TemplateDigest       string       `json:"prompt_template_digest"`
+	ToolIdentity         string       `json:"resolved_toolset_identity"`
+	AnswerDigest         string       `json:"final_answer_digest"`
+	Calls                []triageCall `json:"model_call_receipts"`
+	Verification         string       `json:"model_identity_verification"`
+	Digest               string       `json:"receipt_digest"`
 }
 type triageChild struct {
 	RunID   string     `json:"run_id"`
@@ -191,10 +206,17 @@ func (t *Stage13Target) validateReceipt(j asset.JSON, anchor, runID, role, input
 	var r triageReceipt
 	var m triageManifest
 	_ = t.config.ExpectedSubjectManifest.Decode(&m)
-	if j.Decode(&r) != nil || r.Version != "stage13.actual-subject-receipt.v1" || r.RunID != runID || r.Anchor != anchor || r.Role != role ||
+	expectedVersion := "stage13.actual-subject-receipt.v1"
+	if m.ContractBinding != nil {
+		expectedVersion = citriage.ReceiptV2
+	}
+	if j.Decode(&r) != nil || r.Version != expectedVersion || r.RunID != runID || r.Anchor != anchor || r.Role != role ||
 		r.AttemptID == nil || *r.AttemptID != anchor || r.JobID != nil || r.Manifest.String() != t.config.ExpectedSubjectManifest.String() ||
 		validateManifest(r.Manifest) != nil || r.InputDigest != inputDigest || r.ToolIdentity != m.ToolDigest || r.Digest != hashWithout(j, "receipt_digest") ||
 		r.Calls == nil || len(r.Calls) > 1 {
+		return r, &Error{Kind: IdentityMismatch}
+	}
+	if m.ContractBinding != nil && citriage.ValidateReceiptV2(j, r.Manifest, r.ExecutionPolicy, r.ExecutionDigest) != nil {
 		return r, &Error{Kind: IdentityMismatch}
 	}
 	template := "仅分析下面原始授权输入；输出一个严格七字段 JSON 对象。"
@@ -245,7 +267,7 @@ func (t *Stage13Target) Execute(parent context.Context, s ev.Scope, q ev.Request
 	_ = q.Case.Case.Input.Decode(&fields)
 	var inputVersion string
 	_ = fields["schema_version"].Decode(&inputVersion)
-	if inputVersion == "stage13.triage-input.v1" {
+	if inputVersion == "stage13.triage-input.v1" || inputVersion == citriage.InputV2 {
 		if citriage.ValidateInput(q.Case.Case.Input) != nil {
 			return out, nil
 		}
@@ -352,6 +374,9 @@ func (t *Stage13Target) Execute(parent context.Context, s ev.Scope, q ev.Request
 			return r.SemanticDigest == "" && r.ExecutionDigest == "" && r.ExecutionPolicy.String() == "null"
 		}
 		semantic, e := citriage.SemanticInput(q.Case.Case.Input)
+		if t.config.ExecutionPolicyVersion == citriage.ExecutionPolicyV2 {
+			return e == nil && r.SourceInputDigest == q.Case.Case.Input.Digest() && r.SourceSemanticDigest == semantic.Digest() && r.ProjectedDigest == semantic.Digest() && r.DomainDigest == citriage.ComparisonDomain().Digest() && r.ExecutionDigest == body.Digest() && r.ExecutionPolicy.String() == executionPolicy.String()
+		}
 		return e == nil && r.SemanticDigest == semantic.Digest() && r.ExecutionDigest == body.Digest() && r.ExecutionPolicy.String() == executionPolicy.String()
 	}
 	if !checkExecution(initial) {

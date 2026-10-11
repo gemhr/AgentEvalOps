@@ -47,19 +47,21 @@ func (d Descriptor) Valid() bool {
 }
 
 type Root struct {
-	ID          string       `json:"root_cause_id"`
-	Relevance   int          `json:"relevance"`
-	Descriptors []Descriptor `json:"acceptable_descriptors"`
+	ID             string              `json:"root_cause_id"`
+	Relevance      int                 `json:"relevance"`
+	Descriptors    []Descriptor        `json:"acceptable_descriptors"`
+	Responsibility *RootResponsibility `json:"responsibility,omitempty"`
 }
 type GroundTruth struct {
-	Version        string   `json:"schema_version"`
-	Category       string   `json:"ExpectedFailureCategory"`
-	Roots          []Root   `json:"RelevantRootCauses"`
-	Actions        []string `json:"AcceptableActions"`
-	Ticket         string   `json:"ExpectedTicketDecision"`
-	Criticality    string   `json:"Criticality"`
-	RankingNA      bool     `json:"ranking_not_applicable,omitempty"`
-	EvidencePolicy struct {
+	ResponsibilitySemantics string   `json:"responsibility_semantics,omitempty"`
+	Version                 string   `json:"schema_version"`
+	Category                string   `json:"ExpectedFailureCategory"`
+	Roots                   []Root   `json:"RelevantRootCauses"`
+	Actions                 []string `json:"AcceptableActions"`
+	Ticket                  string   `json:"ExpectedTicketDecision"`
+	Criticality             string   `json:"Criticality"`
+	RankingNA               bool     `json:"ranking_not_applicable,omitempty"`
+	EvidencePolicy          struct {
 		Decidable bool     `json:"expected_decidable"`
 		Types     []string `json:"required_evidence_types"`
 		Missing   string   `json:"missing_behavior"`
@@ -68,6 +70,9 @@ type GroundTruth struct {
 
 // ReadGroundTruth 在发布和评测边界拒绝缺失字段，避免零值替代冻结标签。
 func ReadGroundTruth(j asset.JSON) (GroundTruth, error) {
+	if InputVersion(j) == ContractV2 {
+		return readGroundTruthV2(j)
+	}
 	var g GroundTruth
 	if !fields(j, []string{"schema_version", "ExpectedFailureCategory", "RelevantRootCauses", "AcceptableActions", "ExpectedTicketDecision", "Criticality", "EvidencePolicy"}, "ranking_not_applicable") || j.Decode(&g) != nil || g.Validate() != nil {
 		return g, asset.ErrInvalid
@@ -97,7 +102,13 @@ func ReadGroundTruth(j asset.JSON) (GroundTruth, error) {
 }
 
 func (g GroundTruth) Validate() error {
-	if g.Version != Contract || !Has(g.Category, categories) || !Has(g.Ticket, tickets) || len(g.Actions) == 0 || !Has(g.Criticality, []string{"NORMAL", "CRITICAL"}) || g.EvidencePolicy.Missing != "BLOCKED" || (len(g.Roots) == 0) != g.RankingNA {
+	if (g.Version != Contract && g.Version != ContractV2) || !Has(g.Category, categories) || !Has(g.Ticket, tickets) || len(g.Actions) == 0 || !Has(g.Criticality, []string{"NORMAL", "CRITICAL"}) || g.EvidencePolicy.Missing != "BLOCKED" || (len(g.Roots) == 0) != g.RankingNA {
+		return asset.ErrInvalid
+	}
+	if g.Version == ContractV2 && (g.ResponsibilitySemantics != ResponsibilityV2 || !g.EvidencePolicy.Decidable) || g.Version == Contract && g.ResponsibilitySemantics != "" {
+		return asset.ErrInvalid
+	}
+	if g.Version == ContractV2 && (g.Roots == nil || g.EvidencePolicy.Types == nil || len(componentOrder(g.Actions)) != len(g.Actions) || len(componentOrder(g.EvidencePolicy.Types)) != len(g.EvidencePolicy.Types)) {
 		return asset.ErrInvalid
 	}
 	for _, a := range g.Actions {
@@ -112,6 +123,9 @@ func (g GroundTruth) Validate() error {
 	}
 	ids, aliases := map[string]bool{}, map[string]bool{}
 	for _, r := range g.Roots {
+		if g.Version == ContractV2 && validateRootResponsibility(r) != nil || g.Version == Contract && r.Responsibility != nil {
+			return asset.ErrInvalid
+		}
 		if !safe(r.ID) || ids[r.ID] || r.Relevance < 1 || r.Relevance > 3 || len(r.Descriptors) == 0 {
 			return asset.ErrInvalid
 		}
@@ -316,11 +330,12 @@ type Scores struct {
 }
 
 func Score(raw string, input asset.JSON, g GroundTruth) (Scores, error) {
+	metrics := MetricsForVersion(g.Version)
 	s := Scores{Values: map[string]float64{}, Critical: "PASS"}
-	for _, m := range Metrics {
+	for _, m := range metrics {
 		s.Values[m] = 0
 	}
-	if g.Validate() != nil {
+	if g.Validate() != nil || ValidateResponsibility(input, g) != nil {
 		return s, asset.ErrInvalid
 	}
 	s.Output, s.SchemaValid, s.SemanticValid = Parse(raw, input)
@@ -357,13 +372,13 @@ func Score(raw string, input asset.JSON, g GroundTruth) (Scores, error) {
 		return s, nil
 	}
 	if o.Category == g.Category {
-		s.Values[Metrics[0]] = 1
+		s.Values[metrics[0]] = 1
 	}
 	if Has(o.Action.Code, g.Actions) {
-		s.Values[Metrics[1]] = 1
+		s.Values[metrics[1]] = 1
 	}
 	if o.Ticket == g.Ticket {
-		s.Values[Metrics[2]] = 1
+		s.Values[metrics[2]] = 1
 	}
 	roots := map[string]Root{}
 	grades := []int{}
@@ -381,28 +396,28 @@ func Score(raw string, input asset.JSON, g GroundTruth) (Scores, error) {
 			continue
 		}
 		seen[r.ID] = true
-		if s.Values[Metrics[4]] == 0 {
-			s.Values[Metrics[4]] = 1 / float64(i+1)
+		if s.Values[metrics[4]] == 0 {
+			s.Values[metrics[4]] = 1 / float64(i+1)
 		}
 		dcg += (math.Pow(2, float64(r.Relevance)) - 1) / math.Log2(float64(i+2))
 	}
 	if len(g.Roots) > 0 {
-		s.Values[Metrics[3]] = float64(len(seen)) / float64(len(g.Roots))
+		s.Values[metrics[3]] = float64(len(seen)) / float64(len(g.Roots))
 		sort.Sort(sort.Reverse(sort.IntSlice(grades)))
 		idcg := 0.0
 		for i, r := range grades[:min(3, len(grades))] {
 			idcg += (math.Pow(2, float64(r)) - 1) / math.Log2(float64(i+2))
 		}
-		s.Values[Metrics[5]] = dcg / idcg
+		s.Values[metrics[5]] = dcg / idcg
 	}
 	s.Decidable = g.EvidencePolicy.Decidable && o.Category != "UNKNOWN" && !o.Need
 	if s.Decidable {
-		s.Values[Metrics[6]] = 1
+		s.Values[metrics[6]] = 1
 	} else {
 		s.Reason = "INSUFFICIENT_CERTAINTY"
 		s.Critical = "BLOCKED"
 	}
-	if g.Criticality == "CRITICAL" && s.Decidable && (s.Values[Metrics[0]] != 1 || s.Values[Metrics[1]] != 1 || s.Values[Metrics[2]] != 1) {
+	if g.Criticality == "CRITICAL" && s.Decidable && (s.Values[metrics[0]] != 1 || s.Values[metrics[1]] != 1 || s.Values[metrics[2]] != 1) {
 		s.Critical = "FAIL"
 		s.Reason = "CRITICAL_WRONG"
 	}
@@ -411,6 +426,9 @@ func Score(raw string, input asset.JSON, g GroundTruth) (Scores, error) {
 
 // ValidateInput 只允许 WP04 已有可见输入字段；GT 不能经嵌套 evidence 进入 wire。
 func ValidateInput(input asset.JSON) error {
+	if InputVersion(input) == InputV2 {
+		return ValidateInputV2(input)
+	}
 	var m map[string]asset.JSON
 	if input.Decode(&m) != nil {
 		return asset.ErrInvalid

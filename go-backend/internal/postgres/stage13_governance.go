@@ -41,6 +41,9 @@ func validateStage13ReviewedCase(ctx context.Context, tx pgx.Tx, s asset.Scope, 
 	if old.Content().Body.Input.Digest() != body.Input.Digest() {
 		return asset.ErrForbidden
 	}
+	if r.VerifyDigest() != nil || r.ValidateResponsibilityInput(body.Input) != nil {
+		return asset.ErrForbidden
+	}
 	previous, err := gov.ReadPolicy(old.Content().Body.Metadata)
 	if err != nil {
 		return err
@@ -81,6 +84,9 @@ func (k Reviews) StoreStage13GTReview(ctx context.Context, s rv.Scope, r gov.Rev
 		}
 		if item.Status != "COMPLETED" || item.Source.Case == nil || *item.Source.Case != r.Case || item.Source.CaseBody.GroundTruth.Digest() != r.PreviousGTDigest {
 			return asset.ErrConflict
+		}
+		if r.ValidateResponsibilityInput(item.Source.CaseBody.Input) != nil {
+			return asset.ErrInvalid
 		}
 		annotations, e := reviewAnnotations(ctx, tx, s.Scope.Scope, r.ItemID)
 		if e != nil {

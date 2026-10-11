@@ -55,12 +55,25 @@ type CaseContent struct {
 }
 
 func (c CaseContent) Validate() error {
-	if _, err := cigovernance.ReadPolicy(c.Metadata); err != nil {
+	policy, policyErr := cigovernance.ReadPolicy(c.Metadata)
+	if err := policyErr; err != nil {
 		return err
 	}
 	if c.Capability == "CI_FAILURE_TRIAGE" {
-		gt, err := citriage.ReadGroundTruth(c.GroundTruth)
-		if err != nil || gt.Criticality != string(c.Criticality) || citriage.ValidateInput(c.Input) != nil || c.ExpectedOutput.String() != "null" {
+		v2 := citriage.InputVersion(c.Input) == citriage.InputV2
+		if policy != nil && policy.Version == cigovernance.GovernanceV2 && !v2 {
+			return asset.ErrInvalid
+		}
+		if v2 && (policy == nil || policy.Version != cigovernance.GovernanceV2 || c.Type == Golden && !cigovernance.HardGolden(policy.State)) {
+			return asset.ErrInvalid
+		}
+		if !(v2 && policy.State == "PENDING_REVIEW" && c.GroundTruth.String() == "null") {
+			gt, err := citriage.ReadGroundTruth(c.GroundTruth)
+			if err != nil || gt.Criticality != string(c.Criticality) || citriage.ValidateResponsibility(c.Input, gt) != nil {
+				return asset.ErrInvalid
+			}
+		}
+		if citriage.ValidateInput(c.Input) != nil || c.ExpectedOutput.String() != "null" {
 			return asset.ErrInvalid
 		}
 	}

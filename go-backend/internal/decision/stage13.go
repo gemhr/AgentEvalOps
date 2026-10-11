@@ -33,7 +33,7 @@ type Stage13Gate struct {
 
 func stage13Score(u Unit) (citriage.Scores, bool) {
 	for _, m := range u.Metrics {
-		if m.Evaluator.Definition.ImplementationRef != citriage.Implementation || m.ResultID == "" || m.Verdict == "ERROR" {
+		if !citriage.IsImplementation(m.Evaluator.Definition.ImplementationRef) || m.ResultID == "" || m.Verdict == "ERROR" {
 			continue
 		}
 		var p struct {
@@ -54,6 +54,7 @@ func stage13Score(u Unit) (citriage.Scores, bool) {
 
 // SummarizeStage13 复用 Release Gate 的冻结计划分母口径，供受限开发结果投影使用。
 func SummarizeStage13(source Source) Stage13Aggregate {
+	metrics := stage13Metrics(source)
 	a := Stage13Aggregate{Total: len(source.Units), Scores: map[string]*float64{}}
 	sums := map[string]float64{}
 	eligible := map[string]int{}
@@ -70,7 +71,7 @@ func SummarizeStage13(source Source) Stage13Aggregate {
 				a.Decidable++
 			}
 		}
-		for _, name := range citriage.Metrics {
+		for _, name := range metrics {
 			applicable := true
 			for _, m := range u.Metrics {
 				if metricKey(m.Evaluator) == name && m.Applicability == asset.NotApplicable {
@@ -83,7 +84,7 @@ func SummarizeStage13(source Source) Stage13Aggregate {
 			}
 		}
 	}
-	for _, m := range citriage.Metrics {
+	for _, m := range metrics {
 		if eligible[m] > 0 {
 			a.Scores[m] = number(sums[m] / float64(eligible[m]))
 		}
@@ -102,10 +103,11 @@ func combine(a, b Decision) Decision {
 
 // applyStage13 补充计划分母、绝对基线和 critical wrong；仍由原 Gate owner 原子保存。
 func applyStage13(s Snapshot, r *Receipt) {
+	metrics := stage13Metrics(s.Candidate)
 	enabled := false
 	for _, u := range s.Candidate.Units {
 		for _, m := range u.Metrics {
-			enabled = enabled || m.Evaluator.Definition.ImplementationRef == citriage.Implementation
+			enabled = enabled || citriage.IsImplementation(m.Evaluator.Definition.ImplementationRef)
 		}
 	}
 	if !enabled {
@@ -156,7 +158,7 @@ func applyStage13(s Snapshot, r *Receipt) {
 		issue("CI_DECISION_COVERAGE_INSUFFICIENT", "coverage", Blocked)
 		g.AbsoluteMetricGate = Blocked
 	}
-	for i, m := range citriage.Metrics[:6] {
+	for i, m := range metrics[:6] {
 		threshold := 0.80
 		if i < 3 {
 			threshold = 0.95
@@ -205,7 +207,7 @@ func applyStage13(s Snapshot, r *Receipt) {
 			g.RegressionGate = combine(g.RegressionGate, Blocked)
 		} else {
 			improved, regressed := false, false
-			for _, m := range citriage.Metrics {
+			for _, m := range metrics {
 				row.Delta[m] = cs.Values[m] - bs.Values[m]
 				improved = improved || row.Delta[m] > 0
 				regressed = regressed || row.Delta[m] < 0
@@ -288,18 +290,26 @@ func stage13EvidenceValid(source Source) bool {
 		return false
 	}
 	for _, u := range source.Units {
+		metrics := stage13Metrics(Source{Units: []Unit{u}})
 		score, ok := stage13Score(u)
 		if !ok || !score.SchemaValid || !score.SemanticValid || !score.Decidable {
 			return false
 		}
 		seen := map[string]bool{}
+		expectedImplementation := ""
 		for _, m := range u.Metrics {
-			if m.Evaluator.Definition.ImplementationRef != citriage.Implementation {
+			if !citriage.IsImplementation(m.Evaluator.Definition.ImplementationRef) {
 				continue
+			}
+			if expectedImplementation == "" {
+				expectedImplementation = m.Evaluator.Definition.ImplementationRef
+			}
+			if expectedImplementation != m.Evaluator.Definition.ImplementationRef {
+				return false
 			}
 			name := metricKey(m.Evaluator)
 			value, exists := score.Values[name]
-			if !exists || !one(name, citriage.Metrics...) || seen[name] || !finite(value) || value < 0 || value > 1 || m.ResultID == "" || m.Applicability != asset.Applicable || !one(m.Verdict, "PASS", "FAIL") || m.Value == nil || *m.Value != value {
+			if !exists || !one(name, metrics...) || seen[name] || !finite(value) || value < 0 || value > 1 || m.ResultID == "" || m.Applicability != asset.Applicable || !one(m.Verdict, "PASS", "FAIL") || m.Value == nil || *m.Value != value {
 				return false
 			}
 			other, valid := stage13Score(Unit{Metrics: []MetricFact{m}})
@@ -308,9 +318,21 @@ func stage13EvidenceValid(source Source) bool {
 			}
 			seen[name] = true
 		}
-		if len(seen) != len(citriage.Metrics) {
+		if len(seen) != len(metrics) {
 			return false
 		}
 	}
 	return true
+}
+
+// stage13Metrics按实际evaluator版本选择语义，旧v1阈值与公式不变。
+func stage13Metrics(source Source) []string {
+	for _, u := range source.Units {
+		for _, m := range u.Metrics {
+			if citriage.IsImplementation(m.Evaluator.Definition.ImplementationRef) {
+				return citriage.MetricsForVersion(m.Evaluator.Definition.ImplementationRef)
+			}
+		}
+	}
+	return citriage.MetricsForVersion(citriage.Implementation)
 }

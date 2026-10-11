@@ -10,17 +10,28 @@ import (
 const ExecutionPolicyVersion = "stage13.attempt-execution.v1"
 
 type ExecutionPolicy struct {
-	Version        string    `json:"version"`
-	RunID          string    `json:"evaluation_run_id"`
-	AttemptID      string    `json:"evaluation_attempt_id"`
-	TimeoutSeconds int       `json:"timeout_seconds"`
-	StartedAt      time.Time `json:"execution_started_at"`
-	DeadlineAt     time.Time `json:"execution_deadline_at"`
-	SemanticDigest string    `json:"semantic_input_digest"`
+	*ContractBinding
+	SourceInputDigest    string    `json:"source_input_digest,omitempty"`
+	SourceSemanticDigest string    `json:"source_semantic_input_digest,omitempty"`
+	ProjectedDigest      string    `json:"projected_input_digest,omitempty"`
+	DomainDigest         string    `json:"comparison_domain_digest,omitempty"`
+	Version              string    `json:"version"`
+	RunID                string    `json:"evaluation_run_id"`
+	AttemptID            string    `json:"evaluation_attempt_id"`
+	TimeoutSeconds       int       `json:"timeout_seconds"`
+	StartedAt            time.Time `json:"execution_started_at"`
+	DeadlineAt           time.Time `json:"execution_deadline_at"`
+	SemanticDigest       string    `json:"semantic_input_digest"`
 }
 
 // MaterializeStage13 使用 Kernel 已冻结的 started_at；重放不读取当前时钟。
 func MaterializeExecution(caseInput, manifest asset.JSON, runID, attemptID string, timeoutMilliseconds int64, started time.Time) (asset.JSON, error) {
+	if InputVersion(caseInput) == InputV2 {
+		return materializeExecutionV2(caseInput, manifest, runID, attemptID, timeoutMilliseconds, started)
+	}
+	if HasContractIdentity(manifest) {
+		return asset.JSON{}, asset.ErrInvalid
+	}
 	if started.IsZero() || timeoutMilliseconds != 180000 {
 		return asset.JSON{}, asset.ErrInvalid
 	}
@@ -28,7 +39,7 @@ func MaterializeExecution(caseInput, manifest asset.JSON, runID, attemptID strin
 	if err != nil {
 		return asset.JSON{}, err
 	}
-	p := ExecutionPolicy{ExecutionPolicyVersion, runID, attemptID, 180, started.UTC(), started.UTC().Add(180 * time.Second), semantic.Digest()}
+	p := ExecutionPolicy{Version: ExecutionPolicyVersion, RunID: runID, AttemptID: attemptID, TimeoutSeconds: 180, StartedAt: started.UTC(), DeadlineAt: started.UTC().Add(180 * time.Second), SemanticDigest: semantic.Digest()}
 	var input, ep map[string]asset.JSON
 	_ = semantic.Decode(&input)
 	_ = input["evidence_policy"].Decode(&ep)

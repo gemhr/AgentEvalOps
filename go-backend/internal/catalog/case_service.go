@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/citriage"
 )
 
 // CaseStore 是应用消费的命令/查询端口；每个 Publish 必须在一个短事务中完成。
@@ -39,6 +40,9 @@ func (s CaseService) PublishCaseVersion(ctx context.Context, scope asset.Scope, 
 	}
 	if err := cmd.Body.Validate(); err != nil {
 		return CaseVersion{}, err
+	}
+	if cmd.Body.Capability == "CI_FAILURE_TRIAGE" && citriage.ValidateInputScope(cmd.Body.Input, scope.ProjectID) != nil {
+		return CaseVersion{}, asset.ErrInvalid
 	}
 	return s.Store.PublishCaseVersion(ctx, scope, cmd)
 }

@@ -15,7 +15,7 @@ const Profile = "stage13-evaluation-data-generation-v1"
 const GTMapping = "stage13.evaluation-gt-mapping.v1"
 const SplitVersion = "stage13.family-split.v1"
 const Contract = "stage13.dataset-governance.v1"
-const Schema = "c13a00200001"
+const Schema = "c13a00300001"
 
 var Roles = []string{"DEVELOPMENT", "CALIBRATION", "HOLDOUT"}
 var ReviewStates = []string{"PENDING_REVIEW", "CONFIRMED", "CORRECTED", "AMBIGUOUS", "INSUFFICIENT_EVIDENCE", "REJECTED"}
@@ -53,6 +53,12 @@ type Policy struct {
 }
 
 func (p Policy) Validate() error {
+	if p.Version == GovernanceV2 {
+		if p.Profile != RemediationDevelopmentProfile || p.GTMapping != RemediationGTMapping || p.Split != RemediationSplit || p.Role != "DEVELOPMENT" || !p.Frozen || p.Family != "" && (!asset.Text(p.Family) || !slices.Contains(ReviewStates, p.State)) {
+			return asset.ErrInvalid
+		}
+		return nil
+	}
 	profileValid := p.Profile == Profile && p.GTMapping == GTMapping && p.Split == SplitVersion
 	profileValid = profileValid || p.Profile == ProfileV2 && p.GTMapping == GTMappingV2 && p.Split == SplitVersionV2 && p.Role == "HOLDOUT"
 	profileValid = profileValid || p.Profile == ProfileV3 && p.GTMapping == GTMappingV3 && p.Split == SplitVersionV3 && p.Role == "HOLDOUT"
@@ -92,22 +98,27 @@ func CheckIntent(role, intent string) error {
 }
 
 type ReviewDecision struct {
-	ID               string     `json:"review_id"`
-	ItemID           string     `json:"review_item_id"`
-	Case             asset.Ref  `json:"case_version"`
-	PreviousGTDigest string     `json:"previous_gt_digest"`
-	State            string     `json:"review_state"`
-	GroundTruth      asset.JSON `json:"ground_truth"`
-	Reason           string     `json:"reason_code"`
-	Reviewer         string     `json:"reviewer"`
-	ActorType        string     `json:"actor_type"`
-	AnnotationID     string     `json:"annotation_id"`
-	GoldenID         string     `json:"golden_id,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
-	Digest           string     `json:"review_digest"`
+	DecisionContractVersion string                `json:"decision_contract_version,omitempty"`
+	ResponsibilityReview    *ResponsibilityReview `json:"responsibility_review,omitempty"`
+	ID                      string                `json:"review_id"`
+	ItemID                  string                `json:"review_item_id"`
+	Case                    asset.Ref             `json:"case_version"`
+	PreviousGTDigest        string                `json:"previous_gt_digest"`
+	State                   string                `json:"review_state"`
+	GroundTruth             asset.JSON            `json:"ground_truth"`
+	Reason                  string                `json:"reason_code"`
+	Reviewer                string                `json:"reviewer"`
+	ActorType               string                `json:"actor_type"`
+	AnnotationID            string                `json:"annotation_id"`
+	GoldenID                string                `json:"golden_id,omitempty"`
+	CreatedAt               time.Time             `json:"created_at"`
+	Digest                  string                `json:"review_digest"`
 }
 
 func (r ReviewDecision) Validate() error {
+	if r.DecisionContractVersion != "" && r.DecisionContractVersion != ResponsibilityReviewV2 || (r.DecisionContractVersion == ResponsibilityReviewV2) != (r.ResponsibilityReview != nil) {
+		return asset.ErrInvalid
+	}
 	if !asset.ValidID(r.ID) || !asset.ValidID(r.ItemID) || r.Case.Validate() != nil || !slices.Contains(ReviewStates, r.State) || r.State == "PENDING_REVIEW" || !asset.Text(r.Reason) || len(r.PreviousGTDigest) != 64 {
 		return asset.ErrInvalid
 	}
@@ -148,6 +159,7 @@ func (f Feedback) Validate() error {
 // Failures 只分析历史已冻结的判分事实，不影响 GT、Result 或 Gate。
 func Failures(s citriage.Scores, g citriage.GroundTruth) map[string]string {
 	m := map[string]string{}
+	metrics := citriage.MetricsForVersion(g.Version)
 	if !s.SchemaValid {
 		m["OUTPUT_SCHEMA_INVALID"] = "MODEL_OUTPUT_INVALID"
 		return m
@@ -157,13 +169,13 @@ func Failures(s citriage.Scores, g citriage.GroundTruth) map[string]string {
 		return m
 	}
 	for i, reason := range []string{"CATEGORY_WRONG", "ACTION_WRONG", "TICKET_WRONG"} {
-		if s.Values[citriage.Metrics[i]] == 0 {
+		if s.Values[metrics[i]] == 0 {
 			m[reason] = "MODEL_BUSINESS_WRONG"
 		}
 	}
-	if s.Values[citriage.Metrics[3]] == 0 {
+	if s.Values[metrics[3]] == 0 {
 		m["ROOT_NOT_FOUND"] = "MODEL_BUSINESS_WRONG"
-	} else if s.Values[citriage.Metrics[4]] < 1 || s.Values[citriage.Metrics[5]] < 1 {
+	} else if s.Values[metrics[4]] < 1 || s.Values[metrics[5]] < 1 {
 		m["ROOT_RANKING_WEAK"] = "MODEL_BUSINESS_WRONG"
 	}
 	if g.Criticality == "CRITICAL" && s.Critical == "FAIL" {

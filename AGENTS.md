@@ -1,144 +1,108 @@
-# PandaProbe 仓库级 Coding Agent 工作规范
+# AgentEvalOps 仓库级 Coding Agent 工作规范
 
-本文件适用于仓库根目录及全部子目录。子目录若以后增加更具体的 `AGENTS.md`，仅可细化本文件，不得放宽安全、Scope 与验证要求。
+本文件适用于 AgentEvalOps 仓库根目录及全部子目录。子目录的 `AGENTS.md` 可补充更具体的规则，不得放宽本文件的安全、数据隔离、Scope、Authority 和验证要求。**当前正式评测后端主线是 Go，不是历史 PandaProbe Python/Celery 后端。** 历史名称、旧实现和文档可用于追溯，不能据此认定旧路径仍是生产权威。
 
-## 1. Repository Overview
+## 1. 项目定位与架构边界
 
-PandaProbe 是一个用于 AI Agent tracing、evaluation、monitoring 与 debugging 的开源工程平台。本仓库是 monorepo，主要运行组件为：
+AgentEvalOps 是面向 AI Agent / Agent Harness 的评测、回归、观测与质量门禁平台。主线使用 Go（`net/http`、`context`、`pgx/v5`、PostgreSQL）实现 API 与 Worker，使用 Next.js/TypeScript 实现前端。
 
-- `backend/`：Python 3.12+、FastAPI、Pydantic、async SQLAlchemy、PostgreSQL、Alembic、Redis、Celery/Beat、LiteLLM；依赖由 `uv` 和 `backend/uv.lock` 管理。
-- `frontend/`：Node.js 20、Next.js 16 App Router、React 19、TypeScript、TanStack Query；依赖由 Yarn 和 `frontend/yarn.lock` 管理。
-- Docker Compose：编排 `app`、`worker`、`beat`、`frontend`、PostgreSQL 16 与 Redis 7。
-- `docs/`：Mintlify 文档站；文档中的能力声明必须再由当前源码或测试确认。
+- **AgentEvalOps 拥有 Evaluation Truth**：版本化 Dataset / Case / Suite / Metric / Evaluator、冻结 EvaluationRun、ExecutionAttempt、EvaluatorWork、不可变 EvaluationResult、Regression / Comparison / Gate。
+- **AgentCore / LocalAgent 拥有 Execution Truth**：Run/Step/Tool 的执行、预算、审批、副作用、Journal、恢复和终态。AgentEvalOps 经受控 ExecutionTarget、Trace 或版本化 Evidence 消费执行事实，不反向改写执行权威。
+- `backend/` 下仍存在旧 Python/FastAPI/PandaProbe 代码及 Alembic 迁移。**不能把旧 Python evaluator/Celery 路径视为 Go 生产链的自动 fallback 或已上线能力**。是否仍有独立消费者，应以当前接线、部署和测试判断。
+- 当前没有因为采用 Go 就天然获得生产 cutover、长时容量或多实例正确性；这些必须单独提供实测证据。
 
-仓库根目录不定义 Python package；`backend/` 是唯一的 Python/uv project。不要在根目录再次运行 `uv init` 或创建第二套依赖声明。
+## 2. 事实依据与任务优先级
 
-## 2. Source of Truth
+1. 当前用户明确指令与当前获授权任务的 Scope / Acceptance Criteria。
+2. 当前真实源码、Git diff、配置、migration 和本轮真实执行的测试结果。
+3. 仍有效的正式 Architecture / Contract / Owner 决策及经过验证的发布契约。
+4. README、旧 AGENTS/CLAUDE、历史 Stage Handoff、PandaProbe 说明与注释仅供参考；发现漂移应明确记录，不可当成生产能力证明。
 
-按以下顺序判断目标与事实：
+开始工作前阅读本文件、当前任务相关 Handoff 和适用的子目录规则，并核对 `git status`、源码入口及相关调用链。**规划为 TARGET、已批准为 APPROVED、已实现为 IMPLEMENTED、通过最终 Gate 是不同状态**。不要以设计文档替代代码与测试。
 
-1. 当前任务文件是本次目标、Scope 与 Acceptance Criteria 的权威来源；H 级 Handoff 中通常为 `.ai/handoff/<task_id>/00_task.md`。
-2. 当前真实源码、当前 Git diff 和本轮实际测试结果是实现状态的权威来源。
-3. 正式冻结的 Architecture / Contract 文档是其对应长期设计边界的权威来源。
-4. `README.md`、`CLAUDE.md`、其他说明、注释与 `10/20/30/40` Handoff 仅提供上下文，不能覆盖源码和测试事实。
+## 3. Repository Map（当前 Go 主线）
 
-Handoff 是阶段性交接材料，不是事实代理。每个 Agent 开始工作时必须重新阅读本文件、当前任务及当前阶段 Handoff，并重新检查源码、`git status` 和 `git diff`。发现文档与实现冲突时，保留证据并报告，不得靠猜测消解冲突。
+| 路径 | 长期职责 |
+| --- | --- |
+| `go-backend/cmd/api/` | Go API 进程入口 |
+| `go-backend/cmd/worker/` | Go Worker 进程入口 |
+| `go-backend/internal/bootstrap/` | API / Worker 组件装配、依赖与生命周期 |
+| `go-backend/internal/httpapi/` | HTTP 路由、输入验证、项目认证/授权与协议适配 |
+| `go-backend/internal/catalog/` | 版本化评测目录与发布语义 |
+| `go-backend/internal/evaluation/` | Run / Attempt / Work / Result 等评测内核领域模型 |
+| `go-backend/internal/worker/` | 执行目标、任务领取、租约、判分推进与退出协调 |
+| `go-backend/internal/agentquality/`、`internal/metric/` | 已接线的质量评测器、指标定义与适用性规则；不能把目录中的 ContractOnly 指标算成实现 |
+| `go-backend/internal/observation/` | Trace / Observation 的严格校验与受控数据投影 |
+| `go-backend/internal/postgres/` | PostgreSQL 持久化、事务、Claim/Fencing、身份与结果读取 |
+| `go-backend/internal/decision/` | Baseline/Candidate 比较、回归及发布门禁的领域逻辑 |
+| `go-backend/testdata/` | 公开/合成的固定契约向量与测试资源；不得混入受控 Holdout |
+| `frontend/` | Next.js / TypeScript 产品前端；当前 Go 产品 API 通过相应 API client 接入 |
+| `backend/migrations/` | 当前仍使用的 Alembic 历史与增量数据库迁移，包括 Go 领域表 |
+| `backend/app/` | 历史 Python 后端/部分离线参考实现；是否为当前调用路径必须查证 |
+| `.ai/handoff/` | 审计、架构决策、实施和 Gate 交接材料；可按 Stage/WP 命名 |
 
-## 3. Repository Map
+以上为导航而非包内实现保证。查看实际文件、模块导入和 API / Worker bootstrap 再决定修改位置，不得盲目新建同名目录。
 
-- `backend/app/main.py`：FastAPI composition root、lifespan、中间件、异常处理与 `/v1` router 注册。
-- `backend/app/api/`：HTTP router、依赖、middleware、request context 与 rate limit；route 负责协议适配和编排。
-- `backend/app/services/`：应用用例与业务编排。
-- `backend/app/core/`：domain entity、repository protocol、evaluation metric 与 cadence 逻辑。
-- `backend/app/infrastructure/`：PostgreSQL repository、Redis、auth adapter、Celery task、LLM provider 等外部适配器。
-- `backend/app/registry/`：`Settings`、常量、安全与异常等横切配置。
-- `backend/migrations/`：Alembic 环境及不可变的历史 migration。
-- `backend/tests/unit/`、`backend/tests/integration/`：后端单元和真实 PostgreSQL/Redis 集成测试。
-- `frontend/src/app/`：Next.js App Router 页面、layout 与路由边界。
-- `frontend/src/components/`：provider、feature 和 UI 组件。
-- `frontend/src/lib/`：API client、auth、query key 与共享工具。
-- `frontend/src/__tests__/`、`frontend/e2e/`：Jest/jsdom 单元测试与 Playwright E2E。
-- `docs/`：Mintlify `.mdx` 内容、`docs.json` 与 OpenAPI 快照。
-- `.ai/handoff/`：大型 H 级任务的审计、决策、执行和 Final Gate 交接材料。
+## 4. 入口、执行与 Authority
 
-## 4. Entry Points and Composition
+- API：`go-backend/cmd/api/main.go` → `internal/bootstrap/api.go` → `internal/httpapi/`，项目级 API 路由在当前 `server.go` 中核对。
+- Worker：`go-backend/cmd/worker/main.go` → `internal/bootstrap/worker.go` → `internal/worker/`。API 和 Worker 是不同进程角色，共享 Go Domain 与 PostgreSQL 权威数据，不共享进程内锁作为分布式正确性依据。
+- 当前 ExecutionTarget 通过明确接口接入 Fixture、LocalAgent HTTP 或受控业务 Target。ExecutionAttempt 的 `UNKNOWN`、Retry、租约与 Worker Epoch 必须保持独立语义；不能因 HTTP 超时推断外部执行一定失败或没有副作用。
+- EvaluationRun 冻结评测输入，Attempt 记录执行历史，EvaluatorWork 可领取/恢复判分，EvaluationResult 是追加式事实；Gate 必须绑定可比较的基线、候选、证据和冻结策略。
+- Trace 是可能丢失的诊断侧通道，**不是** Journal、完整执行轨迹或可靠评测证据的替代。正确性指标需要相应版本化 Evidence 和明确 coverage；缺失必要证据不得补造或默认 PASS。
+- 当前支持的具体指标以 Go bootstrap 实际装配、evaluator 实现及集成测试为准。旧 Python evaluator、指标目录名称或已有接口均不构成 Go canonical `SUPPORTED` 证据。
 
-- API：从 `backend/` 运行 `uvicorn app.main:app`；`backend/app/main.py` 是 composition root，`backend/app/api/v1/router.py` 汇总 `/v1` routes。
-- Worker：`celery -A app.infrastructure.queue.celery_app worker`；任务实现在 `backend/app/infrastructure/queue/tasks.py`。
-- Scheduler：同一 Celery app 以 `beat` 启动，周期任务配置位于 `celery_app.py`。
-- Frontend：`frontend/src/app/layout.tsx` 是根 layout，`frontend/src/app/page.tsx` 是根页面；认证后的项目页面位于 `org/[orgId]/project/[projectId]/`。
-- Migration：从 `backend/` 使用 `alembic.ini` 与 `migrations/env.py`，metadata 来自 `app.infrastructure.db.models.Base`。
-- Docker API 镜像入口为 `backend/scripts/docker-entrypoint.sh`，随后执行 `app.main:app`。该脚本会尝试 `alembic upgrade head`，但当前实现会在 migration 失败后继续启动；不得仅凭容器已启动推断 migration 成功。
+## 5. 环境、配置与依赖
 
-API 存在两类认证上下文：management plane 使用 Bearer JWT；data plane 可使用带项目 header 的 JWT 或 `X-API-Key` + `X-Project-Name`。修改 route 前先核对 `backend/app/api/dependencies.py` 中的 `get_api_context`、`get_data_plane_context` 与 `require_project`，不得绕过既有组织/项目隔离。
+- Go 版本以 `go-backend/go.mod` 为准；Go 依赖由 `go.mod`/`go.sum` 管理。不要在根目录创建第二个 Go module，不为现有 Go 服务新引入 Python/Celery 执行核心。
+- API/Worker 配置、身份、数据库连接参数以当前 bootstrap/config 实现为准；不要臆造 `.env` 变量。前端配置要核对 `frontend/src/lib/api/` 和 `NEXT_PUBLIC_GO_PRODUCT_API_URL` 等当前实际消费点。
+- 前端使用 Next.js、TypeScript；执行包管理命令前确认当前 `package.json`、锁文件和现有脚本。不能直接把历史 PandaProbe 前端接线当成 Go 产品现状。
+- 数据库迁移仍位于 `backend/migrations/versions/`，由项目现有 Alembic 工作流管理；不要因为 Go 主线就自行引入一套并行迁移 Ledger。
+- `docker-compose.go-rehearsal.yml` 可用于 Go API / Worker / 前端受控演练，**Compose 存在不代表已完成真实生产 cutover 或 SLO 验收**。
+- 不得提交或输出生产凭据、内部 Trace/Prompt/工具参数、受控评测答案或私有业务数据。已有 `.env*`、数据库和工作区状态一律保留。
 
-## 5. Environment and Configuration
+## 6. 最小开发与测试命令
 
-- 后端最低 Python 版本由 `backend/pyproject.toml` 定义为 `>=3.12`；当前 Docker 镜像使用 Python 3.13.2。后端安装使用 `uv sync --frozen`。
-- 前端 Docker 使用 Node.js 20，安装使用 `yarn install --frozen-lockfile`。
-- 后端配置唯一入口是 `backend/app/registry/settings.py::Settings`。当前 Pydantic 配置直接读取工作目录下 `.env` 和 `.env.development`；Compose 另通过 `env_file` 注入 `.env.${APP_ENV}`。不要假设 host 运行时会由 Pydantic 自动选择任意 `.env.${APP_ENV}`。
-- 前端本地配置模板为 `frontend/.env.example`；`NEXT_PUBLIC_*` 值会进入客户端或在 build 时固化，尤其 `NEXT_PUBLIC_AUTH_ENABLED` 不是容器运行时开关。
-- 复制 `.env.example` 创建本地文件，不覆盖用户已有 `.env*`。不得提交 secret、真实 credential、token、私钥或生产连接串，也不得在日志、测试 fixture、Handoff 中泄露它们。
-- CI 配置位于 `.github/workflows/`；Backend jobs 当前使用 Python 3.12，Frontend jobs 使用 Node.js 20。判断 gate 时读取当前 workflow，不要只依据 README badge。
+在仓库实际根目录与目标模块核对后执行，优先做与当前 diff 直接相关的验证：
 
-## 6. Confirmed Development Commands
-
-根 `Makefile` 是开发命令入口；其环境变量赋值和 `start.sh` 使用 POSIX shell 语法，在 Windows 上应使用兼容 shell。
-
-```bash
-make install
-make dev
-make worker
-make up
-make down
-make lint
-make format
-make typecheck
-make test-unit
-make test-integration
-make test-all
-make migration msg="describe change"
-make migrate
+```powershell
+cd go-backend
+go test ./internal/evaluation ./internal/agentquality ./internal/metric ./internal/observation ./internal/decision -count=1
 ```
 
-常用最小命令：
+- 根据修改路径进一步缩小 `go test ./internal/<affected-package> -run '<focused-test>' -count=1`；只在任务明确要求 Final Gate 或风险确有必要时扩大覆盖。
+- 需要真实 PostgreSQL 时，使用仓库已有隔离 integration fixture、`-tags=integration` 和受限 API role；核对 `G1_TEST_POSTGRES_URL` 等测试门禁，只能指向明确隔离的本机测试数据库。没有可用条件标记 `BLOCKED/NOT_EXECUTED`，不能退化为 fake 后宣称跨进程持久化通过。
+- `go test -race` 需要可用 CGO 编译链；Windows 不具备条件时，可在受控 Linux 容器验证，并明确报告未执行/实际结果。`-race` 不能替代多进程、PG 锁争用和恢复测试。
+- 涉及前端时，先核对锁文件与脚本，再运行对应 TypeScript lint/typecheck/test；涉及 Go API/Frontend 契约需验证两端。
+- 跨仓契约变更必须使用真正的 Python AgentCore producer 与 Go consumer 验证一致性，不能只验证各自仓库的 golden。真实 HTTP/PG 集成与公开合成 fixture 的证据须与纯 unit test 区分。
+- 文档任务做路径、链接、契约的必要静态检查即可；不得为获得漂亮通过数重复跑已通过的大规模回归。
 
-```bash
-cd backend && uv sync --frozen
-cd backend && uv run --group test pytest tests/unit/test_traces.py::test_name -v
-cd backend && uv run --group dev ruff check app/ tests/
-cd frontend && yarn test src/__tests__/lib/api/traces.test.ts
-cd frontend && yarn lint
-cd frontend && yarn typecheck
-cd frontend && yarn format:check
-```
+## 7. PostgreSQL、Worker 与一致性规则
 
-`make test-integration` 会启动 `docker-compose.test.yml` 的 PostgreSQL `:5433` 和 Redis `:6380`，执行后端 integration tests，并以 `down -v` 清理测试数据卷。不得把集成测试指向开发或生产数据库。自托管公开镜像使用 `./start.sh` 与 `docker-compose.yml`；源码热更新开发栈使用 `make up` 与 `docker-compose.dev.yml`，两者不要混淆。
+- PostgreSQL 是评测领域的持久化权威；`pgx/v5`、显式 SQL 和事务边界以当前 repository 实现为准。Redis 可作缓存/限流，不能默认成为评测事实源或可靠任务队列。
+- EvaluationRun/Attempt/Work/Result 的 identity、版本、唯一约束、lease、renew、owner epoch/fencing 与 terminal 状态应由存储约束和事务共同保证；不能仅靠 Go mutex、进程内缓存或一次 `go test -race` 宣称多实例安全。
+- Worker 要维持有界并发、Claim/续租、扫描恢复、Drain 和退出期限；新 API 或 Job 需明确超时、取消、UNKNOWN、重试与幂等行为。不能将重复投递等同于新的业务执行授权。
+- 修改 Schema 时新增 Alembic migration，检查 Domain、SQL、读写路径、索引、权限、兼容性和测试。禁止重写既有 migration 或修改历史已封存的结果来修复错误。
+- 涉及 API Role / machine credential / project scope，先读现有认证授权链。Project/Organization 权限来自服务端可信身份，不得依赖用户提交的 `project_id` 或 Trace attributes 自行授权。
+- Go `context.Context` 应传播 deadline、cancel 和请求级元数据；不要用 `WithValue` 隐藏决定核心业务行为的必填参数，或将取消误当成远程副作用回滚。
+- 不为展示技术储备盲目引入 Kafka、NATS、RabbitMQ、Temporal、Kubernetes 或第二数据库/队列；新基础设施需要说明新 Owner、状态、故障恢复、验收依据和比现有机制更好的理由。
 
-## 7. Testing Rules
+## 8. AgentCore 与 AgentEvalOps 的跨仓契约
 
-- 只改后端纯逻辑：至少运行相关 `backend/tests/unit/`；涉及共享 domain/service 时扩大到相邻单元测试。
-- 改 API、repository、SQLAlchemy model、Redis、Celery 调度或跨进程数据流：除相关 unit tests 外，运行对应 `backend/tests/integration/`；需要完整隔离时使用 `make test-integration`。
-- 改前端 API/auth/provider/query/component：运行对应 Jest 测试，并执行 `yarn lint`、`yarn typecheck`、`yarn format:check`。
-- 改路由导航、登录流程或关键用户路径：运行对应 Playwright E2E；首次运行前执行 `make frontend-e2e-install`。
-- 跨 backend/frontend、公共协议、migration、依赖或发布路径的修改，应运行受影响两侧测试；风险足够高或任务要求时运行 `make test-all`。
-- Integration fixture 使用真实 PostgreSQL/Redis、Celery eager mode、`TRUNCATE ... CASCADE` 和 Redis `FLUSHDB` 隔离。添加测试前先读 `backend/tests/integration/conftest.py`，不要改成会遮蔽 worker 独立事务的 rollback-only fixture。
-- 不得删除、skip、弱化断言或修改测试来迎合错误实现。若测试无法执行，明确记录 `NOT_EXECUTED`、原始原因、未覆盖范围；不得声称通过。
+- AgentCore = Execution Truth；AgentEvalOps = Evaluation Truth。任何 Trace、Observation、EvaluationResult 或 Report 都不允许改变 AgentCore 的工具调用、审批、Run 终态和执行恢复决策。
+- 修改 Trace/Evidence/ExecutionTarget 前先核验双仓当前 producer/consumer、版本、fingerprint、路由、授权、payload digest 与历史 reader；不要只修改单边常量或放宽严格 decoder。
+- `contract_version`、schema、source、canonical serialization、digest 与 idempotency 各有明确语义；未知/不支持契约应拒绝或标记不可评测，不能填默认值假装成功。
+- 评测侧结果需绑定 frozen dataset/case、execution attempt、evaluator/prompt/model/metric 版本和所用 evidence；旧结果不可覆盖更新。Baseline/Candidate 不可比时应阻断门禁。
+- Legacy Python 过程评测/记忆 evaluator 可以作为离线行为参考，但不能无审批隐式调用为 Go 判分 fallback。
 
-纯文档任务不必默认运行完整测试，但必须静态核对所写命令、路径和技术事实。
+## 9. 前端与文档规则
 
-## 8. Database and Migration Rules
+- Next.js 前端通过既有 API client、认证上下文和项目路由访问 Go Product API；修改之前检查实际消费模块，不混用历史 Python 路由和 Go 项目级路由。
+- 更新用户可见状态、UNKNOWN、未支持指标、缺失 Evidence 或 Gate 状态时，前端不得把 `null`/未知偷偷显示为成功或零成本。
+- 相关协议变更同步更新当前有效的 OpenAPI、调用方、测试与配置/运维文档；不以旧 README 或阶段报告覆盖真实接线。
+- 遵循邻近代码的 `gofmt`、`go vet`（按变更需要）、Go 错误处理与 `context` 约定；前端遵循仓库 ESLint/格式化规则。不要对无关代码做全库 format 或升级依赖。
 
-- PostgreSQL schema 由 `backend/app/infrastructure/db/models.py` 的 async SQLAlchemy ORM 与 `backend/migrations/versions/` 的 Alembic 历史共同约束；repository 位于 `infrastructure/db/repositories/`，对上返回 `core/` entities。
-- 修改字段时同时核对 ORM model、domain entity、repository mapping、Pydantic schema/API、查询索引和测试；不得只改其中一层。
-- FastAPI 的 `get_db_session` 在请求成功后 commit、异常时 rollback；worker 使用独立 `NullPool` session 并显式 commit。现有部分 service 也包含显式事务边界，修改前先还原真实调用链，不得机械新增或删除 commit。
-- Schema 变更必须新增 Alembic migration 并验证 upgrade 路径。禁止删除、重写、重排既有 migration，禁止在未确认兼容策略时改变历史 revision。
-- `make migration`/`make migrate` 默认指向本地 PostgreSQL `:5432`。执行前必须确认目标数据库；不得为调试修改生产 schema，不得对用户数据运行 destructive migration。
-
-## 9. Worker and Async Rules
-
-- Celery 使用 Redis 作为 broker/result backend；同步 task 通过 `asyncio.run()` 进入 async SQLAlchemy，worker engine 使用 `NullPool` 避免跨 event loop 复用连接。
-- 全局 soft/hard time limit 为 300/360 秒，evaluation task 单独覆盖为 3300/3600 秒；重试次数和 delay 由各 task decorator 单独定义。修改任务时必须逐项核对 retry、timeout、异常状态更新与重复执行后果，不能套用统一假设。
-- 检查 task ownership、enqueue 前后的 commit 顺序、idempotency、Redis lock TTL、并发、部分成功、quota rollback、shutdown 和 heartbeat。不得假定 Celery retry 等价于 exactly-once。
-- 当前未发现统一的业务 cancellation contract；涉及取消、撤销或 shutdown 语义时必须先审计生产调用链并升级为 H 级，不得自行补定义。
-- API request session 与 worker session 是不同事务边界；测试和实现都必须保留这种可见性。
-
-## 10. Frontend Rules
-
-- 资源请求统一经过 `frontend/src/lib/api/client.ts` 和 `src/lib/api/` 的资源模块；不要绕开 interceptor 手工拼接认证/组织/项目 header。
-- Provider 顺序具有行为含义：`AuthProvider -> PostHogProvider -> ToastProvider -> QueryClientProvider -> ApiConfigProvider`。调整前必须补充针对初始化、401 refresh 与 cache 清理的测试。
-- TanStack Query key 统一来自 `frontend/src/lib/query/keys.ts`，新增或修改 key 时同步更新其测试，禁止散落 inline key。
-- 项目级页面遵循 `org/[orgId]/project/[projectId]/` 上下文；认证开关同时核对 middleware、provider 与 build-time env 行为。
-
-## 11. Coding Conventions
-
-- 优先遵循邻近代码与现有工具配置，不引入另一套风格。
-- Backend：Ruff line length 119，启用 `E/F/B/ERA/D` 与 Google docstring convention；保持 async I/O、typed Pydantic/domain entity、service/repository 分层和 structlog 事件式日志。
-- Route 只做协议转换和用例编排；业务规则放 service/core，外部系统访问放 infrastructure。API key 只存 hash，不记录 raw key。
-- Frontend：TypeScript、ESLint flat config、Prettier、`@/* -> src/*` alias；保持 API resource module、provider 与 query-key 约定。
-- 不做与任务无关的全库 format、cleanup、依赖升级或重构。
-
-## 12. Git / Worktree Safety and Scope
+## 10. Git、工作区与受控 Holdout 安全
 
 ### 受控 Holdout 源码与开发访问边界
 
@@ -146,7 +110,7 @@ cd frontend && yarn format:check
 - 当前完整工作区可能含 `.ai/` 受控证据，禁止将其提供给 Candidate 开发进程。开发侧仅获得预生成的 `DEVELOPMENT_VISIBLE` 安全投影、必要开发代码及对应 scoped credential，不得获得 Holdout 源码、operator 目录或 Holdout/Calibration 凭据。
 - Git ignore、迁出目录和净化环境变量不等同于 OS 级隔离。若无法落实开发进程的可读范围，必须先隔离运行环境或仅提供安全投影；未核实访问边界时，不得声称新 Holdout 未曝光。
 
-开始修改前必须执行并理解：
+开始修改前执行并理解：
 
 ```bash
 git branch --show-current
@@ -157,29 +121,33 @@ git diff --cached
 ```
 
 - 用户已有改动一律保留；不得覆盖、`reset`、checkout 掉、stash、revert 或顺手纳入提交。
-- 未经明确授权，不 commit、不 push、不创建 PR。禁止 destructive Git 操作，除非任务明确要求且目标已核实。
-- 只修改当前 Scope 允许的文件。不因附近代码存在问题而扩大重构，不擅自扩大 public API、改变 schema/contract、引入大型依赖或实现未来阶段。
-- 新发现的架构问题应记录路径、符号、调用链、diff/test 证据并升级，不得以推测代替实现事实。
+- 未经明确授权，不 commit、不 push、不创建 PR；禁止破坏性 Git 操作。用户明确授权的 Breaking Change 必须遵循其 Scope 并留下迁移/回滚记录。
+- 只修改当前任务允许的文件；不借机扩大 API、Schema、Authority 或依赖，不为未来 Stage 提前实现未批准的能力。
+- 发现架构冲突应记录路径、符号、调用链、diff/test 和真实影响，再交由当前任务指定的决策方处理。
 
-## 13. Task Risk and Handoff
+## 11. Task Risk、Handoff 与验收
 
-- **L**：低风险、需求明确、易于测试；通常由 ZCode / DeepSeek 实施。
-- **M**：跨文件或存在一定设计风险；通常由 ZCode / DeepSeek 实施、Codex Review。
-- **H**：涉及 Architecture、Owner、Scope、Contract、state machine、concurrency、cancellation、timeout、lifecycle、persistence、compatibility、public API、重大重构或复杂跨模块行为。顺序为 Scout/Audit -> Codex Architecture Decision 或关键实现 -> ZCode Execute/Test/Documentation -> Codex Final Gate。
+- **L**：低风险、局部易验证，直接实现并跑目标测试。
+- **M**：跨文件但 Owner/Contract 已明确，实施后进行必要 Review。
+- **H**：涉及 Architecture、Owner、Contract、State Machine、持久化一致性、并发、安全、跨仓契约、生产 cutover 或重大重构；原则上先源码审计/架构决策，再实施/测试，最后 Final Gate。
+- 阶段 WP 的实施与最终 Gate 分开：设计批准不等于已实现；按用户约定，完成一个 WP 后停止，不自动开始下一个 WP。
+- 大型任务使用 `.ai/handoff/<task_id>/`，根据任务需要产出审计、Decision、Implementation、Review 文件；不要为了凑齐 `00/10/20/30/40` 创建空文档。Handoff 不替代源码/测试。
+- 变更兼容/废弃规则时记录 `BREAKING_CHANGE`、`OLD_BEHAVIOR`、`NEW_CANONICAL_BEHAVIOR`、`COMPATIBILITY_REQUIRED` 和具体删除/归档项；历史已发布结果、schema、Holdout 仍以明确边界处理，不因“删旧代码更快”擅自破坏。
 
-大型 H 级任务使用 `.ai/handoff/<task_id>/`，典型文件为 `00_task.md`、`10_zcode_audit.md`、`20_codex_decision.md`、`30_zcode_execution.md`、`40_codex_review.md`。只有 `00_task.md` 定义当前任务目标、Scope 与 Acceptance Criteria；其余文件是阶段性交接，不替代当前源码、Git diff 和测试。
+宣布完成前确认：修改文件仅在当前 Scope 内；任务相关单元/契约/真实 PG 集成测试已根据风险执行；失败、skip、warning、超时、BLOCKED 均如实记录；没有把旧 Python 成果、受控模拟或测试桩当作 Go 正式能力；没有泄露敏感或 Holdout 数据。
 
-## 14. Verification Before Completion
+## 12. 长时间运行任务与后台进程
 
-宣布完成前必须：
+当任务启动了仍属于当前任务范围的长时间运行命令、测试、评估、服务或后台进程时，不得仅因进程成功启动就结束任务。只要工具提供可继续查询的 process/session handle，就应继续轮询其状态，直到进程退出、达到明确终态、需要用户介入或出现无法继续的 blocker。不得只回复“已在后台运行”就结束当前交付。
 
-1. 重新检查 `git status`、工作区 diff 和 cached diff。
-2. 确认只有任务允许的文件发生变化，没有覆盖用户改动。
-3. 运行任务要求及与风险相称的最小测试/检查，并记录精确命令和结果。
-4. 报告失败、warning、skip、`NOT_EXECUTED` 与环境限制，不隐瞒真实证据。
-5. 说明已知限制、未完成项和 deliberately out-of-scope 内容。
-6. 明确区分当前已实现事实、文档声明、推断和未来建议。
+## 13. 代码组织与可维护性规范（跨阶段长期适用）
 
-## 长时间运行任务与后台进程
+**正式代码按业务语义与稳定职责组织，不按 Stage、WP、Sprint 或开发时间组织。开发阶段是项目管理维度，不是生产架构维度。**
 
-当任务启动了仍属于当前任务范围的长时间运行命令、测试、评估、服务或后台进程时，不得仅因进程已成功启动就结束当前任务。只要工具提供可继续查询的 process/session handle，就应保持该会话并周期性轮询其状态，在进程退出、达到明确 terminal state、确认需要用户介入，或发生无法继续的 blocker 后，才允许输出最终结果并结束本轮。禁止仅回复“已在后台运行，完成后继续”后直接结束任务。
+1. **禁止阶段式生产目录或命名**：不得新增 `stageXX/`、`wpXX/`、`phaseXX/` 等生产包/目录，也不得以阶段编号命名正式模块、类、接口、主要函数、测试或长期维护脚本。协议真实兼容版本如 `trace_export/v2/`、`TraceEnvelopeV2` 例外。
+2. **优先现有领域 Owner**：新增功能前先追踪调用链、职责和依赖。属于既有模块的职责就在原语义模块实现；只有出现真正独立、内聚的职责时才创建新包，避免重复实现、第二 Authority、循环依赖、无意义 wrapper。
+3. **避免巨型模块与过度拆分**：不得因禁止 Stage 目录，就把全部新代码塞入现有大文件。按照 Contract、Domain、Application、Transport、Persistence 等真正边界合理拆分；不要为单个简单函数创建多层空抽象。
+4. **测试、脚本、配置同样语义命名**：新增测试使用行为或能力名称，例如 `TestTraceHTTPReceipt`，不要用 `TestStage14WP1...`。测试仍遵循仓库实际目录规范与相应 Gate。
+5. **历史目录增量治理**：历史 Stage 命名代码不是新功能目录模板；若本次任务涉及它，可在授权范围内渐进迁移并处理导入/兼容。不为整洁进行无关全仓搬迁或破坏历史契约。
+6. **阶段名仅用于研发工件**：`.ai/handoff/stageXX_.../`、审计、决策与 Gate 报告可保留阶段编号；正式协议版本与产品域模型使用自身稳定语义。
+7. **交付时检查组织质量**：确认新文件放置理由、跨层依赖、职责重复、单文件膨胀、测试发现路径以及是否引入阶段命名生产代码。新增不合理 Stage/WP 结构视为未满足可维护性要求。

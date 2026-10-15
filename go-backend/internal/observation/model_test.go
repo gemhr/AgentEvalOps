@@ -68,6 +68,74 @@ func TestTraceGolden(t *testing.T) {
 		t.Fatal("UTF-8")
 	}
 }
+
+func TestTraceProfileVectors(t *testing.T) {
+	type vector struct {
+		Name          string `json:"name"`
+		Raw           string `json:"raw_utf8"`
+		Fingerprint   string `json:"descriptor_fingerprint"`
+		Canonical     string `json:"canonical_payload_sha256"`
+		CanonicalUTF8 string `json:"expected_canonical_utf8"`
+	}
+	type artifact struct {
+		Version     int      `json:"contract_version"`
+		Fingerprint string   `json:"descriptor_fingerprint"`
+		Vectors     []vector `json:"vectors"`
+	}
+	profiles := []struct {
+		name, path, source, schema string
+		version                    int
+		fingerprint                string
+	}{
+		{"v1-drift-e2bd", "../../testdata/trace_contract/v1-drift-e2bd/golden.json", TraceV1Source, "trace-v1", 1, TraceDriftFingerprint},
+		{"v2", "../../testdata/trace_contract/v2/golden.json", TraceV2Source, "trace-v2", 2, TraceV2Fingerprint},
+	}
+	artifacts := map[string]artifact{}
+	for _, profile := range profiles {
+		t.Run(profile.name, func(t *testing.T) {
+			raw, err := os.ReadFile(profile.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var a artifact
+			if err = json.Unmarshal(raw, &a); err != nil {
+				t.Fatal(err)
+			}
+			if a.Version != profile.version || a.Fingerprint != profile.fingerprint || len(a.Vectors) != 6 {
+				t.Fatalf("unexpected artifact identity: version=%d fingerprint=%s vectors=%d", a.Version, a.Fingerprint, len(a.Vectors))
+			}
+			artifacts[profile.name] = a
+			for _, v := range a.Vectors {
+				t.Run(v.Name, func(t *testing.T) {
+					decoded, err := DecodeTrace([]byte(v.Raw))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if v.Fingerprint != profile.fingerprint || decoded.Source != profile.source || decoded.Schema != profile.schema || decoded.Digest != v.Canonical || string(decoded.Canonical) != v.CanonicalUTF8 || !bytes.Contains(decoded.Canonical, []byte(fmt.Sprintf(`"contract_version":%d`, profile.version))) {
+						t.Fatalf("unexpected canonicalization: source=%s schema=%s digest=%s", decoded.Source, decoded.Schema, decoded.Digest)
+					}
+				})
+			}
+		})
+	}
+
+	e2bdRaw := artifacts["v1-drift-e2bd"].Vectors[0].Raw
+	v2Raw := artifacts["v2"].Vectors[0].Raw
+	invalidProfiles := map[string]string{
+		"v1-frozen-with-e2bd-attribute": strings.Replace(e2bdRaw, TraceDriftFingerprint, TraceFingerprint, 1),
+		"v1-with-v2-fingerprint":        strings.Replace(e2bdRaw, TraceDriftFingerprint, TraceV2Fingerprint, 1),
+		"v2-with-e2bd-fingerprint":      strings.Replace(v2Raw, TraceV2Fingerprint, TraceDriftFingerprint, 1),
+		"unknown-version":               strings.Replace(v2Raw, `"contract_version":2`, `"contract_version":3`, 1),
+	}
+	for name, raw := range invalidProfiles {
+		t.Run(name, func(t *testing.T) {
+			if _, err := DecodeTrace([]byte(raw)); err == nil {
+				t.Fatal("mixed profile was accepted")
+			}
+		})
+	}
+}
+
 func TestSamplingFilteringAndCoverage(t *testing.T) {
 	ref := asset.Ref{EntityID: asset.NewID(), Version: "v1"}
 	p := Sampling{Policy: "HASH_PERCENTAGE", Algorithm: "sha256-trace-basis-points", Version: 1, BasisPoints: 5000}

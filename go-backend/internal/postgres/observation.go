@@ -18,11 +18,15 @@ import (
 
 type Online struct{ Pool *pgxpool.Pool }
 
+func isReservedTraceSource(source string) bool {
+	return source == ob.TraceV1Source || source == ob.TraceV2Source
+}
+
 func (k Online) transaction(ctx context.Context, s ob.Scope, admission bool, fn func(pgx.Tx) (ev.Reply, error)) (ev.Reply, error) {
 	return (Evaluation{Pool: k.Pool}).transact(ctx, ev.Scope{Scope: s.Scope, Epoch: s.Epoch}, "", admission, func(tx pgx.Tx, _ ev.Run, _ string) (ev.Reply, error) { return fn(tx) })
 }
-func (k Online) IngestStrict(ctx context.Context, s ob.Scope, source string, r io.Reader) (ev.Reply, error) {
-	if !s.Ingest || !s.AuthenticatedSource || source != "LOCALAGENT_TRACE_V1" {
+func (k Online) IngestStrict(ctx context.Context, s ob.Scope, r io.Reader) (ev.Reply, error) {
+	if !s.Ingest || !s.AuthenticatedSource {
 		return ev.Reply{Code: ev.Rejected, Reason: "AUTHENTICATED_SOURCE_REQUIRED"}, nil
 	}
 	d, err := ob.ReadTrace(r)
@@ -97,13 +101,13 @@ func (k Online) IngestStrict(ctx context.Context, s ob.Scope, source string, r i
 			if e != nil {
 				return ev.Reply{}, e
 			}
-			_, e = tx.Exec(ctx, `INSERT INTO localagent_trace_envelope_sidecars(envelope_id,project_id,external_run_id,external_trace_id,external_span_id,external_parent_span_id,step_id,operation,component,started_at,completed_at,duration_ms,status,error_code,attributes,contract_identity,contract_version,contract_fingerprint,canonical_payload_digest,internal_trace_uuid,internal_span_uuid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::numeric,$13,$14,$15,$16,1,$17,$18,$19,$20)`, receiptID, s.ProjectID, t.RunID, t.TraceID, t.SpanID, t.Parent, t.Step, t.Operation, t.Component, t.Started, t.Completed, d.Duration, t.Status, t.Error, attrs, t.ContractIdentity, t.Fingerprint, d.Digest, traceUUID, spanUUID)
+			_, e = tx.Exec(ctx, `INSERT INTO localagent_trace_envelope_sidecars(envelope_id,project_id,external_run_id,external_trace_id,external_span_id,external_parent_span_id,step_id,operation,component,started_at,completed_at,duration_ms,status,error_code,attributes,contract_identity,contract_version,contract_fingerprint,canonical_payload_digest,internal_trace_uuid,internal_span_uuid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::numeric,$13,$14,$15,$16,$17,$18,$19,$20,$21)`, receiptID, s.ProjectID, t.RunID, t.TraceID, t.SpanID, t.Parent, t.Step, t.Operation, t.Component, t.Started, t.Completed, d.Duration, t.Status, t.Error, attrs, t.ContractIdentity, t.ContractVersion, t.Fingerprint, d.Digest, traceUUID, spanUUID)
 			if e != nil {
 				return ev.Reply{}, e
 			}
 		}
 		// 已有历史 strict receipt 可被 Go 明确接收并补 Observation，不改历史 digest。
-		o := ob.Observation{Ref: ob.Ref{ProjectID: s.ProjectID, ID: asset.NewID(), Digest: d.Digest, Schema: "trace-v1", Kind: ob.SpanKind}, TraceID: t.TraceID, RuntimeID: t.RunID, SpanID: &t.SpanID, Parent: t.Parent, StepID: t.Step, Source: source, Principal: s.Principal, Trust: "STRICT_AUTHENTICATED", Operation: t.Operation, Status: t.Status, Started: t.Started, Completed: t.Completed, Canonical: d.Canonical, BodyAvailability: "SAFE_METADATA_ONLY", Retention: "SAFE_METADATA", Evidence: []ob.Evidence{}}
+		o := ob.Observation{Ref: ob.Ref{ProjectID: s.ProjectID, ID: asset.NewID(), Digest: d.Digest, Schema: d.Schema, Kind: ob.SpanKind}, TraceID: t.TraceID, RuntimeID: t.RunID, SpanID: &t.SpanID, Parent: t.Parent, StepID: t.Step, Source: d.Source, Principal: s.Principal, Trust: "STRICT_AUTHENTICATED", Operation: t.Operation, Status: t.Status, Started: t.Started, Completed: t.Completed, Canonical: d.Canonical, BodyAvailability: "SAFE_METADATA_ONLY", Retention: "SAFE_METADATA", Evidence: []ob.Evidence{}}
 		switch t.Operation {
 		case "runtime.run":
 			o.Ref.Kind = ob.TraceKind
@@ -114,13 +118,13 @@ func (k Online) IngestStrict(ctx context.Context, s ob.Scope, source string, r i
 		}
 		o.Envelope, _ = asset.ParseJSON(d.Raw)
 		o.Metadata, _ = asset.Freeze(map[string]any{"run_mode": t.Attributes["runtime_mode"]})
-		o.Evidence = []ob.Evidence{{Kind: "observation", Schema: "trace-v1", Availability: "AVAILABLE", Digest: o.Envelope.Digest(), Source: "strict-receipt:" + receiptID, Body: o.Envelope, Retention: "SAFE_METADATA"}}
-		_, e = tx.Exec(ctx, `INSERT INTO evaluation_observations(id,project_id,kind,source,source_principal,trust,source_identity,trace_id,runtime_id,schema_version,digest,canonical_bytes,envelope_bytes,observation_bytes,receipt_id,completed_at) VALUES($1,$2,$3,'LOCALAGENT_TRACE_V1',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(source,source_identity) DO NOTHING`, o.Ref.ID, s.ProjectID, o.Ref.Kind, s.Principal, o.Trust, t.SpanID, t.TraceID, t.RunID, o.Ref.Schema, d.Digest, d.Canonical, d.Raw, encode(o), receiptID, t.Completed)
+		o.Evidence = []ob.Evidence{{Kind: "observation", Schema: d.Schema, Availability: "AVAILABLE", Digest: o.Envelope.Digest(), Source: "strict-receipt:" + receiptID, Body: o.Envelope, Retention: "SAFE_METADATA"}}
+		_, e = tx.Exec(ctx, `INSERT INTO evaluation_observations(id,project_id,kind,source,source_principal,trust,source_identity,trace_id,runtime_id,schema_version,digest,canonical_bytes,envelope_bytes,observation_bytes,receipt_id,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT(source,source_identity) DO NOTHING`, o.Ref.ID, s.ProjectID, o.Ref.Kind, d.Source, s.Principal, o.Trust, t.SpanID, t.TraceID, t.RunID, o.Ref.Schema, d.Digest, d.Canonical, d.Raw, encode(o), receiptID, t.Completed)
 		if e != nil {
 			return ev.Reply{}, e
 		}
 		var id, digest string
-		e = tx.QueryRow(ctx, `SELECT id::text,digest FROM evaluation_observations WHERE source='LOCALAGENT_TRACE_V1' AND source_identity=$1 AND project_id=$2`, t.SpanID, s.ProjectID).Scan(&id, &digest)
+		e = tx.QueryRow(ctx, `SELECT id::text,digest FROM evaluation_observations WHERE source=$1 AND source_identity=$2 AND project_id=$3`, d.Source, t.SpanID, s.ProjectID).Scan(&id, &digest)
 		if e != nil {
 			return ev.Reply{}, e
 		}
@@ -217,7 +221,7 @@ func nullableID(id string) any {
 
 // 普通观测的显式正文策略不使其获得 strict/process trust。
 func (k Online) StoreObservation(ctx context.Context, s ob.Scope, o ob.Observation) (ev.Reply, error) {
-	if !s.Ingest || o.Trust != "NORMAL_OBSERVATION" || o.Ref.ProjectID != s.ProjectID || !asset.ValidID(o.Ref.ID) || !asset.Text(o.Source) || o.Source == "LOCALAGENT_TRACE_V1" || o.TraceID == "" || o.Completed.IsZero() || o.Retention != "EXPLICIT_EVALUATION_RETENTION" || o.Envelope.String() == "null" || len(encode(o)) > 1024*1024 {
+	if !s.Ingest || o.Trust != "NORMAL_OBSERVATION" || o.Ref.ProjectID != s.ProjectID || !asset.ValidID(o.Ref.ID) || !asset.Text(o.Source) || isReservedTraceSource(o.Source) || o.TraceID == "" || o.Completed.IsZero() || o.Retention != "EXPLICIT_EVALUATION_RETENTION" || o.Envelope.String() == "null" || len(encode(o)) > 1024*1024 {
 		return ev.Reply{Code: ev.Rejected}, nil
 	}
 	switch o.Ref.Kind {

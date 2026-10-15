@@ -12,12 +12,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"agentevalops/go-backend/internal/asset"
 	"agentevalops/go-backend/internal/catalog"
+	ev "agentevalops/go-backend/internal/evaluation"
 	"agentevalops/go-backend/internal/httpapi"
 	"agentevalops/go-backend/internal/identity"
 	"agentevalops/go-backend/internal/metric"
@@ -424,6 +429,243 @@ func TestG8RealHTTPGateAndBlindReview(t *testing.T) {
 	mustG7(t, e)
 	x.call(t, "A", "GET", x.url(path), "", nil, 404)
 
+}
+
+func TestTraceHTTPReceipt(t *testing.T) {
+	x := g8(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	if _, err := x.db.pool.Exec(ctx, postgres.TraceIngestRoleGrants(x.role)); err != nil {
+		t.Fatal(err)
+	}
+	created := x.call(t, "judge", "POST", x.url("/api-keys"), "trace-receipt-key", map[string]any{"name": "Trace receipt integration", "capabilities": []string{"READ", "WRITE"}}, 200)
+	secret := created["secret"].(string)
+	producerRoot := os.Getenv("LOCALAGENT_TRACE_PRODUCER_ROOT")
+	if producerRoot == "" {
+		t.Fatal("LOCALAGENT_TRACE_PRODUCER_ROOT is required for producer-to-PostgreSQL integration")
+	}
+	// 捕获真实 exporter 的 wire body，再转交同一个生产 HTTP handler。
+	var captureMu sync.Mutex
+	var bodies [][]byte
+	capture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "capture failed", http.StatusBadRequest)
+			return
+		}
+		captureMu.Lock()
+		bodies = append(bodies, append([]byte(nil), raw...))
+		captureMu.Unlock()
+		r.Body = io.NopCloser(bytes.NewReader(raw))
+		x.api.Handler().ServeHTTP(w, r)
+	}))
+	defer capture.Close()
+	fixture, err := filepath.Abs("../../testdata/trace_contract/runtime_receipt.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.CommandContext(ctx, "uv", "run", "--frozen", "--no-sync", "python", fixture)
+	cmd.Dir = producerRoot
+	cmd.Env = append(os.Environ(),
+		"PYTHONPATH="+producerRoot,
+		"PYTHONIOENCODING=utf-8",
+		"LOCALAGENT_TRACE_API_BASE_URL="+capture.URL,
+		"LOCALAGENT_TRACE_API_KEY="+secret,
+		"LOCALAGENT_TRACE_PROJECT_ID="+x.s.ProjectID,
+	)
+	produced, err := cmd.Output()
+	if err != nil {
+		if failure, ok := err.(*exec.ExitError); ok {
+			t.Fatalf("Python Runtime/exporter failed: %v\n%s", err, strings.ReplaceAll(string(failure.Stderr), secret, "[redacted]"))
+		}
+		t.Fatal(err)
+	}
+	var run struct {
+		RunID      string `json:"run_id"`
+		TraceID    string `json:"trace_id"`
+		ModelCalls int    `json:"model_calls"`
+		Sent       int    `json:"sent_count"`
+	}
+	if err = json.Unmarshal(produced, &run); err != nil {
+		t.Fatal(err)
+	}
+	captureMu.Lock()
+	runtimeBodies := append([][]byte(nil), bodies...)
+	captureMu.Unlock()
+	if run.RunID == "" || run.TraceID == "" || run.ModelCalls < 4 || run.Sent != len(runtimeBodies) {
+		t.Fatalf("incomplete Runtime execution: %+v, wire bodies=%d", run, len(runtimeBodies))
+	}
+	sendURL := func(method, target string, body []byte) (int, map[string]any) {
+		t.Helper()
+		req, err := http.NewRequest(method, target, bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("X-API-Key", secret)
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		response, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded map[string]any
+		if err = json.Unmarshal(response, &decoded); err != nil {
+			t.Fatalf("invalid HTTP JSON: %v", err)
+		}
+		for _, marker := range []string{"MARKER_PROMPT_PRIVATE", "MARKER_TOOL_ARGUMENTS_PRIVATE", "MARKER_MEMORY_PRIVATE", secret} {
+			if bytes.Contains(response, []byte(marker)) {
+				t.Fatal("sensitive marker in HTTP response")
+			}
+		}
+		return res.StatusCode, decoded
+	}
+	send := func(method, path string, body []byte) (int, map[string]any) {
+		t.Helper()
+		return sendURL(method, x.url(path), body)
+	}
+
+	operations := map[string]bool{}
+	steps := map[string]bool{}
+	spanIDs := map[string]bool{}
+	parents := map[string]string{}
+	var raw []byte
+	var id string
+	for _, body := range runtimeBodies {
+		d, err := ob.DecodeTrace(body)
+		if err != nil || d.Trace.RunID != run.RunID || d.Trace.TraceID != run.TraceID {
+			t.Fatalf("Runtime wire identity mismatch: %v", err)
+		}
+		if spanIDs[d.Trace.SpanID] {
+			t.Fatal("Runtime sent a duplicate span before replay")
+		}
+		spanIDs[d.Trace.SpanID] = true
+		operations[d.Trace.Operation] = true
+		if d.Trace.Step != nil {
+			steps[*d.Trace.Step] = true
+		}
+		if d.Trace.Parent != nil {
+			parents[d.Trace.SpanID] = *d.Trace.Parent
+		}
+		var receiptID, source, schema, fingerprint, digest, parentIntegrity string
+		var canonical, envelope, attributes, observation []byte
+		var version int
+		err = x.db.pool.QueryRow(ctx, `SELECT o.id::text,o.source,o.schema_version,sc.contract_version,sc.contract_fingerprint,sc.canonical_payload_digest,o.canonical_bytes,o.envelope_bytes,sc.attributes::text::bytea,o.observation_bytes FROM evaluation_observations o JOIN localagent_trace_envelope_sidecars sc ON sc.envelope_id=o.receipt_id WHERE o.project_id=$1 AND o.source_identity=$2`, x.s.ProjectID, d.Trace.SpanID).Scan(&receiptID, &source, &schema, &version, &fingerprint, &digest, &canonical, &envelope, &attributes, &observation)
+		if err != nil || version != 2 || fingerprint != ob.TraceV2Fingerprint || source != ob.TraceV2Source || schema != "trace-v2" || digest != d.Digest || !bytes.Equal(canonical, d.Canonical) || !bytes.Equal(envelope, body) {
+			t.Fatalf("persisted Runtime receipt mismatch: %v", err)
+		}
+		status, receipt := send(http.MethodGet, "/observations/"+receiptID, nil)
+		parentIntegrity, _ = receipt["parent_integrity"].(string)
+		wantParent := "NOT_APPLICABLE"
+		if d.Trace.Parent != nil {
+			wantParent = "MATCHED"
+		}
+		if status != http.StatusOK || receipt["id"] != receiptID || receipt["digest"] != d.Digest || receipt["schema"] != schema || receipt["operation"] != d.Trace.Operation || parentIntegrity != wantParent {
+			t.Fatal("independent Runtime receipt GET mismatch")
+		}
+		for _, marker := range []string{"MARKER_PROMPT_PRIVATE", "MARKER_TOOL_ARGUMENTS_PRIVATE", "MARKER_MEMORY_PRIVATE", secret} {
+			if bytes.Contains(body, []byte(marker)) || bytes.Contains(canonical, []byte(marker)) || bytes.Contains(attributes, []byte(marker)) || bytes.Contains(observation, []byte(marker)) {
+				t.Fatal("sensitive marker in exported or persisted Trace")
+			}
+		}
+		if d.Trace.Operation == "runtime.run" {
+			raw, id = body, receiptID
+		}
+	}
+	for _, operation := range []string{"runtime.run", "runtime.planning", "runtime.step", "runtime.synthesis", "runtime.output_delivery", "runtime.final_memory_commit"} {
+		if !operations[operation] {
+			t.Fatalf("Runtime did not naturally emit %s", operation)
+		}
+	}
+	if len(steps) < 3 {
+		t.Fatal("specialists and synthesis did not execute")
+	}
+	for _, parent := range parents {
+		if !spanIDs[parent] {
+			t.Fatal("Runtime Trace references an unreceived parent")
+		}
+	}
+	counts := func() [3]int {
+		t.Helper()
+		var n [3]int
+		if err := x.db.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM localagent_trace_envelope_sidecars WHERE external_run_id=$1),(SELECT count(*) FROM evaluation_observations WHERE runtime_id=$1),(SELECT count(*) FROM spans WHERE trace_id IN (SELECT internal_trace_uuid FROM localagent_external_trace_identity WHERE run_id=$1))`, run.RunID).Scan(&n[0], &n[1], &n[2]); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := counts()
+	if before != [3]int{run.Sent, run.Sent, run.Sent} {
+		t.Fatalf("Runtime receipt coverage mismatch: %v", before)
+	}
+	otherProject := seedProject(t, x.db.pool, x.s.OrganizationID)
+	status, _ := sendURL(http.MethodPost, x.server.URL+"/api/v1/projects/"+otherProject.ProjectID+"/trace-envelopes", raw)
+	if status != http.StatusNotFound {
+		t.Fatalf("cross-project returned %d, want 404", status)
+	}
+	otherOrganizationProject := seedProject(t, x.db.pool, asset.NewID())
+	status, _ = sendURL(http.MethodPost, x.server.URL+"/api/v1/projects/"+otherOrganizationProject.ProjectID+"/trace-envelopes", raw)
+	if status != http.StatusNotFound {
+		t.Fatalf("cross-organization returned %d, want 404", status)
+	}
+	var unauthorized int
+	if err = x.db.pool.QueryRow(ctx, `SELECT count(*) FROM localagent_trace_envelope_sidecars WHERE project_id IN ($1,$2)`, otherProject.ProjectID, otherOrganizationProject.ProjectID).Scan(&unauthorized); err != nil || unauthorized != 0 {
+		t.Fatal("unauthorized project received a Trace", err)
+	}
+	status, first := send(http.MethodPost, "/trace-envelopes", raw)
+	if status != http.StatusOK || first["command_status"] != string(ev.AlreadyApplied) || first["id"] != id {
+		t.Fatalf("repeat after Python export: status=%d response=%v", status, first)
+	}
+	unknownProfile := bytes.Replace(raw, []byte(ob.TraceV2Fingerprint), []byte(strings.Repeat("0", 64)), 1)
+	status, _ = send(http.MethodPost, "/trace-envelopes", unknownProfile)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unknown profile returned HTTP %d", status)
+	}
+	status, repeated := send(http.MethodPost, "/trace-envelopes", raw)
+	if status != http.StatusOK || repeated["command_status"] != string(ev.AlreadyApplied) || repeated["id"] != id {
+		t.Fatalf("repeated ingest: status=%d response=%v", status, repeated)
+	}
+	var changedEnvelope map[string]any
+	if err = json.Unmarshal(raw, &changedEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	changedEnvelope["duration_ms"] = changedEnvelope["duration_ms"].(float64) + 0.1
+	changed, err := json.Marshal(changedEnvelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, _ = send(http.MethodPost, "/trace-envelopes", changed)
+	if status != http.StatusConflict {
+		t.Fatalf("same span with changed digest returned HTTP %d", status)
+	}
+	status, _ = send(http.MethodGet, "/observations/"+id, nil)
+	if status != http.StatusOK {
+		t.Fatalf("receipt GET returned HTTP %d", status)
+	}
+
+	if after := counts(); after != before {
+		t.Fatalf("replay/conflict/authorization changed row counts: before=%v after=%v", before, after)
+	}
+	for _, marker := range []string{"MARKER_PROMPT_PRIVATE", "MARKER_TOOL_ARGUMENTS_PRIVATE", "MARKER_MEMORY_PRIVATE", secret} {
+		if bytes.Contains(x.logs.Bytes(), []byte(marker)) {
+			t.Fatal("sensitive marker in HTTP logs")
+		}
+	}
+	t.Logf("Runtime receipt coverage: operations=%d spans=%d steps=%d model_calls=%d", len(operations), run.Sent, len(steps), run.ModelCalls)
+
+	scope := x.s5
+	scope.Ingest = true
+	envelope, err := asset.ParseJSON([]byte(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	forged := ob.Observation{Ref: ob.Ref{ProjectID: scope.ProjectID, ID: asset.NewID(), Kind: ob.TraceKind}, Trust: "NORMAL_OBSERVATION", Source: ob.TraceV2Source, TraceID: "forged-trace", Completed: time.Now(), Envelope: envelope, Retention: "EXPLICIT_EVALUATION_RETENTION"}
+	forgedReply, err := x.online.StoreObservation(ctx, scope, forged)
+	if err != nil || forgedReply.Code != ev.Rejected {
+		t.Fatalf("normal ingest forged strict source: reply=%+v err=%v", forgedReply, err)
+	}
 }
 
 func TestG8PublishedEvaluatorExperimentAndOnlinePagination(t *testing.T) {

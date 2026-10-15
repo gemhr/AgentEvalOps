@@ -116,7 +116,7 @@ func traceBody(trace, span, run, status string) []byte {
 func (f *g5Fixture) ingest(t *testing.T, status string) (string, []byte) {
 	t.Helper()
 	raw := traceBody(asset.NewID(), asset.NewID(), asset.NewID(), status)
-	r, e := f.online.IngestStrict(context.Background(), f.s5, "LOCALAGENT_TRACE_V1", bytes.NewReader(raw))
+	r, e := f.online.IngestStrict(context.Background(), f.s5, bytes.NewReader(raw))
 	reply(t, r, e, ev.Applied)
 	return r.ID, raw
 }
@@ -139,14 +139,14 @@ func TestG5ReceiptRulesOwnershipAndBackfill(t *testing.T) {
 	ctx := context.Background()
 	ref, rule := f.rule(t, nil)
 	id, raw := f.ingest(t, "OK")
-	r, e := f.online.IngestStrict(ctx, f.s5, "LOCALAGENT_TRACE_V1", bytes.NewReader(raw))
+	r, e := f.online.IngestStrict(ctx, f.s5, bytes.NewReader(raw))
 	reply(t, r, e, ev.AlreadyApplied)
 	bad := bytes.Replace(raw, []byte(`"duration_ms":0.1`), []byte(`"duration_ms":0.2`), 1)
-	r, e = f.online.IngestStrict(ctx, f.s5, "LOCALAGENT_TRACE_V1", bytes.NewReader(bad))
+	r, e = f.online.IngestStrict(ctx, f.s5, bytes.NewReader(bad))
 	reply(t, r, e, ev.Conflict)
 	other := f.s5
 	other.Scope = seedProject(t, f.db.pool, asset.NewID())
-	r, e = f.online.IngestStrict(ctx, other, "LOCALAGENT_TRACE_V1", bytes.NewReader(raw))
+	r, e = f.online.IngestStrict(ctx, other, bytes.NewReader(raw))
 	reply(t, r, e, ev.Conflict)
 	if _, e = f.online.GetObservation(ctx, other.Scope, id); !errors.Is(e, asset.ErrNotFound) {
 		t.Fatalf("cross project %v", e)
@@ -290,7 +290,7 @@ func TestG5ReceiptRulesOwnershipAndBackfill(t *testing.T) {
 		var before, after []byte
 		_ = f.db.pool.QueryRow(ctx, `SELECT row_to_json(r)::text::bytea FROM evaluation_runs r WHERE id=$1`, o.RunID).Scan(&before)
 		late := traceBody(asset.NewID(), asset.NewID(), o.AttemptID, "OK")
-		r, e = f.online.IngestStrict(ctx, f.s5, "LOCALAGENT_TRACE_V1", bytes.NewReader(late))
+		r, e = f.online.IngestStrict(ctx, f.s5, bytes.NewReader(late))
 		reply(t, r, e, ev.Applied)
 		mustMaterialize(t, f, asset.Ref{EntityID: ref.EntityID, Version: "v1"}, r.ID)
 		lateWork := workID(t, f, asset.Ref{EntityID: ref.EntityID, Version: "v1"}, r.ID)
@@ -322,7 +322,7 @@ func TestG5ReceiptRulesOwnershipAndBackfill(t *testing.T) {
 		_ = json.Unmarshal(traceBody(trace, span, run, "OK"), &payload)
 		payload["parent_span_id"] = parent
 		child, _ := json.Marshal(payload)
-		childReceipt, err := f.online.IngestStrict(ctx, f.s5, "LOCALAGENT_TRACE_V1", bytes.NewReader(child))
+		childReceipt, err := f.online.IngestStrict(ctx, f.s5, bytes.NewReader(child))
 		reply(t, childReceipt, err, ev.Applied)
 		before, err := f.online.GetObservation(ctx, f.s5.Scope, childReceipt.ID)
 		if err != nil || before.ParentIntegrity != "PENDING" {
@@ -332,7 +332,7 @@ func TestG5ReceiptRulesOwnershipAndBackfill(t *testing.T) {
 		if conflict {
 			parentTrace, parentRun = asset.NewID(), asset.NewID()
 		}
-		parentReceipt, err := f.online.IngestStrict(ctx, f.s5, "LOCALAGENT_TRACE_V1", bytes.NewReader(traceBody(parentTrace, parent, parentRun, "OK")))
+		parentReceipt, err := f.online.IngestStrict(ctx, f.s5, bytes.NewReader(traceBody(parentTrace, parent, parentRun, "OK")))
 		reply(t, parentReceipt, err, ev.Applied)
 		after, err := f.online.GetObservation(ctx, f.s5.Scope, childReceipt.ID)
 		want := "MATCHED"
@@ -515,7 +515,7 @@ func TestG5ControlledOnlineAndBudget(t *testing.T) {
 	if judges.Load() != 1 {
 		t.Fatalf("expected exactly one provider call got %d", judges.Load())
 	}
-	r, e = f.online.IngestStrict(ctx, f.s5, "LOCALAGENT_TRACE_V1", bytes.NewReader(raw))
+	r, e = f.online.IngestStrict(ctx, f.s5, bytes.NewReader(raw))
 	reply(t, r, e, ev.AlreadyApplied)
 	r, e = f.online.Materialize(ctx, f.s5, ref, id, false)
 	reply(t, r, e, ev.AlreadyApplied)
@@ -552,7 +552,7 @@ func TestG5OnlineWorkerProcesses(t *testing.T) {
 			t.Fatal(e)
 		}
 		defer pool.Close()
-		r, e := (postgres.Online{Pool: pool}).IngestStrict(context.Background(), scope, "LOCALAGENT_TRACE_V1", strings.NewReader(os.Getenv("G5_INGEST_BODY")))
+		r, e := (postgres.Online{Pool: pool}).IngestStrict(context.Background(), scope, strings.NewReader(os.Getenv("G5_INGEST_BODY")))
 		if e != nil || r.Code != ev.Applied {
 			t.Fatal(r, e)
 		}

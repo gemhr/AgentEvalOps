@@ -22,6 +22,10 @@ import (
 const TraceAlgorithm = "trace-v1"
 const TraceIdentity = "localagent.runtime.trace_export"
 const TraceFingerprint = "6fc033bb4310c7671541d7dc9e7297fdf0d0bb32605651b840ccd0fd173390ab"
+const TraceDriftFingerprint = "e2bd097594065498f55146ba97d0653618cfb3d71c8ed737df62a4f393ee8419"
+const TraceV2Fingerprint = "5a47ddcdda048e82712ea8f7155b9d98c0f08fb4380734d6318e90b66b3dc96b"
+const TraceV2Source = "LOCALAGENT_TRACE_V2"
+const TraceV1Source = "LOCALAGENT_TRACE_V1"
 const MaxTraceBytes = 16384
 
 var safeID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
@@ -49,6 +53,7 @@ type DecodedTrace struct {
 	Trace            Trace
 	Canonical        []byte
 	Digest, Duration string
+	Source, Schema   string
 	Raw              []byte
 }
 
@@ -98,7 +103,8 @@ func DecodeTrace(raw []byte) (DecodedTrace, error) {
 			return fail()
 		}
 	}
-	if t.ContractIdentity != TraceIdentity || t.ContractVersion != 1 || t.Fingerprint != TraceFingerprint {
+	profile, ok := traceProfile(t.ContractIdentity, t.ContractVersion, t.Fingerprint)
+	if !ok {
 		return fail()
 	}
 	for _, id := range []string{t.RunID, t.TraceID, t.SpanID, t.Component} {
@@ -139,11 +145,11 @@ func DecodeTrace(raw []byte) (DecodedTrace, error) {
 		return fail()
 	}
 	for key, value := range t.Attributes {
-		typ, ok := traceAttributes[category][key]
+		typ, ok := profile.Attributes[category][key]
 		if !ok || !validAttribute(typ, value) {
 			return fail()
 		}
-		if domain, ok := traceDomains[key]; ok {
+		if domain, ok := profile.Domains[key]; ok {
 			v, _ := value.(string)
 			if !has(v, domain...) {
 				return fail()
@@ -156,12 +162,40 @@ func DecodeTrace(raw []byte) (DecodedTrace, error) {
 			}
 		}
 	}
-	payload := map[string]any{"contract_identity": t.ContractIdentity, "contract_version": json.Number("1"), "contract_fingerprint": t.Fingerprint, "run_id": t.RunID, "trace_id": t.TraceID, "span_id": t.SpanID, "parent_span_id": pointerValue(t.Parent), "step_id": pointerValue(t.Step), "operation": t.Operation, "component": t.Component, "started_at": traceTime(t.Started), "completed_at": traceTime(t.Completed), "duration_ms": duration, "status": t.Status, "error_code": pointerValue(t.Error), "attributes": t.Attributes}
+	payload := map[string]any{"contract_identity": t.ContractIdentity, "contract_version": json.Number(strconv.Itoa(t.ContractVersion)), "contract_fingerprint": t.Fingerprint, "run_id": t.RunID, "trace_id": t.TraceID, "span_id": t.SpanID, "parent_span_id": pointerValue(t.Parent), "step_id": pointerValue(t.Step), "operation": t.Operation, "component": t.Component, "started_at": traceTime(t.Started), "completed_at": traceTime(t.Completed), "duration_ms": duration, "status": t.Status, "error_code": pointerValue(t.Error), "attributes": t.Attributes}
 	canonical, err := TraceCanonical(payload)
 	if err != nil {
 		return fail()
 	}
-	return DecodedTrace{t, canonical, fmt.Sprintf("%x", sha256.Sum256(canonical)), duration, append([]byte(nil), raw...)}, nil
+	return DecodedTrace{Trace: t, Canonical: canonical, Digest: fmt.Sprintf("%x", sha256.Sum256(canonical)), Duration: duration, Source: profile.Source, Schema: profile.Schema, Raw: append([]byte(nil), raw...)}, nil
+}
+
+type traceProfileDefinition struct {
+	Source     string
+	Schema     string
+	Attributes map[string]map[string]string
+	Domains    map[string][]string
+}
+
+func traceProfile(identity string, version int, fingerprint string) (traceProfileDefinition, bool) {
+	if identity != TraceIdentity || version != 1 && version != 2 {
+		return traceProfileDefinition{}, false
+	}
+	switch fingerprint {
+	case TraceFingerprint:
+		if version == 1 {
+			return traceProfileDefinition{Source: TraceV1Source, Schema: "trace-v1", Attributes: traceAttributes, Domains: traceDomains}, true
+		}
+	case TraceDriftFingerprint:
+		if version == 1 {
+			return traceProfileDefinition{Source: TraceV1Source, Schema: "trace-v1", Attributes: traceDriftAttributes, Domains: traceDriftDomains}, true
+		}
+	case TraceV2Fingerprint:
+		if version == 2 {
+			return traceProfileDefinition{Source: TraceV2Source, Schema: "trace-v2", Attributes: traceV2Attributes, Domains: traceV2Domains}, true
+		}
+	}
+	return traceProfileDefinition{}, false
 }
 func pointerValue(p *string) any {
 	if p == nil {
@@ -215,6 +249,37 @@ var traceAttributes = map[string]map[string]string{
 	"memory":    {"persist_enabled": "b", "entry_agent_id": "s", "memory_scope": "s", "delivery_status": "s", "user_write_status": "s", "assistant_write_status": "s", "transaction_used": "b"},
 }
 var traceDomains = map[string][]string{
+	"planning_source": {"deterministic", "legacy_adapter", "model_generated", "unknown"}, "compiled_shape": {"0", "1", "2", "3", "unknown"}, "shape": {"0", "1", "2", "3", "unknown"},
+	"final_status": {"CREATED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"}, "stop_reason": {"COMPLETED", "UNHANDLED_ERROR", "DEADLINE_EXCEEDED", "USER_CANCELLED", "CLIENT_DISCONNECTED", "SYSTEM_SHUTDOWN", "MAX_STEPS_REACHED", "NO_ACTION", "REPEATED_ACTION", "BUDGET_EXHAUSTED", "PLANNING_FAILED"},
+	"execution_kind": {"AGENT", "SYNTHESIS"}, "output_policy": {"INTERNAL", "FINAL_PASSTHROUGH", "FINAL_SYNTHESIS"}, "delivery_status": {"DELIVERED", "FAILED", "OUTCOME_UNKNOWN"}, "gate_terminal_state": {"PUBLISHED", "FAILED", "OUTCOME_UNKNOWN"}, "memory_scope": {"direct"}, "user_write_status": {"NOT_ATTEMPTED", "WRITTEN", "FAILED"}, "assistant_write_status": {"NOT_ATTEMPTED", "WRITTEN", "FAILED"},
+}
+
+// v1-drift-e2bd 与 v2 使用冻结的 Stage14 字段表，不随内部运行时字段演进。
+var traceDriftAttributes = map[string]map[string]string{
+	"run":       {"plan_id": "s", "plan_version": "i", "plan_fingerprint": "d", "planning_source": "s", "step_count": "i", "selected_entry_agent_id": "s", "agent_version": "s", "resolved_agent_id": "s", "workflow_id": "s", "workflow_version": "s", "toolset_identity": "d", "resolved_model_profile_id": "s", "resolved_retrieval_profile_id": "s", "resolved_memory_profile_id": "s", "runtime_mode": "s", "final_status": "s", "stop_reason": "s", "shape": "s"},
+	"planning":  {"planning_source": "s", "schema_version": "i", "planner_model_invoked": "b", "compiled_shape": "s", "specialist_count": "i", "synthesis_required": "b"},
+	"step":      {"preferred_agent": "s", "agent_version": "s", "workflow_id": "s", "workflow_version": "s", "execution_kind": "s", "output_policy": "s", "dependency_count": "i", "state": "s", "result_char_count": "i"},
+	"synthesis": {"state": "s", "execution_kind": "s"},
+	"delivery":  {"final_step_id": "s", "output_policy": "s", "delivery_status": "s", "gate_terminal_state": "s", "publish_attempt_count": "i", "partially_persisted": "b", "output_char_count": "i"},
+	"memory":    {"persist_enabled": "b", "entry_agent_id": "s", "memory_scope": "s", "delivery_status": "s", "user_write_status": "s", "assistant_write_status": "s", "transaction_used": "b"},
+}
+
+var traceV2Attributes = map[string]map[string]string{
+	"run":       {"plan_id": "s", "plan_version": "i", "plan_fingerprint": "d", "planning_source": "s", "step_count": "i", "selected_entry_agent_id": "s", "agent_version": "s", "resolved_agent_id": "s", "workflow_id": "s", "workflow_version": "s", "toolset_identity": "d", "resolved_model_profile_id": "s", "resolved_retrieval_profile_id": "s", "resolved_memory_profile_id": "s", "runtime_mode": "s", "final_status": "s", "stop_reason": "s", "shape": "s"},
+	"planning":  {"planning_source": "s", "schema_version": "i", "planner_model_invoked": "b", "compiled_shape": "s", "specialist_count": "i", "synthesis_required": "b"},
+	"step":      {"preferred_agent": "s", "agent_version": "s", "workflow_id": "s", "workflow_version": "s", "execution_kind": "s", "output_policy": "s", "dependency_count": "i", "state": "s", "result_char_count": "i"},
+	"synthesis": {"state": "s", "execution_kind": "s"},
+	"delivery":  {"final_step_id": "s", "output_policy": "s", "delivery_status": "s", "gate_terminal_state": "s", "publish_attempt_count": "i", "partially_persisted": "b", "output_char_count": "i"},
+	"memory":    {"persist_enabled": "b", "entry_agent_id": "s", "memory_scope": "s", "delivery_status": "s", "user_write_status": "s", "assistant_write_status": "s", "transaction_used": "b"},
+}
+
+var traceDriftDomains = map[string][]string{
+	"planning_source": {"deterministic", "legacy_adapter", "model_generated", "unknown"}, "compiled_shape": {"0", "1", "2", "3", "unknown"}, "shape": {"0", "1", "2", "3", "unknown"},
+	"final_status": {"CREATED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"}, "stop_reason": {"COMPLETED", "UNHANDLED_ERROR", "DEADLINE_EXCEEDED", "USER_CANCELLED", "CLIENT_DISCONNECTED", "SYSTEM_SHUTDOWN", "MAX_STEPS_REACHED", "NO_ACTION", "REPEATED_ACTION", "BUDGET_EXHAUSTED", "PLANNING_FAILED"},
+	"execution_kind": {"AGENT", "SYNTHESIS"}, "output_policy": {"INTERNAL", "FINAL_PASSTHROUGH", "FINAL_SYNTHESIS"}, "delivery_status": {"DELIVERED", "FAILED", "OUTCOME_UNKNOWN"}, "gate_terminal_state": {"PUBLISHED", "FAILED", "OUTCOME_UNKNOWN"}, "memory_scope": {"direct"}, "user_write_status": {"NOT_ATTEMPTED", "WRITTEN", "FAILED"}, "assistant_write_status": {"NOT_ATTEMPTED", "WRITTEN", "FAILED"},
+}
+
+var traceV2Domains = map[string][]string{
 	"planning_source": {"deterministic", "legacy_adapter", "model_generated", "unknown"}, "compiled_shape": {"0", "1", "2", "3", "unknown"}, "shape": {"0", "1", "2", "3", "unknown"},
 	"final_status": {"CREATED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"}, "stop_reason": {"COMPLETED", "UNHANDLED_ERROR", "DEADLINE_EXCEEDED", "USER_CANCELLED", "CLIENT_DISCONNECTED", "SYSTEM_SHUTDOWN", "MAX_STEPS_REACHED", "NO_ACTION", "REPEATED_ACTION", "BUDGET_EXHAUSTED", "PLANNING_FAILED"},
 	"execution_kind": {"AGENT", "SYNTHESIS"}, "output_policy": {"INTERNAL", "FINAL_PASSTHROUGH", "FINAL_SYNTHESIS"}, "delivery_status": {"DELIVERED", "FAILED", "OUTCOME_UNKNOWN"}, "gate_terminal_state": {"PUBLISHED", "FAILED", "OUTCOME_UNKNOWN"}, "memory_scope": {"direct"}, "user_write_status": {"NOT_ATTEMPTED", "WRITTEN", "FAILED"}, "assistant_write_status": {"NOT_ATTEMPTED", "WRITTEN", "FAILED"},

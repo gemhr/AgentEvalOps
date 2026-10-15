@@ -256,7 +256,7 @@ func TestG7ControlledReviewCalibrationFeedback(t *testing.T) {
 	}
 	t.Run("H-E04 reviewed failure feedback", func(t *testing.T) {
 		id := asset.NewID()
-		out, e := f.online.IngestStrict(ctx, f.s5, "LOCALAGENT_TRACE_V1", bytes.NewReader(traceBody(asset.NewID(), asset.NewID(), asset.NewID(), "ERROR")))
+		out, e := f.online.IngestStrict(ctx, f.s5, bytes.NewReader(traceBody(asset.NewID(), asset.NewID(), asset.NewID(), "ERROR")))
 		reply(t, out, e, ev.Applied)
 		id = out.ID
 		candidates, e := f.online.ListFailureCandidates(ctx, f.s.Scope, ob.Cursor{}, 100)

@@ -16,10 +16,17 @@ func (s *Server) traceRoutes() {
 			return nil, asset.ErrForbidden
 		}
 		scope := ob.Scope{Scope: r.scope(), Epoch: s.Epoch, Ingest: true, AuthenticatedSource: true}
-		reply, err := (postgres.Online{Pool: s.Pool}).IngestStrict(r.ctx(), scope, "LOCALAGENT_TRACE_V1", bytes.NewReader(r.Raw))
-		if err == nil && reply.Code == ev.Rejected && (reply.Reason == "LOCALAGENT_ENVELOPE_INVALID" || reply.Reason == "TRACE_BODY_TOO_LARGE" || reply.Reason == "SELF_PARENT") {
-			return nil, asset.ErrInvalid
+		reply, err := (postgres.Online{Pool: s.Pool}).IngestStrict(r.ctx(), scope, bytes.NewReader(r.Raw))
+		if mapped := traceValidationError(reply, err); mapped != nil {
+			return nil, mapped
 		}
 		return commandReply(reply, err)
 	})
+}
+
+func traceValidationError(reply ev.Reply, err error) error {
+	if err == nil && reply.Code == ev.Rejected && (reply.Reason == "LOCALAGENT_ENVELOPE_INVALID" || reply.Reason == "TRACE_BODY_TOO_LARGE" || reply.Reason == "SELF_PARENT") {
+		return asset.ErrInvalid
+	}
+	return nil
 }

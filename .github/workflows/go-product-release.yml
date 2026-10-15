@@ -1,5 +1,11 @@
 name: Go Product Controlled Release
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      localagent_revision:
+        description: AgentCore commit SHA paired with this AgentEvalOps release
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
@@ -17,13 +23,38 @@ jobs:
       G9_RELEASE_DIR: ${{ github.workspace }}/go-backend/dist/g10a-release
       G10_RELEASE_MANIFEST: ${{ github.workspace }}/go-backend/dist/g10a-release/release-manifest.json
       GORACE: halt_on_error=1
+      LOCALAGENT_TRACE_PRODUCER_ROOT: ${{ github.workspace }}/localagent
+      LOCALAGENT_TRACE_PRODUCER_REVISION: ${{ inputs.localagent_revision }}
+      AGENTEVALOPS_TRACE_CONSUMER_REVISION: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Validate paired AgentCore revision
+        shell: bash
+        run: '[[ "$LOCALAGENT_TRACE_PRODUCER_REVISION" =~ ^[0-9a-f]{40}$ ]]'
+      - name: Checkout paired AgentCore producer
+        uses: actions/checkout@v4
+        with:
+          repository: gemhr/Local_Agent
+          ref: ${{ inputs.localagent_revision }}
+          path: localagent
+          token: ${{ secrets.LOCALAGENT_REPO_TOKEN || github.token }}
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with: { go-version-file: go-backend/go.mod }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - uses: astral-sh/setup-uv@v6
+      - name: Prepare curl build dependencies for the real exporter
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libssl-dev
+      - name: Install paired AgentCore dependencies
+        working-directory: localagent
+        run: uv sync --frozen
+      - name: Record repository pairing
+        run: |
+          git rev-parse HEAD
+          git -C localagent rev-parse HEAD
       - run: uv sync --frozen --project backend
       - uses: actions/setup-node@v4
         with: { node-version: "20" }

@@ -142,6 +142,9 @@ func NonApplicable(in worker.EvaluationInput, state asset.ApplicabilityState, me
 	return worker.EvaluationOutput{Value: v}
 }
 func DeterministicSupported(d metric.EvaluatorDefinition) bool {
+	if LoopSupported(d) {
+		return true
+	}
 	if CITriageSupported(d) {
 		return true
 	}
@@ -156,6 +159,9 @@ func (DeterministicEvaluator) Evaluate(ctx context.Context, in worker.Evaluation
 		return worker.EvaluationOutput{}, e
 	}
 	d := in.Work.Metadata.Spec.Definition
+	if LoopSupported(d) {
+		return evaluateLoop(ctx, in)
+	}
 	if CITriageSupported(d) {
 		return evaluateCITriage(ctx, in)
 	}

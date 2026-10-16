@@ -79,12 +79,28 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 		var local interface{ Close() }
 		if config.ExecutionConcurrency > 0 {
 			j, e := asset.ParseJSON([]byte(os.Getenv("LOCALAGENT_TARGET_CONFIG")))
-			if e != nil || (os.Getenv("LOCALAGENT_STAGE13_ENABLED") != "1" && j.Decode(&targetConfig) != nil) {
+			loopEnabled := os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1"
+			if loopEnabled && os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
+				judge.Close()
+				pool.Close()
+				return nil, nil, fmt.Errorf("LOCALAGENT_TARGET_SELECTION_CONFLICT")
+			}
+			if e != nil || (!loopEnabled && os.Getenv("LOCALAGENT_STAGE13_ENABLED") != "1" && j.Decode(&targetConfig) != nil) {
 				judge.Close()
 				pool.Close()
 				return nil, nil, fmt.Errorf("缺少有效 LOCALAGENT_TARGET_CONFIG")
 			}
-			if os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
+			if loopEnabled {
+				var loopConfig provider.AgentLoopConfig
+				if j.Decode(&loopConfig) != nil {
+					judge.Close()
+					pool.Close()
+					return nil, nil, asset.ErrInvalid
+				}
+				var loopTarget *provider.AgentLoopTarget
+				loopTarget, e = provider.NewAgentLoopTarget(loopConfig, log)
+				local, target = loopTarget, loopTarget
+			} else if os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
 				var stage13Config provider.Stage13Config
 				if j.Decode(&stage13Config) != nil {
 					judge.Close()

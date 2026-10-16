@@ -1,0 +1,27 @@
+---
+title: "Durable Agent Loop 证据接入"
+description: "Go 评测主线的 loop-evidence.v1、受信部署映射与 required Gate 边界"
+---
+
+LocalAgent 拥有执行事实；Go AgentEvalOps 只消费证据并形成评测结果。本协议与 Trace v2、既有 evaluation-v2、Stage13 Target 分开版本化。
+
+| 合同 | 身份 |
+| --- | --- |
+| 执行 Target | `localagent-agent-loop-http` / `agent-loop-evaluation.v1` / `LOCALAGENT_HTTP` |
+| HTTP 协议 | `localagent-agent-loop-evaluation-execute.v1` |
+| 执行端点 | `POST /api/runtime/evaluation-execute/agent-loop/v1` |
+| 只读查询 | `GET /api/runtime/runs/{run_id}/loop-evidence/v1` |
+| Evidence | `loop-evidence.v1`，最多 256 KiB |
+| Deterministic Evaluator | `loop-integrity.v1`，指标 `loop_integrity` |
+
+Go Worker 的 `LOCALAGENT_LOOP_ENABLED=1` 显式选择此 Target；默认关闭，不能同时设置 `LOCALAGENT_STAGE13_ENABLED=1`。`LOCALAGENT_TARGET_CONFIG` 使用 `AgentLoopConfig`：`base_url`、`token_env`、`trusted_project_id`、`max_response_bytes`、`call_milliseconds` 和既有 `http` 配置。沿用原 HTTP 配置校验与有界响应读取；配置非法时启动失败。Token 只从指定安全环境变量读取，不进入冻结正文或 Evidence。
+
+LocalAgent 的 `LOCAL_AGENT_LOOP_EVALUATION_PROJECT_ID` 与 `LOCAL_AGENT_LOOP_EVALUATION_SERVICE_PRINCIPAL_ID` 必须成对配置为 UUID，默认空值关闭端点。只有配置的 SERVICE Principal、evaluation scope 与固定 Project 可以执行；GET 同时检查既有 Run owner。Project/org 权限由 Go 认证数据库和受信部署映射提供，correlation 不提供授权。Agent 必须已在受信注册中显式选择 `durable-agent-loop.v1`。
+
+Go 将 Attempt ID 作为确定的远端 Run ID，并验证返回 Run、evaluation Run/Attempt/Request correlation。正文只含安全身份、整数计数和摘要：决策顺序与模型 attempt、唯一 action/invocation、已确认工具结果和 Observation 游标、generation、预算消耗/限额、真实停止维度及请求/剩余额度、Final delivery cursor 与 root terminal。`coverage`、`sealed`、`gaps` 和副作用证明等级均必须明确存在。对象键排序、紧凑 UTF-8 JSON、`catalog-json-v1` + SHA-256；拒绝未知版本、重复键、缺字段及额外字段。公开合成 golden 位于 `internal/provider/testdata/loop_public_golden.json`，由当前 Python producer 生成并与 Go canonical bytes 对照。
+
+Evidence 由原 durable aggregate 生成并封存；terminal 后可执行仅 seal 的投影事务。GET 不执行模型、工具或恢复。未知工具结果、未收敛工作者、缺少 Observation、超出大小限制、缺少副作用外部回执时保留 PARTIAL/INDETERMINATE，不据“一条 invocation”宣称外部副作用恰好一次。
+
+HTTP 202 只确认相同 Run 已受理，Go 归类 `OUTCOME_UNKNOWN`，不会自动再次 dispatch。失败、超时、取消执行的证据仍进入既有 `Outcome.Evidence`/Attempt 事务，且不附伪造 Artifact；这些执行直接阻断 required Gate。成功且有 Artifact 时，原 EvaluatorWork → EvaluationResult → Gate 链验证顺序、绑定、预算/停止因果和所需副作用证明。缺失、PARTIAL、未知版本或 INDETERMINATE 不能得到 required Gate PASS。指标目录沿用现有 Availability 枚举，实际可执行支持由精确 evaluator definition 与 Worker capability 绑定确定。
+
+当前只验证 Loop 执行证据完整性，不证明业务答案质量，不自动实现 UNKNOWN Attempt 的全量 reconcile，不扩展通用跨租户 IAM，也不包含 Compaction、Memory 治理或多工具并发。

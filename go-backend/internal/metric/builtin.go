@@ -31,6 +31,12 @@ func Builtins() []Builtin {
 	coverage.Denominator = "expected eligible metric grain"
 	coverage.Aggregation = "valid_count / eligible_count; disclose all exclusive missing states"
 	result := []Builtin{{"task_success", "v1", task}, {"execution_success", "v1", execution}, {"evaluation_coverage", "v1", coverage}}
+	loop := base("Loop Integrity", Case, Scalar, "score", Higher, requirement("loop_integrity", "loop-evidence.v1", true))
+	loop.Range = &[2]float64{0, 1}
+	loop.Availability = asset.ContractOnly
+	loop.Applicability.RuleRef = "loop-integrity.v1"
+	loop.Aggregation = "mean over decidable loop integrity scores; disclose missing and partial coverage"
+	result = append(result, Builtin{"loop_integrity", "v1", loop})
 	for _, key := range []string{"recall@k", "mrr", "ndcg"} {
 		d := base(key, Retrieval, Scalar, "ratio", Higher, requirement("ranked_retrieval", "ranked-retrieval.v1", true), requirement("relevance_ground_truth", "relevance.v1", true))
 		d.Range = &[2]float64{0, 1}

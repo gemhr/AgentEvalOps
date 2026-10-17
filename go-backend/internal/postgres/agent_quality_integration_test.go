@@ -30,11 +30,12 @@ import (
 )
 
 type qualityLive struct {
-	Configs map[string]provider.AgentQualityConfig `json:"configs"`
-	Memory  map[string]string                      `json:"memory_refs"`
+	Configs   map[string]provider.AgentQualityConfig `json:"configs"`
+	Memory    map[string]string                      `json:"memory_refs"`
+	Directory string                                 `json:"-"`
 }
 
-func qualityProducer(t *testing.T, project string) qualityLive {
+func qualityProducer(t *testing.T, project string, extra ...string) qualityLive {
 	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "Local_Agent"))
 	if err != nil {
@@ -45,7 +46,8 @@ func qualityProducer(t *testing.T, project string) qualityLive {
 	if runtime.GOOS == "windows" {
 		python = filepath.Join(root, ".venv", "Scripts", "python.exe")
 	}
-	cmd := exec.Command(python, "tests/fixtures/quality_http_service.py", "--project-id", project, "--directory", directory)
+	args := append([]string{"tests/fixtures/quality_http_service.py", "--project-id", project, "--directory", directory}, extra...)
+	cmd := exec.Command(python, args...)
 	cmd.Dir = root
 	log := &processLog{}
 	cmd.Stdout = log
@@ -72,6 +74,7 @@ func qualityProducer(t *testing.T, project string) qualityLive {
 			if json.Unmarshal(raw, &live) != nil {
 				t.Fatal("producer config")
 			}
+			live.Directory = directory
 			return live
 		}
 		select {

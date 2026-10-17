@@ -1,0 +1,47 @@
+---
+title: Agent Quality Evidence
+description: 独立执行证据、行为评测与 PostgreSQL Quality Gate
+---
+
+`localagent-agent-quality-http`（`agent-quality-evaluation.v1`）使用独立协议 `localagent-agent-quality-evaluation-execute.v1`。它复用原 ExecutionTarget、Attempt、Worker、EvaluatorWork、EvaluationResult 和 Gate；没有新的 Kernel 或 Memory 服务。
+
+## 部署和身份
+
+AgentCore 默认关闭新入口。必须配置受信 SERVICE、单 evaluation Project 和受管 Manifest/Capture Profile 文件；Manifest 显式冻结 `SERVICE_PROJECT_READ_ONLY.v1`。SERVICE 保留原 PROJECT READ、Memory Binding 和 Guard，私人 SESSION/USER 授权仍为 HUMAN-only。仅该模式的私人 Conversation Writer 和 Formation 在首次/恢复 Composition 中停用，不使用 persist=false 丢弃读取。
+
+Go Worker 选择 `LOCALAGENT_AGENT_QUALITY_ENABLED=1`，通过 `LOCALAGENT_TARGET_CONFIG` 提供 `base_url`、`token_env`、`trusted_project_id`、响应/期限上限、完整 HTTPConfig、`execution_manifest`、`capture_profile`；与旧 Loop/Stage13 选择互斥。凭据只从 TokenEnv 读取，不放入 Manifest、Case 或 Evidence。
+
+Manifest 的 Agent 定义、完整部署 Runtime 配置摘要、源码摘要和公开 Fixture 版本均参与准入 pin。完整 Frame pin 保持原算法；部署摘要仅排除 Delegation 的逐 Run root_source_digest，原 Root Memory Binding 和 Frame 恢复校验仍负责该身份。新 Target 冻结 Subject 的 subject_version 必须等于 Manifest digest。
+
+## 请求、不可变回执与 UNKNOWN
+
+POST `/api/runtime/evaluation-execute/agent-quality/v1` 的远端 Run ID 等于稳定 Attempt ID，Session 从 Attempt 派生。严格字段包含 Case/version/digest、Project/Run/Attempt/Request、Manifest/Profile pin 和整数 timeout_milliseconds。请求不含 Ground Truth、执行策略覆盖、Principal、Memory Scope 或 Provider Script。
+
+AgentCore 在执行 I/O 前提交唯一 Receipt。相同身份/指纹的未完成重复请求返回202，完成后逐字复用封存响应；冲突409。新 Receipt 不能复用已经存在的 Runtime identity。Go 只允许 `NO_RETRY.v1`、max_attempts=1。响应丢失、202、超限或协议错误保留 OUTCOME_UNKNOWN，不自动重发。只读 GET `/api/runtime/runs/{run_id}/agent-quality-evidence/v1` 不执行、不恢复，也不改写 Go 已结束 UNKNOWN。
+
+## Evidence 与 Artifact
+
+单一 `agent-quality-evidence.v1` Binding 封装关联、实际 pin、根终态、来源 watermark、组件和 `agent-quality-observations.v1`。Catalog Wire 使用 UTF-8、排序键、紧凑 JSON、整数子集、保留 null 和 SHA256。Go 校验 canonical bytes、摘要、严格 schema、版本及冻结关联；原 Runtime opaque digest 不改算法。
+
+v1 传适用的 Loop/Context/Memory 原组件；v2 传 Agent Execution，旧三种组件明确 UNSUPPORTED_EXECUTION_POLICY，不重命名伪装支持。固定合成标记仅输出 key/值摘要/来源/扫描完整性；Tool 参数仅支持完整 Catalog digest 和受管少量 bool/int64/固定公开 enum（LARGE/SMALL）路径，其他字符串投影不支持。普通 Evidence 不包含任务、完整参数、Tool/Child/Memory 正文或自由异常。根 Final Answer 走既有独立受控 Artifact，并校验根 Final Receipt；Child Final 不作为根输出。
+
+组件256KiB、Observations512KiB、Bundle1MiB、Final Answer64KiB、HTTP2MiB。缺来源或超限不能 COMPLETE；未报告 usage 保留 null。`BOUND_DELTA` 只在同 profile、cursor、options、reserve 和可靠计数下比较原始/压缩请求，并保留 COMPACTION Model/Budget 绑定；不是实际 Token、账单或净节省声明。
+
+## Required Evaluator 与 Case
+
+两个单指标 Definition 均使用 `agent-behavior-deterministic.v1` / `agent-quality-input.v2` / `agent-quality-result.v1` / `agent-quality-null-preserving.v2`：
+
+- `agent_execution_integrity.v1`：根 Final、Frame/Action/Delegation、实际模型请求、预算及来源完整性；v1 复用原 Loop Integrity，v2 使用严格树/批次 Reader。
+- 原 `task_success.v1`：独立冻结 `agent-quality-case.v1`，比较必要/禁用工具、精确参数与结果、后续实际消费、Child 内容和 Parent 消费、固定事实、答案、Memory 实际使用。结构完整不能代替业务正确。
+
+PASS=1，FAIL=0，INCONCLUSIVE/ERROR 的 score=null。未知 usage、未知外部副作用、缺来源及未支持语义不能给 PASS。SERVICE 政策下 Conversation/Formation 为 NOT_ATTEMPTED/DISABLED_BY_POLICY 或 NOT_REACHED，均不是 commit；Case 要求私人检索、Conversation 或 Formation 时不可判定并阻断 Required Gate。
+
+公开五 Case 覆盖多轮 Tool、Batch、Handoff、Compaction 关键事实和 PROJECT Memory。GT 由 Go Catalog 单独发布，未请求维度显式 NOT_REQUESTED；Memory Case 只验证 PROJECT 读取、必要/撤销来源、实际请求和答案。合成 Provider 的 usage 是该受控 Fixture 的计数，不外推为远端 tokenizer/账单能力。
+
+## 比较和 Gate
+
+使用原 Case→Dataset/Suite→Run/Attempt/Work/Result→Comparison→Gate Receipt。两个指标均 Required；Boolean integrity 用现有 `rate` 聚合，最低1，PerCase=true；task_success 同样最低1。CriticalMissing 和 BlockPerCase 开启，decision/evaluation/metric coverage 均为1，missing/unknown/error/unsupported 均不允许。
+
+Case、GT、Metric、Evaluator、Profile、Fixture 和环境保持可比；受控部署变更以原 AcceptedDifferences 精确授权 target_config 的前后 digest，附 Actor/Reason/Proof。已确认退化 FAIL；Evidence 缺失、UNKNOWN、Evaluator ERROR 或不可比 BLOCKED。原决策退出码保持 PASS=0、FAIL=1、BLOCKED=2。
+
+不承诺通用语义判断、任意参数投影、自然语言摘要无损、私人 Memory/Formation 质量、未知外部副作用证明、远程兼容矩阵或生产规模/SLO；这些不能由公开合成用例的通过推断。

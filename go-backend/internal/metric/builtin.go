@@ -80,5 +80,9 @@ func Builtins() []Builtin {
 	tokens := base("Token Usage", Case, Count, "token", Lower, requirement("actual_token_usage", "usage.v1", false))
 	cost := base("Cost", Case, Cost, "declared_currency", Lower, requirement("actual_cost_receipt", "cost.v1", false))
 	cost.Missing = "unknown cost is null; do not estimate zero; judge and execution separated"
-	return append(result, Builtin{"latency", "v1", latency}, Builtin{"token_usage", "v1", tokens}, Builtin{"cost", "v1", cost})
+	result = append(result, Builtin{"latency", "v1", latency}, Builtin{"token_usage", "v1", tokens}, Builtin{"cost", "v1", cost})
+	quality := base("Agent Execution Integrity", Case, Boolean, "decision", Higher, requirement("agent_quality", "agent-quality-evidence.v1", true))
+	quality.Range = &[2]float64{0, 1}
+	quality.Applicability.RuleRef = "agent_execution_integrity.v1"
+	return append(result, Builtin{"agent_execution_integrity", "v1", quality})
 }

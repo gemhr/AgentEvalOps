@@ -160,6 +160,9 @@ type CreateRun struct {
 
 func FreezeRun(c CreateRun, project string, caps EvaluatorExecutionCapability) (RunSnapshot, error) {
 	in := c.Snapshot.Input()
+	if err := validateAgentQualityFreeze(c, in, project); err != nil {
+		return RunSnapshot{}, err
+	}
 	governed := false
 	for _, item := range in.Manifest {
 		p, err := cigovernance.ReadPolicy(item.Case.Metadata)

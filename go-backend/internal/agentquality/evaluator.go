@@ -142,6 +142,9 @@ func NonApplicable(in worker.EvaluationInput, state asset.ApplicabilityState, me
 	return worker.EvaluationOutput{Value: v}
 }
 func DeterministicSupported(d metric.EvaluatorDefinition) bool {
+	if BehaviorSupported(d) {
+		return true
+	}
 	if LoopSupported(d) {
 		return true
 	}
@@ -159,6 +162,9 @@ func (DeterministicEvaluator) Evaluate(ctx context.Context, in worker.Evaluation
 		return worker.EvaluationOutput{}, e
 	}
 	d := in.Work.Metadata.Spec.Definition
+	if BehaviorSupported(d) {
+		return evaluateBehavior(ctx, in)
+	}
 	if LoopSupported(d) {
 		return evaluateLoop(ctx, in)
 	}

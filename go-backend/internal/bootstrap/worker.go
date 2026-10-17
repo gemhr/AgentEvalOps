@@ -80,17 +80,28 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 		if config.ExecutionConcurrency > 0 {
 			j, e := asset.ParseJSON([]byte(os.Getenv("LOCALAGENT_TARGET_CONFIG")))
 			loopEnabled := os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1"
-			if loopEnabled && os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
+			qualityEnabled := os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1"
+			if (loopEnabled && qualityEnabled) || ((loopEnabled || qualityEnabled) && os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1") {
 				judge.Close()
 				pool.Close()
 				return nil, nil, fmt.Errorf("LOCALAGENT_TARGET_SELECTION_CONFLICT")
 			}
-			if e != nil || (!loopEnabled && os.Getenv("LOCALAGENT_STAGE13_ENABLED") != "1" && j.Decode(&targetConfig) != nil) {
+			if e != nil || (!loopEnabled && !qualityEnabled && os.Getenv("LOCALAGENT_STAGE13_ENABLED") != "1" && j.Decode(&targetConfig) != nil) {
 				judge.Close()
 				pool.Close()
 				return nil, nil, fmt.Errorf("缺少有效 LOCALAGENT_TARGET_CONFIG")
 			}
-			if loopEnabled {
+			if qualityEnabled {
+				var qualityConfig provider.AgentQualityConfig
+				if j.Decode(&qualityConfig) != nil {
+					judge.Close()
+					pool.Close()
+					return nil, nil, asset.ErrInvalid
+				}
+				var qualityTarget *provider.AgentQualityTarget
+				qualityTarget, e = provider.NewAgentQualityTarget(qualityConfig, log)
+				local, target = qualityTarget, qualityTarget
+			} else if loopEnabled {
 				var loopConfig provider.AgentLoopConfig
 				if j.Decode(&loopConfig) != nil {
 					judge.Close()

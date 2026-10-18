@@ -42,12 +42,30 @@ func qualityProducer(t *testing.T, project string, extra ...string) qualityLive 
 		t.Fatal(err)
 	}
 	directory := t.TempDir()
+	if len(extra) > 0 && extra[0] == "--capacity" {
+		directory = os.Getenv("QUALITY_CAPACITY_EVIDENCE_DIR")
+		if directory == "" {
+			t.Fatal("capacity evidence directory required")
+		}
+		if err := os.MkdirAll(directory, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
 	python := filepath.Join(root, ".venv", "bin", "python")
 	if runtime.GOOS == "windows" {
 		python = filepath.Join(root, ".venv", "Scripts", "python.exe")
 	}
 	args := append([]string{"tests/fixtures/quality_http_service.py", "--project-id", project, "--directory", directory}, extra...)
 	cmd := exec.Command(python, args...)
+	if len(extra) > 0 && extra[0] == "--capacity" {
+		// 容量子进程只继承启动所需路径与显式隔离DB，不转交真实Provider/CI凭据。
+		cmd.Env = []string{}
+		for _, key := range []string{"SYSTEMROOT", "WINDIR", "PATH", "PATHEXT", "COMSPEC", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "PYTHONIOENCODING", "LOCAL_AGENT_TEST_DATABASE_URL"} {
+			if value, ok := os.LookupEnv(key); ok {
+				cmd.Env = append(cmd.Env, key+"="+value)
+			}
+		}
+	}
 	cmd.Dir = root
 	log := &processLog{}
 	cmd.Stdout = log

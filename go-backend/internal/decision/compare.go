@@ -368,6 +368,10 @@ func Compare(s Snapshot) (Receipt, error) {
 						continue
 					}
 					lm, cm := findMetric(b, rule.Metric), findMetric(u, rule.Metric)
+					// 已保存的双侧不适用事实不进入逐案 required 指标分母。
+					if lm.ResultID != "" && cm.ResultID != "" && lm.Applicability == asset.NotApplicable && cm.Applicability == asset.NotApplicable {
+						continue
+					}
 					m := compareValues(rule, lm.Metric.Definition, MetricValue(lm), MetricValue(cm))
 					m.BaselineApplicability, m.CandidateApplicability = lm.Applicability, cm.Applicability
 					m.BaselineVerdict, m.CandidateVerdict = lm.Verdict, cm.Verdict
@@ -399,6 +403,10 @@ func Compare(s Snapshot) (Receipt, error) {
 				}
 				if critical && s.Policy.CriticalMissing {
 					for _, m := range u.Metrics {
+						baselineMetric := findMetric(b, m.Metric.Identity.Ref)
+						if m.ResultID != "" && baselineMetric.ResultID != "" && m.Applicability == asset.NotApplicable && baselineMetric.Applicability == asset.NotApplicable {
+							continue
+						}
 						if m.Evaluator.Required && (m.ResultID == "" || m.Applicability == asset.MissingEvidence || m.Applicability == asset.UnsupportedEvidence || one(m.Verdict, "ERROR", "INCONCLUSIVE")) {
 							issue("CRITICAL_EVIDENCE_MISSING", u.Key, Blocked)
 						}
@@ -413,7 +421,7 @@ func Compare(s Snapshot) (Receipt, error) {
 						issue("CASE_REGRESSION", u.Key, Fail)
 					}
 				}
-				if critical && s.Policy.CriticalMissing && (row.Classification == Insufficient || u.Task == "MISSING_EVIDENCE" || u.Task == "UNKNOWN_EXECUTION" || u.Task == "EVALUATOR_ERROR") {
+				if critical && s.Policy.CriticalMissing && (row.Classification == Insufficient || task && (u.Task == "MISSING_EVIDENCE" || u.Task == "UNKNOWN_EXECUTION" || u.Task == "EVALUATOR_ERROR")) {
 					issue("CRITICAL_EVIDENCE_MISSING", u.Key, Blocked)
 				}
 				r.Cases = append(r.Cases, row)

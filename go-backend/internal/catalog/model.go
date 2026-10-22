@@ -3,6 +3,7 @@ package catalog
 
 import (
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/cibusiness"
 	"agentevalops/go-backend/internal/cigovernance"
 	"agentevalops/go-backend/internal/citriage"
 )
@@ -55,6 +56,17 @@ type CaseContent struct {
 }
 
 func (c CaseContent) Validate() error {
+	if c.Capability == "CI_BUSINESS_QUALITY" {
+		if _, err := cibusiness.ReadInput(c.Input.Bytes()); err != nil {
+			return asset.ErrInvalid
+		}
+		if _, err := cibusiness.ReadReference(c.GroundTruth.Bytes()); err != nil {
+			return asset.ErrInvalid
+		}
+		if c.Type != Regression || c.ExpectedOutput.String() != "null" {
+			return asset.ErrInvalid
+		}
+	}
 	policy, policyErr := cigovernance.ReadPolicy(c.Metadata)
 	if err := policyErr; err != nil {
 		return err

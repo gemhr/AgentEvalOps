@@ -18,6 +18,9 @@ export interface ProductPage {
   next_cursor: string | null;
 }
 export type ProductRecord = Record<string, unknown>;
+export type CIBusinessResult = { result_id: string; run_id: string; case: { entity_id: string; version: string }; input: { records: { canonical_bytes_b64: string; sha256: string }[] }; reference: Record<string, unknown>; actual: Record<string, unknown>; provenance: Record<string, unknown>; score: number | null; verdict: string; reason: string };
+export const createCIBusinessRun = (project: string, suite: { entity_id: string; version: string }, rule_version: string, command: string) => productCommand<{ id: string }>(productPath(project, "ci-business/runs"), { suite, rule_version }, command);
+export const readCIBusinessResult = (project: string, result: string) => productGet<CIBusinessResult>(productPath(project, `results/${encodeURIComponent(result)}/business-quality`));
 export interface ReviewClaim {
   item_id: string;
   slot: number;

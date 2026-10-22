@@ -9,6 +9,7 @@ import (
 
 	"agentevalops/go-backend/internal/agentquality"
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/evaluation"
 	"agentevalops/go-backend/internal/httpapi"
 	"agentevalops/go-backend/internal/identity"
 	"agentevalops/go-backend/internal/metric"
@@ -49,7 +50,7 @@ func API(ctx context.Context, config httpapi.Config, controlledDev, fixtureOnly 
 	}
 	k := postgres.Evaluation{Pool: pool}
 	httpConfig := provider.DefaultHTTPConfig()
-	if raw := os.Getenv("JUDGE_HTTP_CONFIG"); raw != "" {
+	if raw := os.Getenv("JUDGE_HTTP_CONFIG"); raw != "" && os.Getenv("CI_BUSINESS_QUALITY_ENABLED") != "1" {
 		j, e := asset.ParseJSON([]byte(raw))
 		if e != nil || j.Decode(&httpConfig) != nil {
 			closeDB()
@@ -66,12 +67,28 @@ func API(ctx context.Context, config httpapi.Config, controlledDev, fixtureOnly 
 	if fixtureOnly {
 		supported = worker.FixtureDefinitionSupported
 	}
+	var businessTarget *evaluation.Target
+	if os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" {
+		if fixtureOnly || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
+			closeDB()
+			return nil, nil, fmt.Errorf("CI_BUSINESS_MODE_CONFLICT")
+		}
+		businessConfig, e := provider.BusinessConfigFromEnv()
+		if e != nil {
+			closeDB()
+			return nil, nil, e
+		}
+		frozen, _ := asset.Freeze(businessConfig)
+		capabilities, _ := asset.Freeze(map[string]any{"mode": "STATELESS_BUSINESS_REPLAY"})
+		businessTarget = &evaluation.Target{ID: provider.CIBusinessTargetID, Kind: provider.CIBusinessTargetKind, Version: provider.CIBusinessTargetVersion, Config: frozen, Capabilities: capabilities, TimeoutMilliseconds: businessConfig.Transport.CallMilliseconds}
+		supported = agentquality.CIBusinessSupported
+	}
 	k.Capabilities, err = k.LoadEvaluatorCapabilities(ctx, supported)
 	if err != nil {
 		closeDB()
 		return nil, nil, fmt.Errorf("CAPABILITY_CONFIG_REJECTED")
 	}
-	s := httpapi.Server{Pool: pool, Identity: ident, Config: config, Epoch: epoch, Kernel: k, SupportsEvaluator: supported, Log: log}
+	s := httpapi.Server{Pool: pool, Identity: ident, Config: config, Epoch: epoch, Kernel: k, SupportsEvaluator: supported, CIBusinessTarget: businessTarget, Log: log}
 	if controlledDev {
 		s.Dev = &identity.DevAuth{Environment: environment, PrincipalID: os.Getenv("PRODUCT_DEV_PRINCIPAL_ID"), OrganizationID: os.Getenv("PRODUCT_DEV_ORGANIZATION_ID"), Password: os.Getenv("PRODUCT_DEV_PASSWORD"), SigningKey: []byte(os.Getenv("PRODUCT_DEV_SIGNING_KEY")), Lifetime: 15 * time.Minute}
 		log.Warn("CONTROLLED_DEV_AUTH", "environment", environment)

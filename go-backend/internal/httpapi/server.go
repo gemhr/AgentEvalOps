@@ -48,6 +48,7 @@ type Server struct {
 	Epoch             int64
 	Kernel            postgres.Evaluation
 	SupportsEvaluator func(metric.EvaluatorDefinition) bool
+	CIBusinessTarget  *ev.Target
 	mux               *http.ServeMux
 	routes            []route
 	limiter           *rateLimiter
@@ -100,6 +101,7 @@ func New(s Server) (*Server, error) {
 	s.limiter = &rateLimiter{entries: map[string]rateEntry{}, max: s.Config.RequestsPerMinute}
 	s.catalogRoutes()
 	s.productRoutes()
+	s.ciBusinessRoutes()
 	s.reviewRoutes()
 	s.analyticsRoutes()
 	s.traceRoutes()

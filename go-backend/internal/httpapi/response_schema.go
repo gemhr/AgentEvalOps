@@ -30,6 +30,9 @@ func (s *Server) responseSchema(r route) any {
 	path := strings.TrimPrefix(r.Path, "/api/v1/projects/{project_id}")
 	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	kind := parts[0]
+	if kind == "ci-business" || (kind == "results" && strings.HasSuffix(path, "/business-quality")) {
+		return objectSchema(nil, map[string]any{})
+	}
 	if kind == "datasets" && strings.HasSuffix(path, "/holdout-verification") {
 		return fieldSchema(catalog.HoldoutVerification{})
 	}

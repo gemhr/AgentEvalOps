@@ -9,6 +9,7 @@ import (
 
 	"agentevalops/go-backend/internal/agentquality"
 	"agentevalops/go-backend/internal/asset"
+	"agentevalops/go-backend/internal/cigovernance"
 	"agentevalops/go-backend/internal/metric"
 	"agentevalops/go-backend/internal/provider"
 
@@ -44,7 +45,11 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 		return nil, nil, fmt.Errorf("数据库连接配置失败")
 	}
 	k := postgres.Evaluation{Pool: pool}
-	epoch, err := k.VerifyWorker(ctx, WorkerSchema)
+	schema := WorkerSchema
+	if os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" {
+		schema = cigovernance.Schema
+	}
+	epoch, err := k.VerifyWorker(ctx, schema)
 	if err != nil {
 		pool.Close()
 		return nil, nil, err
@@ -60,7 +65,26 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 	supported := worker.FixtureDefinitionSupported
 	closeAdapters := func() {}
 	var onlineJudge *provider.LLMJudgeEvaluator
-	if !fixtureOnly {
+	if os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" {
+		if fixtureOnly || config.OnlineConcurrency != 0 || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
+			pool.Close()
+			return nil, nil, fmt.Errorf("CI_BUSINESS_MODE_CONFLICT")
+		}
+		businessConfig, e := provider.BusinessConfigFromEnv()
+		if e != nil {
+			pool.Close()
+			return nil, nil, e
+		}
+		businessTarget, e := provider.NewCIBusinessTarget(businessConfig, k)
+		if e != nil {
+			pool.Close()
+			return nil, nil, e
+		}
+		target = businessTarget
+		evaluator = agentquality.DeterministicEvaluator{}
+		supported = agentquality.CIBusinessSupported
+		closeAdapters = businessTarget.Close
+	} else if !fixtureOnly {
 		var targetConfig provider.LocalAgentConfig
 		httpConfig := provider.DefaultHTTPConfig()
 		if raw := os.Getenv("JUDGE_HTTP_CONFIG"); raw != "" {

@@ -17,6 +17,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { useProductPrincipal } from "./ProductShell";
 import { ProductAnalytics } from "./ProductAnalytics";
 import { AnalyticsTable } from "./ProductAnalytics";
+import { CIBusinessEvaluation } from "./CIBusinessEvaluation";
 
 export function ProductFacts({ value }: { value: ProductRecord }) {
   const fields: Record<string, string> = {
@@ -140,6 +141,7 @@ function ProductResources({ area }: { area: string }) {
   return (
     <main className="space-y-5">
       <h1 className="text-xl">{area === "overview" ? "项目概览" : area}</h1>
+      {["runs", "datasets", "results"].includes(area) && principal && <CIBusinessEvaluation key={`${principal.principal_id}:${params.projectId}`} project={params.projectId} />}
       <p className="text-sm text-text-dim">
         执行结果、任务成功、评估结论、门禁决策分别读取；缺失证据不会表示为成功。
       </p>

@@ -1,5 +1,11 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+CI 调查工作台入口为 `/ci-incidents`。服务端 `LOCAL_AGENT_API_URL` 默认
+`http://127.0.0.1:8000`，通过固定同源代理访问 LocalAgent。使用现有
+`scripts/manage_identity.py` 准备的 HUMAN 测试用户 JWT；页面只在内存保存凭据，
+刷新后重新验证同一用户即可读取 PostgreSQL 中原有报告，不会重新启动模型。
+该页面不依赖 Go 产品认证或 Firebase；本地演练沿用 `NEXT_PUBLIC_AUTH_ENABLED=false`。
+
 ## Getting Started
 
 First, run the development server:

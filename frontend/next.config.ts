@@ -14,6 +14,14 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  async rewrites() {
+    const upstream = (process.env.LOCAL_AGENT_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
+    return [
+      { source: "/api/agentcore/ci/:path*", destination: `${upstream}/api/ci/:path*` },
+      { source: "/api/agentcore/principal", destination: `${upstream}/api/v1/principal` },
+      { source: "/api/agentcore/runs/:runId/events", destination: `${upstream}/api/v1/runs/:runId/events` },
+    ];
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

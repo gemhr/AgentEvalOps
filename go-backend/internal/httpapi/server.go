@@ -39,19 +39,20 @@ func DefaultConfig() Config {
 }
 
 type Server struct {
-	Pool              *pgxpool.Pool
-	Identity          postgres.ProductIdentity
-	Bearer            identity.BearerProvider
-	Dev               *identity.DevAuth
-	Config            Config
-	Log               *slog.Logger
-	Epoch             int64
-	Kernel            postgres.Evaluation
-	SupportsEvaluator func(metric.EvaluatorDefinition) bool
-	CIBusinessTarget  *ev.Target
-	mux               *http.ServeMux
-	routes            []route
-	limiter           *rateLimiter
+	Pool                *pgxpool.Pool
+	Identity            postgres.ProductIdentity
+	Bearer              identity.BearerProvider
+	Dev                 *identity.DevAuth
+	Config              Config
+	Log                 *slog.Logger
+	Epoch               int64
+	Kernel              postgres.Evaluation
+	SupportsEvaluator   func(metric.EvaluatorDefinition) bool
+	CIBusinessTarget    *ev.Target
+	FeatureImpactTarget *ev.Target
+	mux                 *http.ServeMux
+	routes              []route
+	limiter             *rateLimiter
 }
 type route struct {
 	Method, Path string
@@ -102,6 +103,7 @@ func New(s Server) (*Server, error) {
 	s.catalogRoutes()
 	s.productRoutes()
 	s.ciBusinessRoutes()
+	s.featureImpactRoutes()
 	s.reviewRoutes()
 	s.analyticsRoutes()
 	s.traceRoutes()

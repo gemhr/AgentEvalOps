@@ -142,6 +142,9 @@ func NonApplicable(in worker.EvaluationInput, state asset.ApplicabilityState, me
 	return worker.EvaluationOutput{Value: v}
 }
 func DeterministicSupported(d metric.EvaluatorDefinition) bool {
+	if FeatureImpactSupported(d) {
+		return true
+	}
 	if CIBusinessSupported(d) {
 		return true
 	}
@@ -165,6 +168,9 @@ func (DeterministicEvaluator) Evaluate(ctx context.Context, in worker.Evaluation
 		return worker.EvaluationOutput{}, e
 	}
 	d := in.Work.Metadata.Spec.Definition
+	if FeatureImpactSupported(d) {
+		return evaluateFeatureImpact(ctx, in)
+	}
 	if CIBusinessSupported(d) {
 		return evaluateCIBusiness(ctx, in)
 	}

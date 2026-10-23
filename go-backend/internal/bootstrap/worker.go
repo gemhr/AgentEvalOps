@@ -46,7 +46,7 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 	}
 	k := postgres.Evaluation{Pool: pool}
 	schema := WorkerSchema
-	if os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" {
+	if os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" || os.Getenv("FEATURE_IMPACT_ENABLED") == "1" {
 		schema = cigovernance.Schema
 	}
 	epoch, err := k.VerifyWorker(ctx, schema)
@@ -65,7 +65,26 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 	supported := worker.FixtureDefinitionSupported
 	closeAdapters := func() {}
 	var onlineJudge *provider.LLMJudgeEvaluator
-	if os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" {
+	if os.Getenv("FEATURE_IMPACT_ENABLED") == "1" {
+		if fixtureOnly || config.OnlineConcurrency != 0 || os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
+			pool.Close()
+			return nil, nil, fmt.Errorf("FEATURE_IMPACT_MODE_CONFLICT")
+		}
+		c, e := provider.FeatureImpactConfigFromEnv()
+		if e != nil {
+			pool.Close()
+			return nil, nil, e
+		}
+		t, e := provider.NewFeatureImpactTarget(c, k)
+		if e != nil {
+			pool.Close()
+			return nil, nil, e
+		}
+		target = t
+		evaluator = agentquality.DeterministicEvaluator{}
+		supported = agentquality.FeatureImpactSupported
+		closeAdapters = t.Close
+	} else if os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" {
 		if fixtureOnly || config.OnlineConcurrency != 0 || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
 			pool.Close()
 			return nil, nil, fmt.Errorf("CI_BUSINESS_MODE_CONFLICT")

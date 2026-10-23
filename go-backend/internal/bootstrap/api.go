@@ -68,6 +68,22 @@ func API(ctx context.Context, config httpapi.Config, controlledDev, fixtureOnly 
 		supported = worker.FixtureDefinitionSupported
 	}
 	var businessTarget *evaluation.Target
+	var featureTarget *evaluation.Target
+	if os.Getenv("FEATURE_IMPACT_ENABLED") == "1" {
+		if fixtureOnly || os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
+			closeDB()
+			return nil, nil, fmt.Errorf("FEATURE_IMPACT_MODE_CONFLICT")
+		}
+		c, e := provider.FeatureImpactConfigFromEnv()
+		if e != nil {
+			closeDB()
+			return nil, nil, e
+		}
+		frozen, _ := asset.Freeze(c)
+		capabilities, _ := asset.Freeze(map[string]any{"mode": "FROZEN_PUBLIC_INPUT"})
+		featureTarget = &evaluation.Target{ID: provider.FeatureImpactTargetID, Kind: provider.FeatureImpactTargetKind, Version: provider.FeatureImpactTargetVersion, Config: frozen, Capabilities: capabilities, TimeoutMilliseconds: c.CallMilliseconds}
+		supported = agentquality.FeatureImpactSupported
+	}
 	if os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" {
 		if fixtureOnly || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
 			closeDB()
@@ -88,7 +104,7 @@ func API(ctx context.Context, config httpapi.Config, controlledDev, fixtureOnly 
 		closeDB()
 		return nil, nil, fmt.Errorf("CAPABILITY_CONFIG_REJECTED")
 	}
-	s := httpapi.Server{Pool: pool, Identity: ident, Config: config, Epoch: epoch, Kernel: k, SupportsEvaluator: supported, CIBusinessTarget: businessTarget, Log: log}
+	s := httpapi.Server{Pool: pool, Identity: ident, Config: config, Epoch: epoch, Kernel: k, SupportsEvaluator: supported, CIBusinessTarget: businessTarget, FeatureImpactTarget: featureTarget, Log: log}
 	if controlledDev {
 		s.Dev = &identity.DevAuth{Environment: environment, PrincipalID: os.Getenv("PRODUCT_DEV_PRINCIPAL_ID"), OrganizationID: os.Getenv("PRODUCT_DEV_ORGANIZATION_ID"), Password: os.Getenv("PRODUCT_DEV_PASSWORD"), SigningKey: []byte(os.Getenv("PRODUCT_DEV_SIGNING_KEY")), Lifetime: 15 * time.Minute}
 		log.Warn("CONTROLLED_DEV_AUTH", "environment", environment)

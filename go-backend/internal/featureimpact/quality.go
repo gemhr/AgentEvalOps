@@ -128,10 +128,13 @@ func Decode(raw []byte, dst any) error {
 }
 func ReadInput(raw []byte) (Input, error) {
 	var in Input
-	if Decode(raw, &in) != nil || in.TaskID == "" || (in.CandidateKind != "RULE" && in.CandidateKind != "HUMAN") || in.CandidateVersion == "" || in.Snapshot.String() == "null" {
+	if Decode(raw, &in) != nil || in.TaskID == "" || (in.CandidateKind != "RULE" && in.CandidateKind != "HUMAN" && in.CandidateKind != "AGENT") || in.CandidateVersion == "" || in.Snapshot.String() == "null" {
 		return in, asset.ErrInvalid
 	}
 	if in.CandidateKind == "RULE" && (in.CandidateVersion != "dependency-lifecycle.v1" || in.Report.String() != "null") {
+		return in, asset.ErrInvalid
+	}
+	if in.CandidateKind == "AGENT" && !validAgentSelector(in) {
 		return in, asset.ErrInvalid
 	}
 	return in, nil
@@ -147,7 +150,13 @@ func (o Output) Validate(in Input, project, run, attempt, request, caseID, diges
 	_ = json.Unmarshal(snapshot["corpus_digest"], &corpus)
 	_ = json.Unmarshal(snapshot["task_version"], &version)
 	report, e := asset.Freeze(o.Report)
-	if e != nil || o.Protocol != OutputProtocol || o.ProjectID != project || o.RunID != run || o.AttemptID != attempt || o.RequestID != request || o.CaseID != caseID || o.InputDigest != digest || o.Envelope.TaskID != in.TaskID || o.Envelope.Kind != in.CandidateKind || o.Envelope.Version != in.CandidateVersion || o.Envelope.InputDigest != inputDigest || o.Envelope.CorpusDigest != corpus || o.Envelope.TaskVersion != version || o.Envelope.RunID != nil || o.Envelope.ReportDigest != report.Digest() || o.Report.Schema != "feature-impact-report.v1" || len(o.Report.Findings) == 0 {
+	if e != nil || o.Protocol != OutputProtocol || o.ProjectID != project || o.RunID != run || o.AttemptID != attempt || o.RequestID != request || o.CaseID != caseID || o.InputDigest != digest || o.Envelope.TaskID != in.TaskID || o.Envelope.Kind != in.CandidateKind || o.Envelope.Version != in.CandidateVersion || o.Envelope.InputDigest != inputDigest || o.Envelope.CorpusDigest != corpus || o.Envelope.TaskVersion != version || o.Envelope.ReportDigest != report.Digest() || o.Report.Schema != "feature-impact-report.v1" || len(o.Report.Findings) == 0 {
+		return asset.ErrInvalid
+	}
+	if in.CandidateKind == "AGENT" {
+		return validateAgentSource(in, o)
+	}
+	if o.Envelope.RunID != nil {
 		return asset.ErrInvalid
 	}
 	return nil
@@ -260,6 +269,11 @@ func publicSequence(t Test) (bool, string) {
 // Score 不用执行 PASS/FAIL 反推 Coverage Truth；未明确的语义留待人审。
 func Score(in Input, truth Truth, out Output) Judgment {
 	j := Judgment{EvidenceAuthentic: true, SemanticReview: "PENDING", Verdict: "INCONCLUSIVE", Reason: "SEMANTIC_SUPPORT_REVIEW_PENDING", Details: []Detail{}}
+	if in.CandidateKind == "AGENT" && validateAgentSource(in, out) != nil {
+		j.EvidenceAuthentic = false
+		j.Verdict, j.Reason = "FAIL", "AGENT_SOURCE_INVALID"
+		return j
+	}
 	if truth.Version != "feature-impact-truth.v1" || truth.InputDigest != out.Envelope.InputDigest || truth.CorpusDigest != out.Envelope.CorpusDigest || len(truth.Units) == 0 {
 		j.EvidenceAuthentic = false
 		j.Reason = "REFERENCE_BINDING_INVALID"
@@ -291,8 +305,12 @@ func Score(in Input, truth Truth, out Output) Judgment {
 		Rule        string   `json:"rule_version"`
 		Query       string   `json:"query"`
 		InputDigest string   `json:"input_digest"`
+		TaskInputs  []string `json:"task_input_sources"`
 	}
 	if in.CandidateKind == "RULE" && (out.Sources.Decode(&proof) != nil || proof.Rule != in.CandidateVersion || proof.InputDigest != truth.InputDigest) {
+		j.EvidenceAuthentic = false
+	}
+	if in.CandidateKind == "AGENT" && json.Unmarshal(out.Sources.Bytes(), &proof) != nil {
 		j.EvidenceAuthentic = false
 	}
 	seen := map[string]bool{}
@@ -316,6 +334,11 @@ func Score(in Input, truth Truth, out Output) Judgment {
 		for _, r := range append(append([]Reference{}, f.Support...), f.Counter...) {
 			d, ok := docs[r.Source]
 			if !ok || r.Version != d.Version || r.Chunk != d.Chunk || r.Digest != d.Digest || (in.CandidateKind == "RULE" && !contains(proof.Reads, r.Source)) || (in.CandidateKind == "HUMAN" && r.Basis != "TASK_INPUT") {
+				authentic = false
+			}
+			if in.CandidateKind == "AGENT" && ((r.Basis != "TASK_INPUT" && r.Basis != "EVIDENCE_READ") ||
+				(r.Basis == "TASK_INPUT" && !contains(proof.TaskInputs, r.Source)) ||
+				(r.Basis == "EVIDENCE_READ" && !contains(proof.Reads, r.Source))) {
 				authentic = false
 			}
 		}

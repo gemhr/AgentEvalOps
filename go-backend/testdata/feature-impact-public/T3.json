@@ -1,0 +1,56 @@
+{
+  "purpose": "DEVELOPMENT_EXPOSED",
+  "task_type": "T3",
+  "reference_review_ref": "70-contract-public-preparation; Sol-B authored; independent semantic review PENDING",
+  "authoring_basis": "公开生命周期合同与下列逐项资料分析；先于规则执行编写；未从候选或执行结果生成",
+  "rationales": {
+    "panel": "名称含快照但明确借用同一帧；规范事实完整可用，规则应发现风险。",
+    "export": "封帧是实际复制反证，旧用例操作缺失，不能断言已有覆盖。"
+  },
+  "coverage_truth": {
+    "version": "feature-impact-truth.v1",
+    "input_digest": "60c39e7217e6d32a8dc725f052a9e6b327517eae1bed0a124a05fb59e7e2651a",
+    "corpus_digest": "83c1e3070eccd088261fd10cbc744f5f3945fb67b3868d20303737552891785c",
+    "units": [
+      {
+        "feature": "panel",
+        "mechanism": "SHARED_DELAYED_REUSE",
+        "conditions": [
+          "DELAYED_CONSUME",
+          "PRODUCER_COMPLETE",
+          "SUBSEQUENT_WRITE"
+        ],
+        "class": "MUST_TEST",
+        "developer_known": true,
+        "support_sources": [
+          "T3:design:v1",
+          "T3:index:v1",
+          "T3:history-panel:v1"
+        ],
+        "counter_sources": [],
+        "existing_coverage": "PARTIAL",
+        "mechanism_aliases": []
+      },
+      {
+        "feature": "export",
+        "mechanism": "COPY_ISOLATION",
+        "conditions": [
+          "COPY_AT_DELIVERY",
+          "LATER_PUBLIC_WRITE"
+        ],
+        "class": "REASONABLE_CHECK",
+        "developer_known": false,
+        "support_sources": [
+          "T3:design:v1",
+          "T3:index:v1",
+          "T3:history-export:v1"
+        ],
+        "counter_sources": [
+          "T3:history-export:v1"
+        ],
+        "existing_coverage": "UNKNOWN",
+        "mechanism_aliases": []
+      }
+    ]
+  }
+}

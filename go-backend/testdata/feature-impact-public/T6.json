@@ -1,0 +1,55 @@
+{
+  "purpose": "DEVELOPMENT_EXPOSED",
+  "task_type": "T6",
+  "reference_review_ref": "70-contract-public-preparation; Sol-B authored; independent semantic review PENDING",
+  "authoring_basis": "公开生命周期合同与下列逐项资料分析；先于规则执行编写；未从候选或执行结果生成",
+  "rationales": {
+    "summary": "操作和上报观察/原输入判据齐全，风险仍存在但应复用既有用例。",
+    "alert": "只有生产日志观察，不能证明业务上报等于输入；必须指出观察缺口。"
+  },
+  "coverage_truth": {
+    "version": "feature-impact-truth.v1",
+    "input_digest": "59bd0a56bd9110b58f8d9b9aecf42fe9f9a4ddfaa2a3c367e9ad2103dccfd120",
+    "corpus_digest": "53db5a3916da01d5f6b3b0a6c96858507513677d7d799b1d4ee18b98111a440d",
+    "units": [
+      {
+        "feature": "summary",
+        "mechanism": "SHARED_DELAYED_REUSE",
+        "conditions": [
+          "DELAYED_CONSUME",
+          "PRODUCER_COMPLETE",
+          "SUBSEQUENT_WRITE"
+        ],
+        "class": "MUST_TEST",
+        "developer_known": true,
+        "support_sources": [
+          "T6:design:v1",
+          "T6:index:v1",
+          "T6:history-summary:v1"
+        ],
+        "counter_sources": [],
+        "existing_coverage": "FULL",
+        "mechanism_aliases": []
+      },
+      {
+        "feature": "alert",
+        "mechanism": "SHARED_DELAYED_REUSE",
+        "conditions": [
+          "DELAYED_CONSUME",
+          "PRODUCER_COMPLETE",
+          "SUBSEQUENT_WRITE"
+        ],
+        "class": "MUST_TEST",
+        "developer_known": false,
+        "support_sources": [
+          "T6:design:v1",
+          "T6:index:v1",
+          "T6:history-alert:v1"
+        ],
+        "counter_sources": [],
+        "existing_coverage": "PARTIAL",
+        "mechanism_aliases": []
+      }
+    ]
+  }
+}

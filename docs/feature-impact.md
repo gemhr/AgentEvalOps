@@ -33,3 +33,11 @@ go test -tags=integration ./internal/postgres -run '^TestFeatureImpactWorkerHTTP
 沿用 G1_TEST_POSTGRES_URL（隔离 localhost:55432/postgres）和 G1_TEST_PYTHON（迁移环境）；另设 FEATURE_IMPACT_AGENTCORE、FEATURE_IMPACT_PYTHON。测试以私有管道启动 AgentCore 演练服务，JWT 不进入日志；模型调用数为 0。测试 fixture 结束清理 EO 临时数据库，落盘的非凭据证据保留实际 Run/ResultValue 和二次 PG 读取证明。
 
 前端 `npx playwright test e2e/feature-impact.spec.ts --project=chromium --workers=1 --reporter=line`；业务 HTTP 使用 18091。Next 开发进程先设置 LOCAL_AGENT_API_URL=http://127.0.0.1:18091；若本机无 yarn，可先用 npm run dev 启动并让既有 Playwright 配置复用。该浏览器操作是自动化 HUMAN 工作流演练，不是真人效率实验。
+
+## AGENT 封存报告的受信重放
+
+E2 为既有业务 Input 增加 `candidate_kind=AGENT / candidate_version=1.1.0`，report **只能**是 `{report_id,run_id}`；不接受客户端传入的 AGENT 报告正文或 source_record。现有 FEATURE_IMPACT_HTTP Target 仍仅发送冻结 Case Input，不发送 GroundTruth，也不调用 Agent 模型。AgentCore 在 evaluate HTTP 内从自身持久化 Run/FINAL/owner/Session/观察记录重新核验并返回原封存报告；失败直接拒绝，不降级为 HUMAN。
+
+`featureimpact.Output.Validate` 对 AGENT 检查服务端返回的 `feature-impact-agent-source.v1`、选择器、Run/Session/owner/tenant、AgentDefinition 1.1.0、DELIVERED receipt 摘要、原始输出与报告摘要。Score 分别核对 TASK_INPUT/EVIDENCE_READ 的来源列表，再复用原机制/条件评分和静态可操作性；不使用候选质量分数。RULE/HUMAN 仍要求 envelope.run_id=null，并保留原语义。
+
+来源权威在已固定的 AgentCore HTTP 服务及其 PG/Runtime repository。Go 的投影校验不能独立认证任意离线客户端自行编写的 receipt；只有正常受信 Target 返回的输出才能成为实际评测事实。合同测试 fixture 必须明确 TEST_FIXTURE，不能登记成真实 Agent Run/执行证明。SemanticReview 继续 PENDING，旧 Gate 不回写。

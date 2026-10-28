@@ -1,0 +1,51 @@
+{
+  "purpose": "DEVELOPMENT_EXPOSED",
+  "task_type": "T5",
+  "reference_review_ref": "70-contract-public-preparation; Sol-B authored; independent semantic review PENDING",
+  "authoring_basis": "公开生命周期合同与下列逐项资料分析；先于规则执行编写；未从候选或执行结果生成",
+  "rationales": {
+    "archive": "消费时间已知，但所有权不足；应问交付是否复制，不得强判故障。",
+    "billing": "所有权已知但时点不足；应问完成前/后读取，不能反推实际隐藏行为。"
+  },
+  "coverage_truth": {
+    "version": "feature-impact-truth.v1",
+    "input_digest": "e6ac66135bba5be333a9ad0febea8b0382c762897ffaed6654aa3f6a77c59dc7",
+    "corpus_digest": "7961f3c1d15954719ac189e95133da20e3864323ffaac3a70469a588d4be3fcd",
+    "units": [
+      {
+        "feature": "archive",
+        "mechanism": "OWNERSHIP_UNKNOWN",
+        "conditions": [
+          "OWNERSHIP_OR_TIMING_MISSING"
+        ],
+        "class": "INSUFFICIENT_EVIDENCE",
+        "developer_known": false,
+        "support_sources": [
+          "T5:design:v1",
+          "T5:index:v1",
+          "T5:history-archive:v1"
+        ],
+        "counter_sources": [],
+        "existing_coverage": "UNKNOWN",
+        "mechanism_aliases": []
+      },
+      {
+        "feature": "billing",
+        "mechanism": "OWNERSHIP_UNKNOWN",
+        "conditions": [
+          "OWNERSHIP_OR_TIMING_MISSING"
+        ],
+        "class": "INSUFFICIENT_EVIDENCE",
+        "developer_known": false,
+        "support_sources": [
+          "T5:design:v1",
+          "T5:index:v1",
+          "T5:history-billing:v1"
+        ],
+        "counter_sources": [],
+        "existing_coverage": "UNKNOWN",
+        "mechanism_aliases": []
+      }
+    ]
+  }
+}

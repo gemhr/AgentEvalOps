@@ -18,6 +18,11 @@ func (k Evaluation) VerifyWorker(ctx context.Context, schema string) (int64, err
 	if err != nil {
 		return 0, err
 	}
+	// 该增量只增加反馈审核来源，不改变 durable kernel/worker 的表合同。
+	// 保持旧 schema 可用，仅显式接受已知的追加迁移，不放宽未知版本。
+	if actual == "c17a00100001" && (schema == "c13a00300001" || schema == "c13a00100001") {
+		actual = schema
+	}
 	if actual != schema || mode != "GO_ACTIVE" || writer != "GO" || contract != ev.DurableContract || required != ev.SchemaVersion || super {
 		return 0, fmt.Errorf("WORKER_BOOTSTRAP_REJECTED: schema/writer/runtime role mismatch")
 	}

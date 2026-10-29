@@ -11,6 +11,7 @@ import (
 )
 
 type reviewSourceRequest struct {
+	FeedbackID      string     `json:"feedback_id"`
 	Case            *asset.Ref `json:"case,omitempty"`
 	Type            string     `json:"type"`
 	RunID           string     `json:"run_id"`
@@ -22,7 +23,7 @@ type reviewSourceRequest struct {
 }
 
 func (d reviewSourceRequest) domain() rv.SourceRef {
-	return rv.SourceRef{Type: d.Type, RunID: d.RunID, ResultID: d.ResultID, ObservationID: d.ObservationID, GateID: d.GateID, CandidateSource: d.CandidateSource, Classification: d.Classification, Case: d.Case}
+	return rv.SourceRef{FeedbackID: d.FeedbackID, Type: d.Type, RunID: d.RunID, ResultID: d.ResultID, ObservationID: d.ObservationID, GateID: d.GateID, CandidateSource: d.CandidateSource, Classification: d.Classification, Case: d.Case}
 }
 
 type enqueueRequest struct {

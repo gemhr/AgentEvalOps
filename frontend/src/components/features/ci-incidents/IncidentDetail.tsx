@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { CIIdentity } from "./IncidentWorkbench";
 import { ciPath, request, subscribe, terminal, useCIIdentity, type Detail, type Evidence, type Investigation, type Start, type CurrentState } from "@/lib/api/ci-incidents";
+import InvestigationFeedback from "./InvestigationFeedback";
 import RepairActions from "./RepairActions";
 import VerificationPanel from "./VerificationPanel";
 
@@ -17,7 +18,8 @@ export default function IncidentDetail({ incidentId }: { incidentId: string }) {
   const base = `/incidents/${encodeURIComponent(incidentId)}`;
   const detail = useQuery({ queryKey: [...scope, "detail"], queryFn: () => request<Detail>(ciPath(base)), enabled: !!identity });
   const currentState = useQuery({ queryKey: [...scope, "state"], queryFn: () => request<CurrentState>(ciPath(`${base}/state`)), enabled: !!identity });
-  const latest = detail.data?.investigations[0];
+  const [selected, setSelected] = useState("");
+  const latest = detail.data?.investigations.find(item => item.investigation_id === selected);
   const investigation = useQuery({ queryKey: [...scope, latest?.investigation_id], enabled: !!identity && !!latest,
     queryFn: () => request<Investigation>(ciPath(`${base}/investigations/${latest!.investigation_id}`)),
     refetchInterval: (query) => terminal(query.state.data) || query.state.error ? false : 2000 });
@@ -49,6 +51,7 @@ export default function IncidentDetail({ incidentId }: { incidentId: string }) {
       <section className="border rounded p-4 space-y-2"><h2>{detail.data.title}</h2><p>{incidentId} · {detail.data.status} · 原始 CI {detail.data.execution.outcome}</p><p>原始执行 {detail.data.execution.execution_id}</p>
       <Button disabled={busy || active} onClick={start}>{busy ? "启动中…" : intent ? "重试本次调查" : "启动新调查"}</Button></section>
       {error && <p role="alert">{error}</p>}{investigation.error && <p role="alert">{String(investigation.error)}</p>}
+      <label>选择调查报告 <select value={selected} onChange={e => setSelected(e.target.value)}><option value="">请选择具体调查</option>{detail.data.investigations.map(item => <option key={item.investigation_id} value={item.investigation_id}>v{item.report_version} · {item.investigation_id}</option>)}</select></label>
       {latest && <section className="space-y-2"><h2>调查 v{latest.report_version}</h2><p>Run {latest.run_id}</p><p>{investigation.data?.investigation_status ?? "读取中"} · {progress}</p>
         {investigation.data?.safe_error_code && <p role="alert">{investigation.data.safe_error_code}。可显式启动新调查。</p>}</section>}
       {report && <section className="border rounded p-4 space-y-3"><h2>{report.diagnosis_status === "INSUFFICIENT_EVIDENCE" ? "证据不足 · 待求证" : "证据支持的根因假设"}</h2>
@@ -57,6 +60,7 @@ export default function IncidentDetail({ incidentId }: { incidentId: string }) {
         <h3>报告引用</h3>{report.supporting_evidence.map((ref) => <Button key={ref.evidence_id} onClick={() => read(ref.evidence_id)}>{detail.data?.evidence.find((item) => item.evidence_id === ref.evidence_id)?.kind ?? ref.evidence_id}</Button>)}
       </section>}
       {!report && <p>尚无可用 Agent 诊断，可先人工处置。模型计数接入已后置，人工操作不调用模型。</p>}
+      <InvestigationFeedback key={`${identity.user_id}-${incidentId}-${selected}`} incidentId={incidentId} investigation={investigation.data} />
       {currentState.error && <p role="alert">{String(currentState.error)}</p>}
       {currentState.data && <><section className="border rounded p-4 space-y-2"><h2 className="text-lg">当前模拟状态 · 版本 {currentState.data.state_revision}</h2>
         <p>读取时间 {currentState.data.observed_at}；这是当前状态，不是原失败时的历史证据。</p><pre className="whitespace-pre-wrap break-all">{JSON.stringify({ environment: currentState.data.environment, cases: currentState.data.cases, report_field_revision: currentState.data.report_field_revision }, null, 2)}</pre></section>

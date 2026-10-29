@@ -43,6 +43,9 @@ func (k Reviews) CreateReviewedCaseDraft(ctx context.Context, s rv.Scope, d rv.D
 		if !errors.Is(e, pgx.ErrNoRows) {
 			return e
 		}
+		if e = checkBusinessFeedback(ctx, tx, s.Scope.Scope, item); e != nil {
+			return e
+		}
 		if item.Status != "COMPLETED" {
 			return asset.ErrConflict
 		}
@@ -166,6 +169,9 @@ func (k Reviews) PublishReviewedCase(ctx context.Context, s rv.Scope, id, name s
 			return e
 		}
 		itemID = item.ID
+		if e = checkBusinessFeedback(ctx, tx, s.Scope.Scope, item); e != nil {
+			return e
+		}
 		if e = draft.Ready(item); e != nil {
 			return e
 		}
@@ -236,6 +242,13 @@ func (k Reviews) BuildDatasetRevisionFromReviewedCases(ctx context.Context, s rv
 		}
 		if !exists || seen[draft.Case.EntityID] {
 			return result, asset.ErrConflict
+		}
+		item, err := reviewItem(ctx, k.Pool, s.Scope.Scope, draft.ItemID, false)
+		if err != nil {
+			return result, err
+		}
+		if err = checkBusinessFeedback(ctx, k.Pool, s.Scope.Scope, item); err != nil {
+			return result, err
 		}
 		seen[draft.Case.EntityID] = true
 		refs = append(refs, draft.Case)

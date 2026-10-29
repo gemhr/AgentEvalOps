@@ -82,6 +82,14 @@ func reviewAutomatic(ref rv.SourceRef, value, category string, prov asset.JSON, 
 func resolveReviewSource(ctx context.Context, tx pgx.Tx, s asset.Scope, ref rv.SourceRef) (rv.Source, error) {
 	source := rv.Source{Ref: ref, BodyAvailability: "UNAVAILABLE", Retention: "REFERENCE_ONLY", Evidence: []ev.Binding{}}
 	switch ref.Type {
+	case "BUSINESS_FEEDBACK":
+		w, _, e := businessFeedbackSource(ctx, tx, s, ref.FeedbackID)
+		if e != nil {
+			return source, e
+		}
+		source.BodyAvailability = "AVAILABLE"
+		source.Retention = "REDACTED"
+		source.Evidence = []ev.Binding{{ProjectID: s.ProjectID, Ref: "business-feedback:" + ref.FeedbackID, Digest: w.Digest, Schema: rv.FeedbackContract, Availability: "AVAILABLE", Body: w.Projection}}
 	case "CONTROLLED_CASE":
 		v, e := loadVersion[catalog.CaseContent](ctx, tx, caseTables, s, *ref.Case)
 		if e != nil {

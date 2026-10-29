@@ -125,6 +125,9 @@ func (k Reviews) PublishGoldenLabel(ctx context.Context, s rv.Scope, id, itemID 
 		if e != nil {
 			return e
 		}
+		if e = checkBusinessFeedback(ctx, tx, s.Scope.Scope, item); e != nil {
+			return e
+		}
 		if item.Status != "COMPLETED" {
 			return asset.ErrConflict
 		}

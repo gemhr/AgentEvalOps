@@ -86,7 +86,7 @@ func ProductRoleGrants(role string) string {
 		sql += "GRANT INSERT ON " + table + " TO " + id + ";"
 	}
 	// Stage12 的离线授权仍可使用；WP07 新表仅在已经执行 migration 时授权。
-	for _, table := range []string{"evaluation_stage13_gt_reviews", "evaluation_stage13_feedback"} {
+	for _, table := range []string{"evaluation_stage13_gt_reviews", "evaluation_stage13_feedback", "evaluation_business_feedback"} {
 		sql += "DO $$ BEGIN IF to_regclass('" + table + "') IS NOT NULL THEN GRANT SELECT,INSERT ON " + table + " TO " + id + "; END IF; END $$;"
 	}
 	return sql

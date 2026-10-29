@@ -99,6 +99,7 @@ func Decidable(v string) bool {
 }
 
 type SourceRef struct {
+	FeedbackID                             string `json:"FeedbackID,omitempty"`
 	Type                                   string
 	RunID, ResultID, ObservationID, GateID string
 	Case                                   *asset.Ref `json:"Case,omitempty"`
@@ -107,10 +108,17 @@ type SourceRef struct {
 }
 
 func (r SourceRef) Validate() error {
+	if r.Type != "BUSINESS_FEEDBACK" && r.FeedbackID != "" {
+		return asset.ErrInvalid
+	}
 	if r.Type != "CONTROLLED_CASE" && r.Case != nil {
 		return asset.ErrInvalid
 	}
 	switch r.Type {
+	case "BUSINESS_FEEDBACK":
+		if !asset.ValidID(r.FeedbackID) || r.Case != nil || r.RunID != "" || r.ResultID != "" || r.ObservationID != "" || r.GateID != "" || r.CandidateSource != "" || r.Classification != "" {
+			return asset.ErrInvalid
+		}
 	case "CONTROLLED_CASE":
 		if r.Case == nil || r.Case.Validate() != nil || r.RunID != "" || r.ResultID != "" || r.ObservationID != "" || r.GateID != "" || r.CandidateSource != "" || r.Classification != "" {
 			return asset.ErrInvalid

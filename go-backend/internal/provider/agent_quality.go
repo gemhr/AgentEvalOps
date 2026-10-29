@@ -155,10 +155,14 @@ func (t *AgentQualityTarget) Execute(parent context.Context, s ev.Scope, q ev.Re
 		}
 		return out, nil
 	}
+	return verifyAgentQualityResponse(s, q, correlation, out, raw, response.StatusCode)
+}
+
+func verifyAgentQualityResponse(s ev.Scope, q ev.Request, correlation agentquality.QualityCorrelation, out ev.Outcome, raw []byte, status int) (ev.Outcome, error) {
 	out.ErrorCategory = string(ProtocolError)
 	var wire agentQualityResponse
 	canonical, e := asset.ParseJSON(raw)
-	if response.StatusCode != http.StatusOK || e != nil || string(raw) != canonical.String() || agentquality.StrictQualityShape(raw, &wire) != nil ||
+	if status != http.StatusOK || e != nil || string(raw) != canonical.String() || agentquality.StrictQualityShape(raw, &wire) != nil ||
 		wire.Protocol != AgentQualityProtocol || wire.Run != q.AttemptID || wire.Digest != wire.Bundle.Digest() {
 		return out, nil
 	}

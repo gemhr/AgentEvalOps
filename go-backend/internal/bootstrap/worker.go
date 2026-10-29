@@ -4,6 +4,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 
@@ -21,6 +22,9 @@ import (
 const WorkerSchema = "c13a00100001"
 
 func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly bool, log *slog.Logger) (*worker.Runtime, func(), error) {
+	if os.Getenv("LOCALAGENT_CI_SYNTHETIC_ENABLED") == "1" && (fixtureOnly || config.ExecutionConcurrency == 0) {
+		return nil, nil, fmt.Errorf("CI_SYNTHETIC_EXECUTION_MODE_REQUIRED")
+	}
 	if fixtureOnly && os.Getenv("APP_ENV") != "test" && os.Getenv("APP_ENV") != "development" {
 		return nil, nil, fmt.Errorf("CONTROLLED_MODE_PRODUCTION_FORBIDDEN")
 	}
@@ -66,7 +70,7 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 	closeAdapters := func() {}
 	var onlineJudge *provider.LLMJudgeEvaluator
 	if os.Getenv("FEATURE_IMPACT_ENABLED") == "1" {
-		if fixtureOnly || config.OnlineConcurrency != 0 || os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
+		if os.Getenv("LOCALAGENT_CI_SYNTHETIC_ENABLED") == "1" || fixtureOnly || config.OnlineConcurrency != 0 || os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
 			pool.Close()
 			return nil, nil, fmt.Errorf("FEATURE_IMPACT_MODE_CONFLICT")
 		}
@@ -85,7 +89,7 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 		supported = agentquality.FeatureImpactSupported
 		closeAdapters = t.Close
 	} else if os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" {
-		if fixtureOnly || config.OnlineConcurrency != 0 || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
+		if os.Getenv("LOCALAGENT_CI_SYNTHETIC_ENABLED") == "1" || fixtureOnly || config.OnlineConcurrency != 0 || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {
 			pool.Close()
 			return nil, nil, fmt.Errorf("CI_BUSINESS_MODE_CONFLICT")
 		}
@@ -124,17 +128,22 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 			j, e := asset.ParseJSON([]byte(os.Getenv("LOCALAGENT_TARGET_CONFIG")))
 			loopEnabled := os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1"
 			qualityEnabled := os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1"
-			if (loopEnabled && qualityEnabled) || ((loopEnabled || qualityEnabled) && os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1") {
+			ciEnabled := os.Getenv("LOCALAGENT_CI_SYNTHETIC_ENABLED") == "1"
+			if (ciEnabled && (loopEnabled || qualityEnabled || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1")) || (loopEnabled && qualityEnabled) || ((loopEnabled || qualityEnabled) && os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1") {
 				judge.Close()
 				pool.Close()
 				return nil, nil, fmt.Errorf("LOCALAGENT_TARGET_SELECTION_CONFLICT")
 			}
-			if e != nil || (!loopEnabled && !qualityEnabled && os.Getenv("LOCALAGENT_STAGE13_ENABLED") != "1" && j.Decode(&targetConfig) != nil) {
+			if e != nil || (!ciEnabled && !loopEnabled && !qualityEnabled && os.Getenv("LOCALAGENT_STAGE13_ENABLED") != "1" && j.Decode(&targetConfig) != nil) {
 				judge.Close()
 				pool.Close()
 				return nil, nil, fmt.Errorf("缺少有效 LOCALAGENT_TARGET_CONFIG")
 			}
-			if qualityEnabled {
+			if ciEnabled {
+				var ciTarget *provider.CISyntheticTarget
+				ciTarget, e = loadCISyntheticTarget(j, os.Getenv("LOCALAGENT_CI_SYNTHETIC_AUTHORIZATION_PATH"))
+				local, target = ciTarget, ciTarget
+			} else if qualityEnabled {
 				var qualityConfig provider.AgentQualityConfig
 				if j.Decode(&qualityConfig) != nil {
 					judge.Close()
@@ -218,6 +227,29 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 		r.Online = &worker.OnlineRuntime{Config: config, Store: store, Epoch: epoch, Log: log, Evaluator: provider.OnlineEvaluator{Judge: onlineJudge, Store: store, DBTimeout: config.DBTimeout}}
 	}
 	return r, func() { closeAdapters(); pool.Close() }, nil
+}
+
+// 只从运维指定的本机文件加载，启动时冻结到 Target；不接受 HTTP 参数或热更新。
+func loadCISyntheticTarget(config asset.JSON, path string) (*provider.CISyntheticTarget, error) {
+	var c provider.CISyntheticConfig
+	if config.Decode(&c) != nil || path == "" {
+		return nil, asset.ErrInvalid
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, asset.ErrInvalid
+	}
+	defer f.Close()
+	raw, err := io.ReadAll(io.LimitReader(f, 16385))
+	if err != nil || len(raw) > 16384 {
+		return nil, asset.ErrInvalid
+	}
+	j, err := asset.ParseJSON(raw)
+	var a provider.CISyntheticAttemptAuthorization
+	if err != nil || j.Decode(&a) != nil {
+		return nil, asset.ErrInvalid
+	}
+	return provider.NewCISyntheticTarget(c, a)
 }
 
 type qualityEvaluator struct{ Judge *provider.LLMJudgeEvaluator }

@@ -1,0 +1,48 @@
+# CI 合成评测与证据 v1
+
+`internal/provider/ci_synthetic.go` 提供独立 `ci-synthetic-http` Target，当前版本 `ci-synthetic-target.v2`。Worker 使用 `LOCALAGENT_CI_SYNTHETIC_ENABLED=1`，从已有 `LOCALAGENT_TARGET_CONFIG` 解析严格冻结配置，并从 `LOCALAGENT_CI_SYNTHETIC_AUTHORIZATION_PATH` 加载受信进程授权；不能同时启用其他 LocalAgent/业务专用 Target，也不能使用 fixture-only 或禁用 execution 的模式。Evaluation Kernel 与原 AgentQuality v1 Wire 不变。
+
+冻结配置包含且只包含 `quality`（原 AgentQualityConfig）、`frozen_ci`、`candidate_manifest_digest`、`mode`、`prompt_digest`、`candidate_id`。`quality` 沿用现有 base_url、token_env、trusted_project_id、execution_manifest、capture_profile、HTTP 限额设置。不得把 token 明文放入配置或版本库。BASELINE/CANDIDATE 分别部署固定 AC 进程与固定 Worker 配置。
+
+旧 `ci-synthetic-target.v1` 曾将 `allowed_attempt_id` 放入冻结 Config，无法与 Kernel 在冻结后随机产生 Attempt 的顺序衔接。v2 移除此字段；新严格 decoder 拒绝该旧字段，执行入口拒绝 v1 Target。不提供自动迁移、默认 Attempt 或 v1 fallback，不能改写已冻结 Run 以升级；尚未执行的旧 Run 应按原运维流程处置。这里的版本升级仅涉及 CI Target 配置，HTTP Envelope/Sidecar v1、原 AgentQuality v1 不变。
+
+## 受信进程级 Attempt 授权
+
+授权只由受权运维准备为本机文件，不能由普通评测请求提交。`LOCALAGENT_CI_SYNTHETIC_AUTHORIZATION_PATH` 仅属于此 Adapter。文件上限 16 KiB，严格 JSON、拒绝重复键/未知字段；固定 schema `ci-synthetic-attempt-authorization.v1`，首版每进程仅一条精确授权。占位结构如下（不可直接执行）：
+
+```json
+{
+  "schema_version": "ci-synthetic-attempt-authorization.v1",
+  "attempt_id": "<真实 Kernel Attempt UUID>",
+  "evaluation_run_id": "<真实 EvaluationRun UUID>",
+  "project_id": "<获准 Project UUID>",
+  "case_id": "<冻结 Case UUID>",
+  "target_digest": "<asset.Freeze(完整 evaluation.Target).Digest()>",
+  "service_principal_id": "<已批准 AC SERVICE UUID>",
+  "tenant_id": "<AC 数据库 Tenant>",
+  "credential_digest": "<获准 bearer token 原始 UTF-8 字节 SHA-256>",
+  "scopes": ["localagent:evaluation:execute", "localagent:ci-synthetic:evaluate"]
+}
+```
+
+Target digest 使用 Go 现有 catalog canonical SHA-256，对**整个冻结 Target**计算（含 ID/Kind/Version/Config/Capabilities/TimeoutMilliseconds），不能使用仅 Config 的 digest。由此约束 Case version/input、Mode、candidate/manifest/prompt、Quality pins、连接配置和 deadline；无需在授权记录重复这些字段。Project、Case 必须与进程配置一致，Run/Attempt 必须是精确 UUID。Dataset 仍由原 RunSnapshot 冻结并经 Run 身份约束，不新增第二份 Dataset Authority。
+
+身份/Tenant/scope 是运维对获准凭据的声明；Go 要求两项 scope 且把 credential digest 与实际环境 Token 精确匹配，启动后保存 Token，不重新读取环境或热加载文件。Go 不新增 JWT 验证平台，也不通过未验证的 JWT claims 判定身份。真实签名、SERVICE DB 身份、Tenant/scope 和 AC 的 `ci_synthetic.attempts` 精确白名单仍由原 AuthService/Adapter 检查；管理员必须确认两端配置一致。授权文件及 Token 应置于运维访问边界，不交给 Candidate 或提交版本库。改 Token/授权需停 Worker、重新审批并重启。
+
+启动时缺文件、非法 shape、凭据/Project/Case 不匹配均拒绝；dispatch 前再检查精确 Run/Attempt 与完整 Target 摘要，同时保留进程 Config 全量相等检查。未经授权或摘要冲突返回 NOT_DISPATCHED。清单不代表 Claim/租约、不会产生 Attempt 或执行事实，重复投递/UNKNOWN 仍归原合同。
+
+顺序必须是：Worker 停止 → 准备 v2 冻结 Target → 正式 CreateRun → Kernel 冻结 Snapshot/Target 并随机生成 Attempt → 查询真实 PENDING Attempt → 运维填写 Go 授权文件及 AC 精确 attempts → 审核身份/pins → 启动 Worker → 原 Claim/Dispatch。不可提前启动 Worker，不可手工指定 ID、修改冻结 Snapshot 或绕过 NO_RETRY。
+
+`frozen_ci` 字段为 `case_id/case_version/case_digest/template_id/template_version/input_digest`；只接受 `report_pipeline_failure` v2。发布的 Case Input 为 `{template_id,template_version,input_digest}`，不得把自身 Case content digest 嵌入自身输入。Case Identity 由原冻结目录/Run 提供，与配置独立比对。这里不创建正式 Project/Case/Attempt，不替代原 Kernel 的资产冻结权限。
+
+Target POST `/api/runtime/evaluation-execute/ci-synthetic/v1`，独立严格 Envelope `ci-synthetic-evaluation-execute.v1` 包含原 Quality 请求、冻结 CI、Manifest 与 Mode。Root=Attempt，Query 固定。AC 要求专用 SERVICE 同时具备 evaluation execute 与 CI synthetic evaluate scope；管理员还须批准精确 Project/Tenant/Case/Attempt。隔离评测进程拒绝 HUMAN API 流量。
+
+成功响应后以 GET `/api/runtime/runs/{attempt_id}/ci-synthetic-evidence/v1` 读取原封存结果，绝不通过旧入口再次发起执行。响应为 `{contract_version,quality,sidecar,sidecar_digest}`；`quality` 完整保留旧 v1 合同。202、HTTP/网络结果未知、证据缺失或无效保持 UNKNOWN，不制造成功或自动二次执行。
+
+Go 严格校验新 Envelope/Sidecar 形状与 canonical SHA-256 摘要、Frozen CI、Project/Run/Attempt/Request correlation、Root/UUIDv5 Session/Agent Version、Manifest/Mode、唯一模型引用、frame/request/messages 对原 Quality observation 的对应、受信 candidate_id/prompt_digest，以及原 Quality Bundle 的旧 Strict Decoder。证据 scope 必须为 `DURABLE_REQUEST_PREPARED`，不能冒充 `MODEL_REQUEST_SENT`。`report_digest` 是 AC 原 Investigation 的 runtime_result_digest，null 不构成报告完成证明。
+
+AC 原子准备一次性创建合成业务对象和 Quality receipt，重复 Attempt 只查询；pre-Root 崩溃必须人工对账，不能重授执行权。Execution Truth 仍由 AC Runtime 持有，Evaluation Truth 仍由 EO Kernel 持有。
+
+`TestCISyntheticPythonHTTP` 由 AC 定向测试启动真实 HTTP/PG Producer 并注入临时受控配置；Runtime 使用测试 Provider。没有配置时明确 Skip，不能当作跨仓 PASS。真实模型、正式 JWT 签发、生产迁移、Go Worker/PG 完整运行及浏览器不在该联调证明范围。
+
+`internal/postgres/ci_synthetic_attempt_integration_test.go::TestCISyntheticKernelAttemptAuthorization` 单独覆盖正式 CreateRun→随机 PENDING Attempt→受信绑定→原 Worker Claim/Dispatch；HTTP Fixture 只返回 202，目标是 UNKNOWN，无模型。它复用的原 PG fixture 会创建临时数据库/角色，所以仅在资源管理员明确批准并提供隔离 `G1_TEST_POSTGRES_URL` 后设置测试专用 `CI_SYNTHETIC_KERNEL_PG_TEST_APPROVED=1` 运行；否则在接触数据库前 Skip。该测试许可键不被生产 Worker 读取，不等于 E2E 资源包授权。

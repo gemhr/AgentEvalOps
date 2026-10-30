@@ -11,6 +11,7 @@ import (
 	"agentevalops/go-backend/internal/agentquality"
 	"agentevalops/go-backend/internal/asset"
 	"agentevalops/go-backend/internal/cigovernance"
+	"agentevalops/go-backend/internal/evaluation"
 	"agentevalops/go-backend/internal/metric"
 	"agentevalops/go-backend/internal/provider"
 
@@ -141,7 +142,7 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 			}
 			if ciEnabled {
 				var ciTarget *provider.CISyntheticTarget
-				ciTarget, e = loadCISyntheticTarget(j, os.Getenv("LOCALAGENT_CI_SYNTHETIC_AUTHORIZATION_PATH"))
+				ciTarget, e = loadCISyntheticTarget(j, os.Getenv("LOCALAGENT_CI_SYNTHETIC_AUTHORIZATION_PATH"), k)
 				local, target = ciTarget, ciTarget
 			} else if qualityEnabled {
 				var qualityConfig provider.AgentQualityConfig
@@ -230,9 +231,12 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 }
 
 // 只从运维指定的本机文件加载，启动时冻结到 Target；不接受 HTTP 参数或热更新。
-func loadCISyntheticTarget(config asset.JSON, path string) (*provider.CISyntheticTarget, error) {
+func loadCISyntheticTarget(config asset.JSON, path string, readers ...evaluation.Reader) (*provider.CISyntheticTarget, error) {
 	var c provider.CISyntheticConfig
-	if config.Decode(&c) != nil || path == "" {
+	var kind map[string]asset.JSON
+	_ = config.Decode(&kind)
+	_, pair := kind["protocol_version"]
+	if (!pair && config.Decode(&c) != nil) || path == "" {
 		return nil, asset.ErrInvalid
 	}
 	f, err := os.Open(path)
@@ -245,6 +249,17 @@ func loadCISyntheticTarget(config asset.JSON, path string) (*provider.CISyntheti
 		return nil, asset.ErrInvalid
 	}
 	j, err := asset.ParseJSON(raw)
+	if pair {
+		var pairConfig provider.CIPairConfig
+		var authorization provider.CIPairAuthorization
+		if err != nil || config.Decode(&pairConfig) != nil || j.Decode(&authorization) != nil {
+			return nil, asset.ErrInvalid
+		}
+		if len(readers) != 1 {
+			return nil, asset.ErrInvalid
+		}
+		return provider.NewCIPairTarget(pairConfig, authorization, readers[0])
+	}
 	var a provider.CISyntheticAttemptAuthorization
 	if err != nil || j.Decode(&a) != nil {
 		return nil, asset.ErrInvalid

@@ -1,6 +1,6 @@
 # CI 合成评测与证据 v1
 
-`internal/provider/ci_synthetic.go` 提供独立 `ci-synthetic-http` Target，当前版本 `ci-synthetic-target.v2`。Worker 使用 `LOCALAGENT_CI_SYNTHETIC_ENABLED=1`，从已有 `LOCALAGENT_TARGET_CONFIG` 解析严格冻结配置，并从 `LOCALAGENT_CI_SYNTHETIC_AUTHORIZATION_PATH` 加载受信进程授权；不能同时启用其他 LocalAgent/业务专用 Target，也不能使用 fixture-only 或禁用 execution 的模式。Evaluation Kernel 与原 AgentQuality v1 Wire 不变。
+`internal/provider/ci_synthetic.go` 提供独立 `ci-synthetic-http` Target，原单模板版本 `ci-synthetic-target.v2`。Worker 使用 `LOCALAGENT_CI_SYNTHETIC_ENABLED=1`，从已有 `LOCALAGENT_TARGET_CONFIG` 解析严格冻结配置，并从 `LOCALAGENT_CI_SYNTHETIC_AUTHORIZATION_PATH` 加载受信进程授权；不能同时启用其他 LocalAgent/业务专用 Target，也不能使用 fixture-only 或禁用 execution 的模式。Evaluation Kernel 与原 AgentQuality v1 Wire 不变。
 
 冻结配置包含且只包含 `quality`（原 AgentQualityConfig）、`frozen_ci`、`candidate_manifest_digest`、`mode`、`prompt_digest`、`candidate_id`。`quality` 沿用现有 base_url、token_env、trusted_project_id、execution_manifest、capture_profile、HTTP 限额设置。不得把 token 明文放入配置或版本库。BASELINE/CANDIDATE 分别部署固定 AC 进程与固定 Worker 配置。
 
@@ -46,3 +46,16 @@ AC 原子准备一次性创建合成业务对象和 Quality receipt，重复 Att
 `TestCISyntheticPythonHTTP` 由 AC 定向测试启动真实 HTTP/PG Producer 并注入临时受控配置；Runtime 使用测试 Provider。没有配置时明确 Skip，不能当作跨仓 PASS。真实模型、正式 JWT 签发、生产迁移、Go Worker/PG 完整运行及浏览器不在该联调证明范围。
 
 `internal/postgres/ci_synthetic_attempt_integration_test.go::TestCISyntheticKernelAttemptAuthorization` 单独覆盖正式 CreateRun→随机 PENDING Attempt→受信绑定→原 Worker Claim/Dispatch；HTTP Fixture 只返回 202，目标是 UNKNOWN，无模型。它复用的原 PG fixture 会创建临时数据库/角色，所以仅在资源管理员明确批准并提供隔离 `G1_TEST_POSTGRES_URL` 后设置测试专用 `CI_SYNTHETIC_KERNEL_PG_TEST_APPROVED=1` 运行；否则在接触数据库前 Skip。该测试许可键不被生产 Worker 读取，不等于 E2E 资源包授权。
+
+
+## 冻结输入的成对协议
+
+新 `ci-synthetic-target.v3` 使用 `protocol_version=ci-synthetic-evaluation-execute.v2`，保留同一 Target ID；Config 为 `CIPairConfig`，仅 Quality 配置、FrozenPair、Candidate/Prompt/Mode。FrozenPair 含 Case/Dataset/Plan ID/version、Case/Input digest、审核 source_ref 和 `ci-synthetic-case-input.v2` 可见业务输入；GT/评分条件不传入 AC。精确 DTO 以 `internal/catalog/ci_diagnosis_input.go` 为准，未知字段拒绝。
+
+原授权文件加载位置不变，使用严格 `ci-synthetic-attempt-authorization.v2`：原 Project/SERVICE/Tenant/双Scope/credential_digest/target_digest 加精确 request_id、Case/Dataset Ref、Input digest、Plan ID/version/digest、Operator/OPERATOR_FROZEN_CI、Mode/Prompt/Execution Manifest/Runtime digest。原 Reader 在 POST 前重读冻结 Run，要求同 Project/Dataset/Case/Target、PUBLISHED_CATALOG、单 Attempt 和 NO_RETRY；不创建或替换 Attempt。完整 plan_digest 是 Kernel 创建后动态授权，不进入预冻结 Target，避免计划摘要自引用。每进程一条授权，BASELINE/CANDIDATE 分别装配；HTTP202、超时及不明结果保持 UNKNOWN，不自动重试。
+
+新 POST `/api/runtime/evaluation-execute/ci-synthetic/v2` 与封存 GET `/api/runtime/runs/{attempt_id}/ci-synthetic-evidence/v2` 只接受新版本；Sidecar `ci-synthetic-evidence.v2` 增加 `source_binding`/`source_binding_digest`。`ci-runtime-source-binding.v1` 包含原 CI snapshot/summary/六项 manifest、原 evidence_digest、已提交 Tool Result canonical bytes 和必要 Action/Invocation 引用。Source Binding ≤768 KiB，单条原结果≤128 KiB，最多8次工具读取且每输出≤16 KiB，整体响应仍≤2 MiB。Go 对原字节重算 Tool SHA-256，对 Evidence 原正文与稳定语义分别核算，不将三种摘要混用；未知结构或缺真实消费链拒绝。
+
+`ci-diagnosis-ground-truth.v2` 仅留在 EO，绑定原审核 Review、Input digest 和1～5项已知 Kind 的逻辑来源/独立 expected_semantic_digest。`ci-diagnosis-deterministic.v2`（input/result/normalization 明确 v2）验证本次完整来源后复用原 COMMITTED Action→TOOL_BATCH→后继RAW模型消费及业务判分。稳定语义只移除已验证的顶层 execution_id/artifact_id/call_id，保留其他完整正文/null/错误/版本。缺来源为 INCONCLUSIVE，来源充分但标签/报告引用错误为 FAIL。原 GT/Evaluator/Target/Sidecar 分支不变，版本混用拒绝，Quality/Observations/Execution/Prompt Proof 继续原版本。
+
+公开测试与内存持久替身不证明 PG 原子性、正式 SERVICE 认证、独立 Holdout 或真实模型。实际部署必须独立批准受信 AC Endpoint/build/首次封存、Operator/配置目录权限及资源；Sidecar 哈希不是恶意 AC/数据库管理员的第三方证明。代码可用不等于获准执行真实成对评测。

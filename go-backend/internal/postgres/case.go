@@ -5,6 +5,7 @@ import (
 
 	"agentevalops/go-backend/internal/asset"
 	"agentevalops/go-backend/internal/catalog"
+	ev "agentevalops/go-backend/internal/evaluation"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,6 +20,13 @@ func (s Cases) CreateCase(ctx context.Context, scope asset.Scope, cmd asset.Crea
 }
 func (s Cases) PublishCaseVersion(ctx context.Context, scope asset.Scope, cmd asset.Publish[catalog.CaseContent]) (catalog.CaseVersion, error) {
 	return publish(ctx, s.Pool, caseTables, scope, cmd, nil, func(ctx context.Context, tx pgx.Tx, body catalog.CaseContent) error {
+		if body.Capability == catalog.CIDiagnosisCapability {
+			content, err := asset.Freeze(asset.Content[catalog.CaseContent]{Body: body, Source: cmd.Source})
+			if err != nil {
+				return err
+			}
+			return verifyIndependentReview(ctx, tx, scope, ev.CaseInput{Identity: ev.AssetIdentity{Ref: cmd.Ref, CanonicalContent: content}, Case: body}, false)
+		}
 		return validateStage13ReviewedCase(ctx, tx, scope, cmd.Ref, body)
 	})
 }

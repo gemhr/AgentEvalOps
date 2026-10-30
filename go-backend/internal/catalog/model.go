@@ -56,6 +56,11 @@ type CaseContent struct {
 }
 
 func (c CaseContent) Validate() error {
+	if c.Capability == CIDiagnosisCapability {
+		if err := ValidateCIDiagnosisCase(c); err != nil {
+			return err
+		}
+	}
 	if c.Capability == "CI_BUSINESS_QUALITY" {
 		if _, err := cibusiness.ReadInput(c.Input.Bytes()); err != nil {
 			return asset.ErrInvalid

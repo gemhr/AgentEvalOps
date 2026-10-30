@@ -44,6 +44,7 @@ type CISyntheticConfig struct {
 	Candidate string             `json:"candidate_id"`
 }
 type CISyntheticTarget struct {
+	pair          *ciPairTarget
 	config        CISyntheticConfig
 	client        *http.Client
 	authorization CISyntheticAttemptAuthorization
@@ -187,6 +188,9 @@ func VerifyCISynthetic(raw []byte, c CISyntheticConfig, correlation aq.QualityCo
 }
 
 func (t *CISyntheticTarget) Execute(parent context.Context, s ev.Scope, q ev.Request) (ev.Outcome, error) {
+	if t.pair != nil {
+		return t.executePair(parent, s, q)
+	}
 	out := ev.Outcome{Kind: ev.Failure, Source: "LOCALAGENT_HTTP", RequestID: q.ID, RemoteID: q.AttemptID, Protocol: CISyntheticProtocol, DispatchCertainty: "NOT_DISPATCHED", TerminalCertainty: "NOT_DISPATCHED", ErrorCategory: string(ProtocolError)}
 	config, _ := asset.Freeze(t.config)
 	var caseInput CISyntheticCaseInput

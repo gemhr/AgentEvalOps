@@ -142,6 +142,12 @@ func NonApplicable(in worker.EvaluationInput, state asset.ApplicabilityState, me
 	return worker.EvaluationOutput{Value: v}
 }
 func DeterministicSupported(d metric.EvaluatorDefinition) bool {
+	if CIDiagnosisV2Supported(d) {
+		return true
+	}
+	if CIDiagnosisSupported(d) {
+		return true
+	}
 	if FeatureImpactSupported(d) {
 		return true
 	}
@@ -168,6 +174,12 @@ func (DeterministicEvaluator) Evaluate(ctx context.Context, in worker.Evaluation
 		return worker.EvaluationOutput{}, e
 	}
 	d := in.Work.Metadata.Spec.Definition
+	if CIDiagnosisV2Supported(d) {
+		return evaluateCIDiagnosisV2(ctx, in)
+	}
+	if CIDiagnosisSupported(d) {
+		return evaluateCIDiagnosis(ctx, in)
+	}
 	if FeatureImpactSupported(d) {
 		return evaluateFeatureImpact(ctx, in)
 	}

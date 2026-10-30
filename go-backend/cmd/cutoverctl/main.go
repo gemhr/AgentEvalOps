@@ -35,12 +35,16 @@ func run() int {
 	manifest := f.String("manifest", "", "固定 release manifest")
 	root := f.String("repo-root", "..", "核对 release source 的仓库路径")
 	receipt := f.String("receipt", "", "新建不可覆盖的外部 receipt 文件")
+	emptyIdentity := f.String("empty-identity", "", "仅 initialize-empty-go：受限任务资源身份 JSON")
 	if f.Parse(os.Args[1:]) != nil || f.NArg() != 0 {
 		return 3
 	}
 	if *production {
 		output(map[string]string{"status": "BLOCKED_BY_REAL_WORLD_CONTEXT", "reason": "PRODUCTION_OPERATOR_AUTHORIZATION_NOT_IMPLEMENTED"})
 		return 2
+	}
+	if *command == "initialize-empty-go" {
+		return initializeEmptyWriter(*controlled, *execute, *emptyIdentity, *receipt, *root)
 	}
 	if *command == "abort-before-go-write" {
 		output(map[string]string{"status": "BLOCKED", "reason": "ROLLBACK_REQUIRES_RESTORE_OR_FORWARD_FIX"})

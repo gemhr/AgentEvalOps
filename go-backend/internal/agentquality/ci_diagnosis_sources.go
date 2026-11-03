@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"regexp"
 	"slices"
 	"sort"
 	"time"
@@ -20,6 +21,10 @@ const CIPairProtocol = "ci-synthetic-evaluation-execute.v2"
 const CIPairTargetVersion = "ci-synthetic-target.v3"
 const CIPairSidecarVersion = "ci-synthetic-evidence.v2"
 const CIPairQuery = "请调查本次冻结的 CI 执行，使用授权工具取证。"
+
+var ciSourceBusinessID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$`)
+var ciSourceIP = regexp.MustCompile(`^192\.0\.2\.[0-9]{1,3}$`)
+var ciToolAttemptID = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 type CISourceEvidence struct {
 	ID           string     `json:"evidence_id"`
@@ -161,7 +166,7 @@ func CISourceSemanticDigest(kind string, content asset.JSON, execution string) (
 	case "ENVIRONMENT_RECORD":
 		optional := ""
 		if _, ok := value["missing_reason"]; ok {
-			optional = " missing_reason"
+			optional = " missing_reason?"
 		}
 		if !qualityValues(value, "execution_id artifact_id call_id environment_id ip software_version parser_version? decoder_table_version? buffer_behavior"+optional, "parser_supported_field_revision? decoder_supported_field_revision?", "") {
 			return "", asset.ErrInvalid
@@ -175,18 +180,43 @@ func CISourceSemanticDigest(kind string, content asset.JSON, execution string) (
 				return "", asset.ErrInvalid
 			}
 		}
+		for _, key := range []string{"environment_id", "parser_version", "decoder_table_version"} {
+			if v := value[key]; v != nil && !ciSourceBusinessID.MatchString(v.(string)) {
+				return "", asset.ErrInvalid
+			}
+		}
+		if !ciSourceIP.MatchString(value["ip"].(string)) || !oneOf(value["software_version"].(string), "product-2.0", "product-2.1", "product-2.1.1") || !oneOf(value["buffer_behavior"].(string), "compatible", "compact", "legacy") {
+			return "", asset.ErrInvalid
+		}
+		if v := value["missing_reason"]; v != nil && v != "工具安装与能力记录未采集" {
+			return "", asset.ErrInvalid
+		}
 	case "CASE_REQUIREMENTS":
 		optional := ""
 		for _, k := range []string{"input_contract", "buffer_requirement"} {
 			if _, ok := value[k]; ok {
-				optional += " " + k
+				optional += " " + k + "?"
 			}
 		}
 		bools := ""
 		if _, ok := value["compressed_transport"]; ok {
-			bools = "compressed_transport"
+			bools = "compressed_transport?"
 		}
 		if !qualityValues(value, "execution_id artifact_id call_id case_id feature_id golden_id golden_version comparison_rule_id"+optional, "required_field_revision input_revision", bools) {
+			return "", asset.ErrInvalid
+		}
+		for _, key := range []string{"case_id", "feature_id", "golden_id", "golden_version"} {
+			if !ciSourceBusinessID.MatchString(value[key].(string)) {
+				return "", asset.ErrInvalid
+			}
+		}
+		if value["comparison_rule_id"] != "semantic-fields-equal/1" {
+			return "", asset.ErrInvalid
+		}
+		if v := value["input_contract"]; v != nil && v != "tlv" {
+			return "", asset.ErrInvalid
+		}
+		if v := value["buffer_requirement"]; v != nil && v != "legacy" && v != "modern" {
 			return "", asset.ErrInvalid
 		}
 	case "COMPARISON_LOG":
@@ -338,7 +368,7 @@ func VerifyCISourceBinding(raw asset.JSON, e CIDiagnosisEvidence, f catalog.CIPa
 		started, se := time.Parse(time.RFC3339Nano, value.Started)
 		completed, ce := time.Parse(time.RFC3339Nano, value.Completed)
 		var duration float64
-		if se != nil || ce != nil || completed.Before(started) || value.Duration.Decode(&duration) != nil || duration < 0 || !asset.ValidID(value.Attempt) || value.RetryIndex < 0 || value.Effects != "NOT_STARTED" || !oneOf(value.Retry, "SAFE", "UNSAFE", "SAFE_WITH_IDEMPOTENCY_KEY") || value.Resource != nil {
+		if se != nil || ce != nil || completed.Before(started) || value.Duration.Decode(&duration) != nil || duration < 0 || !ciToolAttemptID.MatchString(value.Attempt) || value.RetryIndex < 0 || value.Effects != "NOT_STARTED" || !oneOf(value.Retry, "SAFE", "UNSAFE", "SAFE_WITH_IDEMPOTENCY_KEY") || value.Resource != nil {
 			return invalid()
 		}
 		args, _ := asset.Freeze(tool.Arguments)

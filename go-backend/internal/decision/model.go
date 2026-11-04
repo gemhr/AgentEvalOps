@@ -277,6 +277,9 @@ type Unit struct {
 	Metrics                                                             []MetricFact
 }
 type Source struct {
+	AdaptiveLatency                             *ev.ObservedLatencySummary `json:"adaptive_latency,omitempty"`
+	AdaptiveTaskOutcomes                        map[string]int             `json:"adaptive_task_outcomes,omitempty"`
+	TaskCompletionOverPlanned                   *float64                   `json:"task_completion_over_planned,omitempty"`
 	Ref                                         SourceRef
 	Digest, Owner, SamplingUnit, Interpretation string
 	Dimensions                                  map[string]string

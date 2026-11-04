@@ -142,6 +142,9 @@ func NonApplicable(in worker.EvaluationInput, state asset.ApplicabilityState, me
 	return worker.EvaluationOutput{Value: v}
 }
 func DeterministicSupported(d metric.EvaluatorDefinition) bool {
+	if AdaptiveSupported(d) {
+		return true
+	}
 	if CIDiagnosisV2Supported(d) {
 		return true
 	}
@@ -174,6 +177,9 @@ func (DeterministicEvaluator) Evaluate(ctx context.Context, in worker.Evaluation
 		return worker.EvaluationOutput{}, e
 	}
 	d := in.Work.Metadata.Spec.Definition
+	if AdaptiveSupported(d) {
+		return evaluateAdaptive(ctx, in)
+	}
 	if CIDiagnosisV2Supported(d) {
 		return evaluateCIDiagnosisV2(ctx, in)
 	}

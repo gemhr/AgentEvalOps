@@ -34,7 +34,11 @@ func SubjectDimensions(j asset.JSON) map[string]string {
 }
 func Offline(ref SourceRef, states []ev.RunState) (Source, error) {
 	s := Source{Ref: ref, Owner: "OFFLINE", SamplingUnit: "case-run", Interpretation: "FROZEN_CASE_RUN_SAMPLES", Dimensions: map[string]string{}, Units: []Unit{}, Reasons: []string{}}
+	adaptiveAttempts := []ev.Attempt{}
 	for n, state := range states {
+		if state.Run.Snapshot.Target.ID == "localagent-adaptive-http" {
+			adaptiveAttempts = append(adaptiveAttempts, state.Attempts...)
+		}
 		if !state.Run.Status.Terminal() {
 			s.Reasons = append(s.Reasons, "SOURCE_NOT_TERMINAL")
 		}
@@ -93,6 +97,23 @@ func Offline(ref SourceRef, states []ev.RunState) (Source, error) {
 			} else {
 				u.Outcome = a.Outcome
 				u.AttemptID = a.ID
+			}
+			if state.Run.Snapshot.Target.ID == "localagent-adaptive-http" {
+				contextDigest := "UNKNOWN"
+				for _, e := range a.Metadata.Observation.Evidence {
+					if e.Schema == "adaptive-execution-evidence.v1" {
+						var wire map[string]asset.JSON
+						if e.Body.Decode(&wire) == nil && wire["comparability"].String() != "null" {
+							contextDigest = wire["comparability"].Digest()
+						}
+					}
+				}
+				key := "adaptive_context:" + u.CaseID
+				if old, exists := s.Dimensions[key]; exists && old != contextDigest {
+					s.Reasons = append(s.Reasons, "ADAPTIVE_EXECUTION_CONTEXT_MISMATCH")
+				} else {
+					s.Dimensions[key] = contextDigest
+				}
 			}
 			switch a.Outcome {
 			case ev.Failure, ev.Timeout, ev.Cancelled:
@@ -153,6 +174,10 @@ func Offline(ref SourceRef, states []ev.RunState) (Source, error) {
 					}
 					u.TaskAvailability = string(m.Applicability)
 				}
+				if spec.Definition.ImplementationRef == "adaptive-execution-metrics.v1" && metricKey(spec) == "quality" && a.Outcome == ev.Success {
+					u.Task = TaskDecision(m)
+					u.TaskAvailability = string(m.Applicability)
+				}
 				if citriage.IsImplementation(spec.Definition.ImplementationRef) && metricKey(spec) == "ci_triage_decidability.v1" {
 					u.Task = "INCONCLUSIVE"
 					if m.Verdict == "PASS" {
@@ -171,6 +196,57 @@ func Offline(ref SourceRef, states []ev.RunState) (Source, error) {
 	sort.Strings(keys)
 	s.Dimensions["case_set"] = digest(keys)
 	s.EligiblePopulation = len(s.Units)
+	if len(adaptiveAttempts) > 0 {
+		summary := ev.SummarizeObservedLatency(adaptiveAttempts)
+		s.AdaptiveLatency = &summary
+		complete := 0
+		s.AdaptiveTaskOutcomes = map[string]int{}
+		for _, u := range s.Units {
+			if u.Task == "SUCCESS" {
+				complete++
+			}
+			category := u.Task
+			if u.Outcome == ev.Failure {
+				category = "RUNTIME_FAILURE"
+			} else if u.Outcome == ev.Timeout {
+				category = "TIMEOUT"
+			} else if u.Outcome == ev.Unknown {
+				category = "UNKNOWN"
+			} else if u.Outcome == ev.Cancelled {
+				category = "CANCELLED"
+			} else {
+				for _, a := range adaptiveAttempts {
+					if a.ID != u.AttemptID {
+						continue
+					}
+					for _, e := range a.Metadata.Observation.Evidence {
+						if e.Schema != "adaptive-execution-evidence.v1" {
+							continue
+						}
+						var wire struct {
+							Business struct {
+								Outcome    string `json:"outcome"`
+								Validation string `json:"validation"`
+							} `json:"business"`
+						}
+						if json.Unmarshal(e.Body.Bytes(), &wire) == nil {
+							if wire.Business.Outcome == "INSUFFICIENT_EVIDENCE" {
+								category = "INSUFFICIENT_EVIDENCE"
+							} else if wire.Business.Validation == "REJECTED" {
+								category = "VALIDATOR_REJECTED"
+							} else if u.Task == "FAILURE" {
+								category = "WRONG_ANSWER"
+							} else if u.Task == "MISSING_EVIDENCE" || u.Task == "INCONCLUSIVE" {
+								category = "INCONCLUSIVE"
+							}
+						}
+					}
+				}
+			}
+			s.AdaptiveTaskOutcomes[category]++
+		}
+		s.TaskCompletionOverPlanned = ratio(complete, len(s.Units))
+	}
 	s.SampleCount = len(s.Units)
 	s.SamplingCoverage = ratio(s.SampleCount, s.EligiblePopulation)
 	s.Reasons = unique(s.Reasons)

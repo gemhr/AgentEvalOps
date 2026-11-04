@@ -41,8 +41,12 @@ func newDatabase(t *testing.T) *database {
 	raw := os.Getenv("G1_TEST_POSTGRES_URL")
 	// 仅反馈跨仓定向测试可显式复用现有本机 PG，仍创建/删除独立临时库。
 	feedbackLocal := strings.HasPrefix(t.Name(), "TestBusinessFeedback") && os.Getenv("AC_FEEDBACK_TEST_PG_URL") != ""
+	adaptiveLocal := strings.HasPrefix(t.Name(), "TestAdaptive") && os.Getenv("AC_ADAPTIVE_TEST_PG_URL") != ""
 	if feedbackLocal {
 		raw = os.Getenv("AC_FEEDBACK_TEST_PG_URL")
+	}
+	if adaptiveLocal {
+		raw = os.Getenv("AC_ADAPTIVE_TEST_PG_URL")
 	}
 	if raw == "" {
 		t.Fatal("BLOCKED_BY_LOCAL_ENVIRONMENT: G1_TEST_POSTGRES_URL is required for real PostgreSQL integration")
@@ -52,7 +56,7 @@ func newDatabase(t *testing.T) *database {
 		t.Fatal(err)
 	}
 	expectedPort := "55432"
-	if feedbackLocal {
+	if feedbackLocal || adaptiveLocal {
 		expectedPort = "5433"
 	}
 	if (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost") || u.Port() != expectedPort || u.Path != "/postgres" || u.User.Username() != "postgres" {

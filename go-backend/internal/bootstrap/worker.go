@@ -23,6 +23,10 @@ import (
 const WorkerSchema = "c13a00100001"
 
 func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly bool, log *slog.Logger) (*worker.Runtime, func(), error) {
+	adaptiveEnabled := os.Getenv("LOCALAGENT_ADAPTIVE_ENABLED") == "1"
+	if adaptiveEnabled && (fixtureOnly || os.Getenv("FEATURE_IMPACT_ENABLED") == "1" || os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_CI_SYNTHETIC_ENABLED") == "1" || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1") {
+		return nil, nil, fmt.Errorf("LOCALAGENT_TARGET_SELECTION_CONFLICT")
+	}
 	if os.Getenv("LOCALAGENT_CI_SYNTHETIC_ENABLED") == "1" && (fixtureOnly || config.ExecutionConcurrency == 0) {
 		return nil, nil, fmt.Errorf("CI_SYNTHETIC_EXECUTION_MODE_REQUIRED")
 	}
@@ -135,12 +139,22 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 				pool.Close()
 				return nil, nil, fmt.Errorf("LOCALAGENT_TARGET_SELECTION_CONFLICT")
 			}
-			if e != nil || (!ciEnabled && !loopEnabled && !qualityEnabled && os.Getenv("LOCALAGENT_STAGE13_ENABLED") != "1" && j.Decode(&targetConfig) != nil) {
+			if e != nil || (!adaptiveEnabled && !ciEnabled && !loopEnabled && !qualityEnabled && os.Getenv("LOCALAGENT_STAGE13_ENABLED") != "1" && j.Decode(&targetConfig) != nil) {
 				judge.Close()
 				pool.Close()
 				return nil, nil, fmt.Errorf("缺少有效 LOCALAGENT_TARGET_CONFIG")
 			}
-			if ciEnabled {
+			if adaptiveEnabled {
+				var c provider.AdaptiveConfig
+				if j.Decode(&c) != nil {
+					judge.Close()
+					pool.Close()
+					return nil, nil, asset.ErrInvalid
+				}
+				t, err := provider.NewAdaptiveTarget(c)
+				e = err
+				local, target = t, t
+			} else if ciEnabled {
 				var ciTarget *provider.CISyntheticTarget
 				ciTarget, e = loadCISyntheticTarget(j, os.Getenv("LOCALAGENT_CI_SYNTHETIC_AUTHORIZATION_PATH"), k)
 				local, target = ciTarget, ciTarget

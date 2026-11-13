@@ -15,6 +15,7 @@ import (
 const BasebandTargetID = "baseband-sealed-http"
 const BasebandTargetKind = "BASEBAND_SEALED_HTTP"
 const BasebandTargetVersion = "baseband-sealed-http.v1"
+const JointTargetVersion = "baseband-sealed-http.v2"
 
 type BasebandTarget struct {
 	config LocalAgentConfig
@@ -43,8 +44,15 @@ func NewBasebandTarget(c LocalAgentConfig, reader ev.Reader) (*BasebandTarget, e
 func (t *BasebandTarget) Close() { t.client.CloseIdleConnections() }
 func (t *BasebandTarget) Execute(parent context.Context, s ev.Scope, q ev.Request) (ev.Outcome, error) {
 	out := ev.Outcome{Kind: ev.Failure, RequestID: q.ID, Source: BasebandTargetKind, RemoteID: q.AttemptID, Protocol: aq.BasebandOutput, DispatchCertainty: "NOT_DISPATCHED", TerminalCertainty: "NOT_DISPATCHED", ErrorCategory: string(ProtocolError), Reason: "BASEBAND_BINDING_INVALID"}
+	joint := q.Target.Version == JointTargetVersion
+	protocol, requestProtocol := aq.BasebandOutput, "baseband-quality-request.v1"
+	if joint {
+		protocol = aq.JointOutput
+		requestProtocol = "baseband-quality-request.v2"
+	}
+	out.Protocol = protocol
 	expected, _ := asset.Freeze(t.config)
-	if q.Target.ID != BasebandTargetID || q.Target.Kind != BasebandTargetKind || q.Target.Version != BasebandTargetVersion || q.Target.Config.Digest() != expected.Digest() || q.Case.Identity.ProjectID != s.ProjectID {
+	if q.Target.ID != BasebandTargetID || q.Target.Kind != BasebandTargetKind || (q.Target.Version != BasebandTargetVersion && !joint) || q.Target.Config.Digest() != expected.Digest() || q.Case.Identity.ProjectID != s.ProjectID {
 		return out, nil
 	}
 	ctx, cancel := context.WithTimeout(parent, time.Duration(t.config.CallMilliseconds)*time.Millisecond)
@@ -54,7 +62,7 @@ func (t *BasebandTarget) Execute(parent context.Context, s ev.Scope, q ev.Reques
 		return out, e
 	}
 	var subject aq.BasebandSubject
-	if state.Run.Snapshot.Subject.Decode(&subject) != nil || subject.Subject != "baseband" || (subject.Version != "baseband-rule.v1" && subject.Version != "baseband_test_investigator/1.0.0") || subject.Environment != "development-visible" || subject.Mode != "SEALED_RUN_REPLAY" {
+	if state.Run.Snapshot.Subject.Decode(&subject) != nil || subject.Subject != "baseband" || (!joint && subject.Version != "baseband-rule.v1" && subject.Version != "baseband_test_investigator/1.0.0") || (joint && subject.Version != "baseband-rule.v2" && subject.Version != "baseband_test_investigator/1.1.0") || subject.Environment != "development-visible" || subject.Mode != "SEALED_RUN_REPLAY" {
 		return out, nil
 	}
 	selector, ok := subject.Selectors[q.Case.Identity.Ref.EntityID]
@@ -75,7 +83,7 @@ func (t *BasebandTarget) Execute(parent context.Context, s ev.Scope, q ev.Reques
 		return out, nil
 	}
 	// 明确 DTO：绝不把 Case.GroundTruth/ExpectedOutput 发给 AgentCore。
-	body := map[string]any{"protocol": "baseband-quality-request.v1", "project_id": s.ProjectID, "run_id": q.RunID, "attempt_id": q.AttemptID, "request_id": q.ID, "case_id": q.Case.Identity.Ref.EntityID, "frozen_input_digest": q.Case.Case.Input.Digest(), "input": q.Case.Case.Input, "selector": selector}
+	body := map[string]any{"protocol": requestProtocol, "project_id": s.ProjectID, "run_id": q.RunID, "attempt_id": q.AttemptID, "request_id": q.ID, "case_id": q.Case.Identity.Ref.EntityID, "frozen_input_digest": q.Case.Case.Input.Digest(), "input": q.Case.Case.Input, "selector": selector}
 	raw, _ := json.Marshal(body)
 	req, e := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(t.config.BaseURL, "/")+"/api/ci/quality/baseband/evaluate", nil)
 	if e != nil {
@@ -97,11 +105,20 @@ func (t *BasebandTarget) Execute(parent context.Context, s ev.Scope, q ev.Reques
 		return out, nil
 	}
 	artifact, e := asset.ParseJSON(result)
-	var receipt aq.BasebandReceipt
-	if e != nil || artifact.Decode(&receipt) != nil || receipt.Validate(q.Case.Case.Input, selector, s.ProjectID, q.RunID, q.AttemptID, q.ID, q.Case.Identity.Ref.EntityID) != nil {
+	valid := false
+	if e == nil {
+		if joint {
+			var receipt aq.JointReceipt
+			valid = artifact.Decode(&receipt) == nil && receipt.Validate(q.Case.Case.Input, selector, s.ProjectID, q.RunID, q.AttemptID, q.ID, q.Case.Identity.Ref.EntityID) == nil
+		} else {
+			var receipt aq.BasebandReceipt
+			valid = artifact.Decode(&receipt) == nil && receipt.Validate(q.Case.Case.Input, selector, s.ProjectID, q.RunID, q.AttemptID, q.ID, q.Case.Identity.Ref.EntityID) == nil
+		}
+	}
+	if !valid {
 		return out, nil
 	}
-	b := binding(s, q, "baseband://"+q.AttemptID, aq.BasebandOutput, artifact)
+	b := binding(s, q, "baseband://"+q.AttemptID, protocol, artifact)
 	out.Kind = ev.Success
 	out.DispatchCertainty = "REMOTE_ACCEPTED"
 	out.TerminalCertainty = "REMOTE_CONFIRMED"

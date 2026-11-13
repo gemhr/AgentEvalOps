@@ -1,0 +1,607 @@
+{
+  "version": "oracle-chain-development.v1",
+  "evaluator_version": "baseband-deterministic.v3",
+  "cases": [
+    {
+      "case_key": "oracle_reference_scope",
+      "input": {
+        "schema_version": "baseband-input.v2",
+        "software_version": "baseband-2.0",
+        "environment_condition": "nominal",
+        "constraint": {
+          "rule_id": "ddt-kdt-sampling",
+          "version": "2"
+        },
+        "ddt": {
+          "source": "synthetic-ddt",
+          "revision": "2",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "kdt": {
+          "source": "synthetic-kdt",
+          "revision": "2",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "stimulus": 7,
+        "reference": {
+          "reference_id": "integer-reference",
+          "version": "1"
+        },
+        "daas": {
+          "request_id": "request-1",
+          "requested": {
+            "config_id": "config-new",
+            "gain": 2,
+            "sample_rate": 30
+          },
+          "initial": {
+            "config_id": "config-old",
+            "gain": 1,
+            "sample_rate": 30
+          },
+          "events": [
+            {
+              "kind": "REQUEST",
+              "tick": 1,
+              "sequence": 0,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "SENT",
+              "tick": 2,
+              "sequence": 1,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "ACK",
+              "tick": 3,
+              "sequence": 2,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "ACCEPTED"
+            },
+            {
+              "kind": "APPLIED",
+              "tick": 4,
+              "sequence": 3,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            }
+          ],
+          "sample_tick": 10
+        },
+        "implementation": {
+          "version": "integer-l1.v1",
+          "offset": 0
+        },
+        "capture": {
+          "applied_state": true
+        }
+      },
+      "ground_truth": {
+        "version": "baseband-truth.v2",
+        "visibility": "DEVELOPMENT_VISIBLE",
+        "input_digest": "753518b0a013c2b452faea870d5942d0a6c2576293bcf98cf5a9a77bcfb2b1e6",
+        "decidability": "SUPPORTED",
+        "required_findings": [
+          {
+            "category": "REFERENCE",
+            "mechanism": "REFERENCE_NOT_APPLICABLE",
+            "finding_status": "CONFIRMED",
+            "failure_relation": "SUPPORTED",
+            "owner_role": "REFERENCE_OWNER",
+            "recommended_actions": [
+              "SELECT_BASEBAND_REFERENCE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT"
+            ],
+            "counter_kinds": []
+          }
+        ],
+        "allowed_findings": [
+          {
+            "category": "SIMULATION_CHAIN",
+            "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+            "finding_status": "REFUTED",
+            "failure_relation": "NOT_SUPPORTED",
+            "owner_role": "UNKNOWN",
+            "recommended_actions": [
+              "NONE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT"
+            ],
+            "counter_kinds": []
+          },
+          {
+            "category": "PRODUCT_L1_CANDIDATE",
+            "mechanism": "OUTPUT_REFERENCE_DIVERGENCE",
+            "finding_status": "REFUTED",
+            "failure_relation": "NOT_SUPPORTED",
+            "owner_role": "UNKNOWN",
+            "recommended_actions": [
+              "NONE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT"
+            ],
+            "counter_kinds": []
+          }
+        ],
+        "forbidden_confirmed_mechanisms": [
+          "OUTPUT_REFERENCE_DIVERGENCE"
+        ]
+      }
+    },
+    {
+      "case_key": "oracle_application_delay",
+      "input": {
+        "schema_version": "baseband-input.v2",
+        "software_version": "baseband-2.0",
+        "environment_condition": "nominal",
+        "constraint": {
+          "rule_id": "ddt-kdt-sampling",
+          "version": "2"
+        },
+        "ddt": {
+          "source": "synthetic-ddt",
+          "revision": "2",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "kdt": {
+          "source": "synthetic-kdt",
+          "revision": "2",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "stimulus": 7,
+        "reference": {
+          "reference_id": "integer-reference",
+          "version": "2"
+        },
+        "daas": {
+          "request_id": "request-1",
+          "requested": {
+            "config_id": "config-new",
+            "gain": 2,
+            "sample_rate": 30
+          },
+          "initial": {
+            "config_id": "config-old",
+            "gain": 1,
+            "sample_rate": 30
+          },
+          "events": [
+            {
+              "kind": "REQUEST",
+              "tick": 1,
+              "sequence": 0,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "SENT",
+              "tick": 2,
+              "sequence": 1,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "ACK",
+              "tick": 3,
+              "sequence": 2,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "ACCEPTED"
+            },
+            {
+              "kind": "APPLIED",
+              "tick": 12,
+              "sequence": 3,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            }
+          ],
+          "sample_tick": 10
+        },
+        "implementation": {
+          "version": "integer-l1.v1",
+          "offset": 0
+        },
+        "capture": {
+          "applied_state": true
+        }
+      },
+      "ground_truth": {
+        "version": "baseband-truth.v2",
+        "visibility": "DEVELOPMENT_VISIBLE",
+        "input_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+        "decidability": "SUPPORTED",
+        "required_findings": [
+          {
+            "category": "SIMULATION_CHAIN",
+            "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+            "finding_status": "CONFIRMED",
+            "failure_relation": "SUPPORTED",
+            "owner_role": "DAAS_OWNER",
+            "recommended_actions": [
+              "REVIEW_DAAS_APPLICATION"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT",
+              "DAAS_TIMELINE",
+              "APPLIED_STATE"
+            ],
+            "counter_kinds": []
+          }
+        ],
+        "allowed_findings": [
+          {
+            "category": "REFERENCE",
+            "mechanism": "REFERENCE_NOT_APPLICABLE",
+            "finding_status": "REFUTED",
+            "failure_relation": "NOT_SUPPORTED",
+            "owner_role": "UNKNOWN",
+            "recommended_actions": [
+              "NONE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT"
+            ],
+            "counter_kinds": []
+          },
+          {
+            "category": "PRODUCT_L1_CANDIDATE",
+            "mechanism": "OUTPUT_REFERENCE_DIVERGENCE",
+            "finding_status": "REFUTED",
+            "failure_relation": "NOT_SUPPORTED",
+            "owner_role": "UNKNOWN",
+            "recommended_actions": [
+              "NONE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT"
+            ],
+            "counter_kinds": []
+          }
+        ],
+        "forbidden_confirmed_mechanisms": [
+          "OUTPUT_REFERENCE_DIVERGENCE"
+        ]
+      }
+    },
+    {
+      "case_key": "oracle_output_divergence",
+      "input": {
+        "schema_version": "baseband-input.v2",
+        "software_version": "baseband-2.0",
+        "environment_condition": "nominal",
+        "constraint": {
+          "rule_id": "ddt-kdt-sampling",
+          "version": "2"
+        },
+        "ddt": {
+          "source": "synthetic-ddt",
+          "revision": "2",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "kdt": {
+          "source": "synthetic-kdt",
+          "revision": "2",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "stimulus": 7,
+        "reference": {
+          "reference_id": "integer-reference",
+          "version": "2"
+        },
+        "daas": {
+          "request_id": "request-1",
+          "requested": {
+            "config_id": "config-new",
+            "gain": 2,
+            "sample_rate": 30
+          },
+          "initial": {
+            "config_id": "config-old",
+            "gain": 1,
+            "sample_rate": 30
+          },
+          "events": [
+            {
+              "kind": "REQUEST",
+              "tick": 1,
+              "sequence": 0,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "SENT",
+              "tick": 2,
+              "sequence": 1,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "ACK",
+              "tick": 3,
+              "sequence": 2,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "ACCEPTED"
+            },
+            {
+              "kind": "APPLIED",
+              "tick": 4,
+              "sequence": 3,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            }
+          ],
+          "sample_tick": 10
+        },
+        "implementation": {
+          "version": "integer-l1.v1",
+          "offset": 2
+        },
+        "capture": {
+          "applied_state": true
+        }
+      },
+      "ground_truth": {
+        "version": "baseband-truth.v2",
+        "visibility": "DEVELOPMENT_VISIBLE",
+        "input_digest": "d23baf5ff6283a585467fdf67861d2bed50fc1d629065b4df74b8a6fcd30f612",
+        "decidability": "SUPPORTED",
+        "required_findings": [
+          {
+            "category": "PRODUCT_L1_CANDIDATE",
+            "mechanism": "OUTPUT_REFERENCE_DIVERGENCE",
+            "finding_status": "CANDIDATE",
+            "failure_relation": "SUPPORTED",
+            "owner_role": "PRODUCT_OWNER",
+            "recommended_actions": [
+              "REVIEW_PRODUCT_OUTPUT"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT",
+              "APPLIED_STATE"
+            ],
+            "counter_kinds": []
+          }
+        ],
+        "allowed_findings": [
+          {
+            "category": "REFERENCE",
+            "mechanism": "REFERENCE_NOT_APPLICABLE",
+            "finding_status": "REFUTED",
+            "failure_relation": "NOT_SUPPORTED",
+            "owner_role": "UNKNOWN",
+            "recommended_actions": [
+              "NONE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT"
+            ],
+            "counter_kinds": []
+          },
+          {
+            "category": "SIMULATION_CHAIN",
+            "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+            "finding_status": "REFUTED",
+            "failure_relation": "NOT_SUPPORTED",
+            "owner_role": "UNKNOWN",
+            "recommended_actions": [
+              "NONE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT"
+            ],
+            "counter_kinds": []
+          }
+        ],
+        "forbidden_confirmed_mechanisms": [
+          "OUTPUT_REFERENCE_DIVERGENCE"
+        ]
+      }
+    },
+    {
+      "case_key": "oracle_partial_capture",
+      "input": {
+        "schema_version": "baseband-input.v2",
+        "software_version": "baseband-2.0",
+        "environment_condition": "nominal",
+        "constraint": {
+          "rule_id": "ddt-kdt-sampling",
+          "version": "2"
+        },
+        "ddt": {
+          "source": "synthetic-ddt",
+          "revision": "2",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "kdt": {
+          "source": "synthetic-kdt",
+          "revision": "2",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "stimulus": 7,
+        "reference": {
+          "reference_id": "integer-reference",
+          "version": "1"
+        },
+        "daas": {
+          "request_id": "request-1",
+          "requested": {
+            "config_id": "config-new",
+            "gain": 2,
+            "sample_rate": 30
+          },
+          "initial": {
+            "config_id": "config-old",
+            "gain": 1,
+            "sample_rate": 30
+          },
+          "events": [
+            {
+              "kind": "REQUEST",
+              "tick": 1,
+              "sequence": 0,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "SENT",
+              "tick": 2,
+              "sequence": 1,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "ACK",
+              "tick": 3,
+              "sequence": 2,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "ACCEPTED"
+            },
+            {
+              "kind": "APPLIED",
+              "tick": 12,
+              "sequence": 3,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            }
+          ],
+          "sample_tick": 10
+        },
+        "implementation": {
+          "version": "integer-l1.v1",
+          "offset": 7
+        },
+        "capture": {
+          "applied_state": false
+        }
+      },
+      "ground_truth": {
+        "version": "baseband-truth.v2",
+        "visibility": "DEVELOPMENT_VISIBLE",
+        "input_digest": "f40cd7a2a62b67e033946d8228a2fc3804b0f341f9063cd09802f4ef1ffdfaca",
+        "decidability": "INSUFFICIENT_EVIDENCE",
+        "required_findings": [
+          {
+            "category": "REFERENCE",
+            "mechanism": "REFERENCE_NOT_APPLICABLE",
+            "finding_status": "CONFIRMED",
+            "failure_relation": "UNRESOLVED",
+            "owner_role": "REFERENCE_OWNER",
+            "recommended_actions": [
+              "SELECT_BASEBAND_REFERENCE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT"
+            ],
+            "counter_kinds": []
+          },
+          {
+            "category": "SIMULATION_CHAIN",
+            "mechanism": "APPLICATION_UNCONFIRMED",
+            "finding_status": "CANDIDATE",
+            "failure_relation": "UNRESOLVED",
+            "owner_role": "DAAS_OWNER",
+            "recommended_actions": [
+              "COLLECT_APPLIED_STATE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT",
+              "DAAS_TIMELINE"
+            ],
+            "counter_kinds": []
+          }
+        ],
+        "allowed_findings": [
+          {
+            "category": "SIMULATION_CHAIN",
+            "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+            "finding_status": "REFUTED",
+            "failure_relation": "NOT_SUPPORTED",
+            "owner_role": "UNKNOWN",
+            "recommended_actions": [
+              "NONE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT"
+            ],
+            "counter_kinds": []
+          },
+          {
+            "category": "PRODUCT_L1_CANDIDATE",
+            "mechanism": "OUTPUT_REFERENCE_DIVERGENCE",
+            "finding_status": "REFUTED",
+            "failure_relation": "NOT_SUPPORTED",
+            "owner_role": "UNKNOWN",
+            "recommended_actions": [
+              "NONE"
+            ],
+            "support_kinds": [
+              "INPUT_MANIFEST",
+              "REFERENCE_RECORD",
+              "EXECUTION_RECEIPT"
+            ],
+            "counter_kinds": []
+          }
+        ],
+        "forbidden_confirmed_mechanisms": [
+          "OUTPUT_REFERENCE_DIVERGENCE",
+          "CONFIG_APPLIED_AFTER_SAMPLE"
+        ]
+      }
+    }
+  ]
+}

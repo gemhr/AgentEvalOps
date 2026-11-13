@@ -26,6 +26,7 @@ func (s *Server) basebandRoutes() {
 			return nil, asset.ErrInvalid
 		}
 		kind := ""
+		inputVersion := ""
 		for _, c := range snapshot.Input().Manifest {
 			selector, ok := d.Selectors[c.Identity.Ref.EntityID]
 			if kind != "" && selector.Kind != kind {
@@ -41,12 +42,16 @@ func (s *Server) basebandRoutes() {
 				return nil, asset.ErrInvalid
 			}
 			input.Schema, _ = shape["schema_version"].(string)
-			if !ok || c.Case.Capability != "BASEBAND" || input.Schema != aq.BasebandInput || selector.IncidentID == "" || (selector.Kind != "RULE" && selector.Kind != "AGENT") || (selector.Kind == "AGENT" && (selector.RunID == nil || selector.InvestigationID == nil)) || (selector.Kind == "RULE" && (selector.RunID != nil || selector.InvestigationID != nil)) {
+			if inputVersion != "" && inputVersion != input.Schema {
+				return nil, asset.ErrInvalid
+			}
+			inputVersion = input.Schema
+			if !ok || c.Case.Capability != "BASEBAND" || (input.Schema != aq.BasebandInput && input.Schema != aq.JointInput) || selector.IncidentID == "" || (selector.Kind != "RULE" && selector.Kind != "AGENT") || (selector.Kind == "AGENT" && (selector.RunID == nil || selector.InvestigationID == nil)) || (selector.Kind == "RULE" && (selector.RunID != nil || selector.InvestigationID != nil)) {
 				return nil, asset.ErrInvalid
 			}
 		}
 		for _, spec := range snapshot.Input().Evaluators {
-			if !aq.BasebandSupported(spec.Definition) || s.SupportsEvaluator == nil || !s.SupportsEvaluator(spec.Definition) {
+			if (inputVersion == aq.JointInput) != aq.JointSupported(spec.Definition) || !aq.BasebandSupported(spec.Definition) || s.SupportsEvaluator == nil || !s.SupportsEvaluator(spec.Definition) {
 				return nil, asset.ErrInvalid
 			}
 		}
@@ -54,8 +59,19 @@ func (s *Server) basebandRoutes() {
 		if kind == "AGENT" {
 			version = "baseband_test_investigator/1.0.0"
 		}
+		if inputVersion == aq.JointInput {
+			version = "baseband-rule.v2"
+			if kind == "AGENT" {
+				version = "baseband_test_investigator/1.1.0"
+			}
+		}
+		target := *s.BasebandTarget
+		if inputVersion == aq.JointInput {
+			target.Version = "baseband-sealed-http.v2"
+			target.Capabilities, _ = asset.Freeze(map[string]any{"mode": "SEALED_RUN_REPLAY", "input_contract": aq.JointInput})
+		}
 		subject, _ := asset.Freeze(aq.BasebandSubject{Subject: "baseband", Version: version, Environment: "development-visible", Mode: "SEALED_RUN_REPLAY", Selectors: d.Selectors})
-		command := ev.CreateRun{CommandID: r.CommandID, Snapshot: snapshot, Subject: subject, Target: *s.BasebandTarget, Retry: ev.RetryPolicy{Version: "NO_RETRY.v1", MaxAttempts: 1}}
+		command := ev.CreateRun{CommandID: r.CommandID, Snapshot: snapshot, Subject: subject, Target: target, Retry: ev.RetryPolicy{Version: "NO_RETRY.v1", MaxAttempts: 1}}
 		reply, e := s.kernelFor(snapshot.Input()).CreateRun(r.ctx(), r.evaluationScope(), command)
 		return commandReply(reply, e)
 	})

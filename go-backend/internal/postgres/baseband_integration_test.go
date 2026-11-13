@@ -31,8 +31,20 @@ import (
 // 完整 Python 后端 -> SERVICE 只读规则投影 -> Go API/Worker -> 受限 PG。
 // 不把 RULE 结果声称为真实模型 Candidate。
 func TestBasebandWorkerHTTPPostgres(t *testing.T) {
-	numeric := os.Getenv("BASEBAND_METRIC_VERSION") == "v2"
+	joint := os.Getenv("BASEBAND_METRIC_VERSION") == "v3"
+	numeric := os.Getenv("BASEBAND_METRIC_VERSION") == "v2" || joint
+	count := 3
+	bundleName := "baseband_development.json"
+	wire := "baseband-quality-request.v1"
+	if joint {
+		count = 4
+		bundleName = "oracle_chain_development.json"
+		wire = "baseband-quality-request.v2"
+	}
 	historyPath := os.Getenv("BASEBAND_REPLAY_EVIDENCE")
+	if joint {
+		historyPath = os.Getenv("BASEBAND_SOURCE_REPLAY")
+	}
 	var history []byte
 	if numeric {
 		if historyPath == "" || os.Getenv("BASEBAND_REAL_AGENT") == "1" {
@@ -98,13 +110,13 @@ func TestBasebandWorkerHTTPPostgres(t *testing.T) {
 			break
 		}
 	}
-	if !started || live.Token == "" || len(live.Sources) != 3 {
+	if !started || live.Token == "" || len(live.Sources) != count {
 		t.Fatal("full Python backend startup failed")
 	}
 	go io.Copy(io.Discard, stdout)
 	t.Setenv("BASEBAND_TEST_TOKEN", live.Token)
 	selectors := map[string]aq.BasebandSelector{}
-	bundleRaw, e := os.ReadFile(filepath.Join("..", "..", "testdata", "baseband_development.json"))
+	bundleRaw, e := os.ReadFile(filepath.Join("..", "..", "testdata", bundleName))
 	must(e)
 	var public struct {
 		Cases []struct {
@@ -134,7 +146,7 @@ func TestBasebandWorkerHTTPPostgres(t *testing.T) {
 	if response.StatusCode != 403 {
 		t.Fatal("SERVICE enumeration accepted")
 	}
-	wrongBody, _ := json.Marshal(map[string]any{"protocol": "baseband-quality-request.v1", "project_id": asset.NewID(), "run_id": "r", "attempt_id": "a", "request_id": "q", "case_id": "c", "frozen_input_digest": live.Sources[0].Input.Digest(), "input": live.Sources[0].Input, "selector": selectors[live.Sources[0].Key]})
+	wrongBody, _ := json.Marshal(map[string]any{"protocol": wire, "project_id": asset.NewID(), "run_id": "r", "attempt_id": "a", "request_id": "q", "case_id": "c", "frozen_input_digest": live.Sources[0].Input.Digest(), "input": live.Sources[0].Input, "selector": selectors[live.Sources[0].Key]})
 	denied, _ = http.NewRequest("POST", live.BaseURL+"/api/ci/quality/baseband/evaluate", bytes.NewReader(wrongBody))
 	denied.Header.Set("Authorization", "Bearer "+live.Token)
 	denied.Header.Set("Content-Type", "application/json")
@@ -195,10 +207,14 @@ func TestBasebandWorkerHTTPPostgres(t *testing.T) {
 	selectorPath, outputPath := filepath.Join(t.TempDir(), "selectors.json"), filepath.Join(t.TempDir(), "publication.json")
 	raw, _ = json.Marshal(selectors)
 	must(os.WriteFile(selectorPath, raw, 0600))
-	publisher := exec.Command(python, filepath.Join(root, "..", "AgentEvalOps", "scripts", "prepare-baseband-evaluation.py"), "--bundle", filepath.Join("..", "..", "testdata", "baseband_development.json"), "--selectors", selectorPath, "--project", scope.ProjectID, "--base-url", httpServer.URL, "--token-env", "BASEBAND_PRODUCT_TOKEN", "--output", outputPath)
+	publisher := exec.Command(python, filepath.Join(root, "..", "AgentEvalOps", "scripts", "prepare-baseband-evaluation.py"), "--bundle", filepath.Join("..", "..", "testdata", bundleName), "--selectors", selectorPath, "--project", scope.ProjectID, "--base-url", httpServer.URL, "--token-env", "BASEBAND_PRODUCT_TOKEN", "--output", outputPath)
 	publisher.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8")
 	if numeric {
-		publisher.Args = append(publisher.Args, "--version", "v2")
+		version := "v2"
+		if joint {
+			version = "v3"
+		}
+		publisher.Args = append(publisher.Args, "--version", version)
 	}
 	if output, err := publisher.CombinedOutput(); err != nil {
 		t.Fatalf("catalog publication failed: %v %s", err, output)
@@ -241,7 +257,7 @@ func TestBasebandWorkerHTTPPostgres(t *testing.T) {
 	for {
 		state, e = k.ReadRunState(ctx, scope, publication.Run.ID)
 		must(e)
-		if len(state.Results) == 3 {
+		if len(state.Results) == count {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -340,7 +356,7 @@ func TestBasebandWorkerHTTPPostgres(t *testing.T) {
 		for {
 			candidateState, e = k.ReadRunState(ctx, scope, candidate.ID)
 			must(e)
-			if len(candidateState.Results) == 3 && candidateState.Run.Status.Terminal() {
+			if len(candidateState.Results) == count && candidateState.Run.Status.Terminal() {
 				break
 			}
 			if time.Now().After(end) {
@@ -354,6 +370,15 @@ func TestBasebandWorkerHTTPPostgres(t *testing.T) {
 		gateRaw := postAt(httpServer.URL+"/api/v1/projects/"+scope.ProjectID+"/gates", key, map[string]any{"baseline": map[string]any{"kind": "RUN_SET", "runs": []string{publication.Run.ID}}, "candidate": map[string]any{"kind": "RUN_SET", "runs": []string{candidate.ID}}, "policy": publication.Policy})
 		var gate map[string]any
 		must(json.Unmarshal(gateRaw, &gate))
+		// 在质量断言之前保存真实失败 Result/Gate，避免失败证据只留退出码。
+		evidence["candidate"] = "EXECUTED"
+		evidence["candidate_run_id"] = candidate.ID
+		evidence["candidate_results"] = candidateState.Results
+		evidence["comparison"] = gate
+		if path := os.Getenv("BASEBAND_EVIDENCE_PATH"); path != "" {
+			saved, _ := json.MarshalIndent(evidence, "", "  ")
+			must(os.WriteFile(path, saved, 0600))
+		}
 		if numeric {
 			for _, result := range candidateState.Results {
 				if result.Value.Verdict != "PASS" || result.Value.Score == nil || *result.Value.Score != 1 {
@@ -380,10 +405,12 @@ func TestBasebandWorkerHTTPPostgres(t *testing.T) {
 				} `json:"comparison"`
 			}
 			must(json.Unmarshal(history, &old))
-			if old.Comparison.Decision != "BLOCKED" {
+			if !joint && old.Comparison.Decision != "BLOCKED" {
 				t.Fatal("old v1 BLOCKED missing")
 			}
-			evidence["v1_comparison_preserved"] = old.Comparison
+			if !joint {
+				evidence["v1_comparison_preserved"] = old.Comparison
+			}
 			evidence["model_execution"] = "NOT_EXECUTED_SEALED_REPLAY"
 		}
 		evidence["candidate"] = "EXECUTED"
@@ -400,5 +427,5 @@ func TestBasebandWorkerHTTPPostgres(t *testing.T) {
 		raw, _ = json.MarshalIndent(evidence, "", "  ")
 		must(os.WriteFile(path, raw, 0600))
 	}
-	t.Logf("RULE real HTTP/PG: run=%s results=3/3 PASS", publication.Run.ID)
+	t.Logf("RULE real HTTP/PG: run=%s results=%d/%d PASS", publication.Run.ID, len(state.Results), count)
 }

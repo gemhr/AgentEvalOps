@@ -7,11 +7,11 @@ test.use({ channel: process.env.BASEBAND_BROWSER_CHANNEL });
 
 let child: ChildProcessWithoutNullStreams;
 let humanToken = "";
-let sources: { incident_id: string; investigation_id: string; input: { receipt_available: boolean; ddt: { sample_rate: number }; kdt: { sample_rate: number } } }[] = [];
+let sources: { case_key?: string; incident_id: string; investigation_id: string; input: { receipt_available: boolean; ddt: { sample_rate: number }; kdt: { sample_rate: number } } }[] = [];
 
 test.beforeAll(async () => {
   const root = process.env.BASEBAND_AGENTCORE, python = process.env.BASEBAND_PYTHON;
-  if (!root || !python || !process.env.BASEBAND_REPLAY_EVIDENCE) throw new Error("需要显式提供真实封存报告和本机后端");
+  if (!root || !python || !process.env.BASEBAND_REPLAY_EVIDENCE && !process.env.BASEBAND_SOURCE_REPLAY) throw new Error("需要显式提供真实封存报告和本机后端");
   child = spawn(python, ["-u", path.join(root, "scripts/baseband_rehearsal_server.py")], { cwd: root, stdio: "pipe", env: { ...process.env, BASEBAND_PORT: "18091" } });
   child.stderr.resume();
   await new Promise<void>((resolve, reject) => {
@@ -39,8 +39,21 @@ test("真实封存基带报告、输入差异和人工追加回归在现有页�
     await page.getByLabel("HUMAN JWT").fill(humanToken);
     await page.getByRole("button", { name: "验证身份", exact: true }).click();
     await page.getByLabel("选择调查报告").selectOption(source.investigation_id);
-    await expect(page.getByRole("heading", { name: `基带调查 · ${source.input.receipt_available ? "SUPPORTED" : "INSUFFICIENT_EVIDENCE"}` })).toBeVisible();
+    await expect(page.getByRole("heading", { name: `基带调查 · ${(process.env.BASEBAND_INPUT_VERSION === "v2" ? source.case_key !== "oracle_partial_capture" : source.input.receipt_available) ? "SUPPORTED" : "INSUFFICIENT_EVIDENCE"}` })).toBeVisible();
     await expect(page.getByText("输入摘要：", { exact: false })).toBeVisible();
+    if (process.env.BASEBAND_INPUT_VERSION === "v2") {
+      await expect(page.getByText("主张状态：", { exact: false }).first()).toBeVisible();
+      await expect(page.getByText("原始 CI FAIL", { exact: false })).toBeVisible();
+      await page.getByRole("button", { name: "DAAS_TIMELINE · AVAILABLE", exact: true }).click();
+      await expect(page.getByText("ACK 不等于生效", { exact: false })).toBeVisible();
+      await expect(page.locator("pre").filter({ hasText: '"sample_tick": 10' }).last()).toBeVisible();
+      const missing = source.case_key === "oracle_partial_capture";
+      await page.getByRole("button", { name: `APPLIED_STATE · ${missing ? "MISSING" : "AVAILABLE"}`, exact: true }).click();
+      await expect(page.getByRole("heading", { name: `APPLIED_STATE · ${missing ? "MISSING" : "AVAILABLE"}`, exact: true })).toBeVisible();
+      await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+      if (missing && process.env.BASEBAND_SCREENSHOT) await page.screenshot({ path: process.env.BASEBAND_SCREENSHOT, fullPage: true });
+      continue;
+    }
     if (source.input.receipt_available && source.input.ddt.sample_rate !== source.input.kdt.sample_rate) {
       await page.getByRole("button", { name: "预览修复", exact: true }).click();
       const row = page.getByRole("row").filter({ hasText: "baseband.kdt.sample_rate" });

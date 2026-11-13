@@ -9,7 +9,8 @@ from uuid import uuid4
 
 def publish(args):
     bundle = json.loads(Path(args.bundle).read_text(encoding="utf-8"))
-    if bundle["version"] != "baseband-development.v1" or bundle["evaluator_version"] != "baseband-deterministic.v1":
+    joint = getattr(args, "version", "v1") == "v3"
+    if (bundle["version"], bundle["evaluator_version"]) != (("oracle-chain-development.v1", "baseband-deterministic.v3") if joint else ("baseband-development.v1", "baseband-deterministic.v1")):
         raise ValueError("BASEBAND_DEVELOPMENT_CONTRACT_INVALID")
     selectors = json.loads(Path(args.selectors).read_text(encoding="utf-8"))
     opener = build_opener(ProxyHandler({}))
@@ -30,15 +31,16 @@ def publish(args):
         case = asset("cases", sample["case_key"], dict(input=sample["input"], ground_truth=truth,
             task_goal="依据已观察证据调查基带输入与实际执行", acceptance_criteria=["区分配置机制、正常对照和证据不足"],
             expected_output=None, assertions=[], applicability=app, case_type="REGRESSION", capability="BASEBAND", criticality="NORMAL",
-            tags=["DEVELOPMENT_VISIBLE"], metadata=dict(reference_review_ref="baseband-truth.v1"), body_policy="RETAINED"))
+            tags=["DEVELOPMENT_VISIBLE"], metadata=dict(reference_review_ref="baseband-truth.v2" if joint else "baseband-truth.v1"), body_policy="RETAINED"))
         cases.append(case["ref"]); bindings[case["ref"]["entity_id"]] = selectors[sample["case_key"]]
     dataset = asset("datasets", "基带公开开发集合", dict(ordered_cases=cases, metadata=dict(purpose="DEVELOPMENT_VISIBLE")))
-    numeric = getattr(args, "version", "v1") == "v2"
-    metric_name = "baseband_diagnosis_correctness.v2" if numeric else "baseband_diagnosis.v1"
-    metric = asset("metrics", metric_name, dict(name=metric_name, grain="CASE", value_type="SCALAR" if numeric else "ENUM", labels=[] if numeric else ["PASS", "FAIL", "INCONCLUSIVE"], score_range=[0,1] if numeric else None, unit="diagnosis", direction="HIGHER_IS_BETTER" if numeric else "NONE", denominator_semantics="frozen public cases", missing_semantics="null/inconclusive", aggregation_semantics="mean" if numeric else "NONE", comparison_semantics="same semantic input/truth/evaluator", applicability=app, availability="CONTRACT_ONLY", parameters={}), "v2" if numeric else "v1")
-    evaluator = asset("evaluators", "基带独立确定性判分", dict(kind="DETERMINISTIC", input_contract="baseband-input.v1", output_metrics=[metric["ref"]], applicability=app, availability="CONTRACT_ONLY", implementation_ref="baseband-deterministic.v2" if numeric else "baseband-deterministic.v1", config_snapshot=dict(metric=metric_name), rubric=None, prompt_ref=None, schema_version="baseband-quality-output.v1", model_binding=None, execution_budget=dict(total_milliseconds=10000, max_provider_calls=0, max_response_bytes=1048576), retry_policy=dict(max_evaluation_attempts=1, initial_backoff_milliseconds=0, max_backoff_milliseconds=0), normalization_semantics="baseband-correctness-null-preserving.v2" if numeric else "baseband-null-preserving.v1"), "v2" if numeric else "v1")
-    policy = asset("policies", "基带开发比较", dict(Offline=True, Online=False, Criticalities=["NORMAL"], CriticalMissing=True, BlockPerCase=True, Coverage=dict(MinimumDecision=1, MinimumEvaluation=1, MaximumMissing=0, MaximumUnknown=0, MaximumError=0, MaximumUnsupported=0, DropTolerance=0), TaskSuccess=None, Metrics=[dict(Metric=metric["ref"], Aggregation="mean" if numeric else "coverage", Minimum=1 if numeric else None, Maximum=None, AbsoluteTolerance=0 if numeric else None, RelativeTolerance=None, MinimumCoverage=1, Required=True, PerCase=True, TargetRange=None)], AcceptedDifferences=[], Exceptions=[]), "v2" if numeric else "v1")
-    suite = asset("suites", "基带业务评测", dict(dataset_version=dataset["ref"], explicit_cases=[], evaluator_bindings=[dict(evaluator=evaluator["ref"], metrics=[metric["ref"]], required=True, applicability=app)], metric_versions=[metric["ref"]], policy_version=dict(policy_id=policy["ref"]["entity_id"], version=policy["ref"]["version"], digest=policy["content_digest"], algorithm_ref=policy["algorithm_ref"]), applicability=app, metadata=dict(purpose="DEVELOPMENT_VISIBLE")), "v2" if numeric else "v1")
+    numeric = getattr(args, "version", "v1") in {"v2", "v3"}
+    version = "v3" if joint else "v2" if numeric else "v1"
+    metric_name = "baseband_joint_diagnosis_correctness.v3" if joint else "baseband_diagnosis_correctness.v2" if numeric else "baseband_diagnosis.v1"
+    metric = asset("metrics", metric_name, dict(name=metric_name, grain="CASE", value_type="SCALAR" if numeric else "ENUM", labels=[] if numeric else ["PASS", "FAIL", "INCONCLUSIVE"], score_range=[0,1] if numeric else None, unit="diagnosis", direction="HIGHER_IS_BETTER" if numeric else "NONE", denominator_semantics="frozen public cases", missing_semantics="null/inconclusive", aggregation_semantics="mean" if numeric else "NONE", comparison_semantics="same semantic input/truth/evaluator", applicability=app, availability="CONTRACT_ONLY", parameters={}), version)
+    evaluator = asset("evaluators", "基带独立确定性判分", dict(kind="DETERMINISTIC", input_contract="baseband-input.v2" if joint else "baseband-input.v1", output_metrics=[metric["ref"]], applicability=app, availability="CONTRACT_ONLY", implementation_ref="baseband-deterministic.v3" if joint else "baseband-deterministic.v2" if numeric else "baseband-deterministic.v1", config_snapshot=dict(metric=metric_name), rubric=None, prompt_ref=None, schema_version="baseband-quality-output.v2" if joint else "baseband-quality-output.v1", model_binding=None, execution_budget=dict(total_milliseconds=10000, max_provider_calls=0, max_response_bytes=1048576), retry_policy=dict(max_evaluation_attempts=1, initial_backoff_milliseconds=0, max_backoff_milliseconds=0), normalization_semantics="baseband-joint-null-preserving.v3" if joint else "baseband-correctness-null-preserving.v2" if numeric else "baseband-null-preserving.v1"), version)
+    policy = asset("policies", "基带开发比较", dict(Offline=True, Online=False, Criticalities=["NORMAL"], CriticalMissing=True, BlockPerCase=True, Coverage=dict(MinimumDecision=1, MinimumEvaluation=1, MaximumMissing=0, MaximumUnknown=0, MaximumError=0, MaximumUnsupported=0, DropTolerance=0), TaskSuccess=None, Metrics=[dict(Metric=metric["ref"], Aggregation="mean" if numeric else "coverage", Minimum=1 if numeric else None, Maximum=None, AbsoluteTolerance=0 if numeric else None, RelativeTolerance=None, MinimumCoverage=1, Required=True, PerCase=True, TargetRange=None)], AcceptedDifferences=[], Exceptions=[]), version)
+    suite = asset("suites", "基带业务评测", dict(dataset_version=dataset["ref"], explicit_cases=[], evaluator_bindings=[dict(evaluator=evaluator["ref"], metrics=[metric["ref"]], required=True, applicability=app)], metric_versions=[metric["ref"]], policy_version=dict(policy_id=policy["ref"]["entity_id"], version=policy["ref"]["version"], digest=policy["content_digest"], algorithm_ref=policy["algorithm_ref"]), applicability=app, metadata=dict(purpose="DEVELOPMENT_VISIBLE")), version)
     result = dict(project_id=args.project, dataset=dataset["ref"], suite=suite["ref"], policy=policy["ref"], selectors=bindings)
     result["run"] = post("/baseband/runs", dict(suite=suite["ref"], selectors=bindings))
     Path(args.output).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -49,5 +51,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     for name in ("bundle", "selectors", "project", "base-url", "token-env", "output"):
         parser.add_argument("--" + name, required=True)
-    parser.add_argument("--version", choices=["v1","v2"], default="v1")
+    parser.add_argument("--version", choices=["v1","v2","v3"], default="v1")
     print(json.dumps(publish(parser.parse_args()), ensure_ascii=False))

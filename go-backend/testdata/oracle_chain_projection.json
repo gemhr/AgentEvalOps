@@ -1,0 +1,1624 @@
+[
+  {
+    "input": {
+      "schema_version": "baseband-input.v2",
+      "software_version": "baseband-2.0",
+      "environment_condition": "nominal",
+      "constraint": {
+        "rule_id": "ddt-kdt-sampling",
+        "version": "2"
+      },
+      "ddt": {
+        "source": "synthetic-ddt",
+        "revision": "2",
+        "sample_rate": 30,
+        "gain": 2
+      },
+      "kdt": {
+        "source": "synthetic-kdt",
+        "revision": "2",
+        "sample_rate": 30,
+        "gain": 2
+      },
+      "stimulus": 7,
+      "reference": {
+        "reference_id": "integer-reference",
+        "version": "1"
+      },
+      "daas": {
+        "request_id": "request-1",
+        "requested": {
+          "config_id": "config-new",
+          "gain": 2,
+          "sample_rate": 30
+        },
+        "initial": {
+          "config_id": "config-old",
+          "gain": 1,
+          "sample_rate": 30
+        },
+        "events": [
+          {
+            "kind": "REQUEST",
+            "tick": 1,
+            "sequence": 0,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          },
+          {
+            "kind": "SENT",
+            "tick": 2,
+            "sequence": 1,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          },
+          {
+            "kind": "ACK",
+            "tick": 3,
+            "sequence": 2,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "ACCEPTED"
+          },
+          {
+            "kind": "APPLIED",
+            "tick": 4,
+            "sequence": 3,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          }
+        ],
+        "sample_tick": 10
+      },
+      "implementation": {
+        "version": "integer-l1.v1",
+        "offset": 0
+      },
+      "capture": {
+        "applied_state": true
+      }
+    },
+    "ground_truth": {
+      "version": "baseband-truth.v2",
+      "visibility": "DEVELOPMENT_VISIBLE",
+      "input_digest": "753518b0a013c2b452faea870d5942d0a6c2576293bcf98cf5a9a77bcfb2b1e6",
+      "decidability": "SUPPORTED",
+      "required_findings": [
+        {
+          "category": "REFERENCE",
+          "mechanism": "REFERENCE_NOT_APPLICABLE",
+          "finding_status": "CONFIRMED",
+          "failure_relation": "SUPPORTED",
+          "owner_role": "REFERENCE_OWNER",
+          "recommended_actions": [
+            "SELECT_BASEBAND_REFERENCE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        }
+      ],
+      "allowed_findings": [
+        {
+          "category": "SIMULATION_CHAIN",
+          "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+          "finding_status": "REFUTED",
+          "failure_relation": "NOT_SUPPORTED",
+          "owner_role": "UNKNOWN",
+          "recommended_actions": [
+            "NONE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        },
+        {
+          "category": "PRODUCT_L1_CANDIDATE",
+          "mechanism": "OUTPUT_REFERENCE_DIVERGENCE",
+          "finding_status": "REFUTED",
+          "failure_relation": "NOT_SUPPORTED",
+          "owner_role": "UNKNOWN",
+          "recommended_actions": [
+            "NONE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        }
+      ],
+      "forbidden_confirmed_mechanisms": [
+        "OUTPUT_REFERENCE_DIVERGENCE"
+      ]
+    },
+    "report": {
+      "schema_version": "baseband-diagnosis.v2",
+      "incident_id": "incident",
+      "execution_id": "execution",
+      "input_digest": "753518b0a013c2b452faea870d5942d0a6c2576293bcf98cf5a9a77bcfb2b1e6",
+      "evidence_summary": "逐项核验参考适用范围、ACK 与采样状态及原始比较；不证明真实代码缺陷或唯一原因。",
+      "decidability": "SUPPORTED",
+      "candidate_findings": [
+        {
+          "category": "REFERENCE",
+          "mechanism": "REFERENCE_NOT_APPLICABLE",
+          "finding_status": "CONFIRMED",
+          "failure_relation": "SUPPORTED",
+          "owner_role": "REFERENCE_OWNER",
+          "recommended_action": "SELECT_BASEBAND_REFERENCE",
+          "supporting_evidence": [
+            {
+              "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+              "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8"
+            },
+            {
+              "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+              "digest": "ae832d4efc358ddfaa53b14b5c988e64cb977068d7b28b16dda11356273027f7"
+            },
+            {
+              "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+              "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6"
+            },
+            {
+              "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+              "digest": "95db86696e6ea5e0530719ba7d49b06c3362408246830e88183451888237503d"
+            }
+          ],
+          "counter_evidence": [
+            {
+              "evidence_id": "3b053001-8860-5520-952b-ccc62a6488fc",
+              "digest": "9b495490e0998876860d9444e9cb331d0b149cc22e9c00c173debd0063d31580"
+            }
+          ],
+          "uncertainties": []
+        }
+      ],
+      "uncertainties": []
+    },
+    "evidence": [
+      {
+        "evidence_id": "5ea64439-f18b-5095-b3cb-f49d82060d3d",
+        "execution_id": "execution",
+        "kind": "CI_SUMMARY",
+        "captured_at": "2026-11-13T03:05:06.027209+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "f81fdd052d86b5fccfdb0b1ed45af5cc882ad61747f59a228eebd4f48df4ffb7",
+        "content": {
+          "schema_version": "baseband-execution.v2",
+          "execution_id": "execution",
+          "environment_id": "env-oracle",
+          "case_id": "integer-primary",
+          "outcome": "FAIL",
+          "input_digest": "753518b0a013c2b452faea870d5942d0a6c2576293bcf98cf5a9a77bcfb2b1e6",
+          "completed_at": "2026-11-13T03:05:06.027209+00:00",
+          "sample_tick": 10,
+          "stages": [
+            {
+              "stage": "PRECHECK",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "L1",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "COMPARISON",
+              "status": "EXECUTED",
+              "error": "OUTPUT_REFERENCE_DIVERGENCE"
+            }
+          ]
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+        "execution_id": "execution",
+        "kind": "INPUT_MANIFEST",
+        "captured_at": "2026-11-13T03:05:06.027209+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8",
+        "content": {
+          "schema_version": "baseband-input.v2",
+          "software_version": "baseband-2.0",
+          "environment_condition": "nominal",
+          "constraint": {
+            "rule_id": "ddt-kdt-sampling",
+            "version": "2"
+          },
+          "ddt": {
+            "source": "synthetic-ddt",
+            "revision": "2",
+            "sample_rate": 30,
+            "gain": 2
+          },
+          "kdt": {
+            "source": "synthetic-kdt",
+            "revision": "2",
+            "sample_rate": 30,
+            "gain": 2
+          },
+          "stimulus": 7,
+          "daas_request": {
+            "request_id": "request-1",
+            "requested": {
+              "config_id": "config-new",
+              "gain": 2,
+              "sample_rate": 30
+            },
+            "sample_tick": 10
+          }
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+        "execution_id": "execution",
+        "kind": "REFERENCE_RECORD",
+        "captured_at": "2026-11-13T03:05:06.027209+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "ae832d4efc358ddfaa53b14b5c988e64cb977068d7b28b16dda11356273027f7",
+        "content": {
+          "reference_id": "integer-reference",
+          "version": "1",
+          "software_versions": [
+            "baseband-1.0"
+          ],
+          "conditions": [
+            "nominal"
+          ],
+          "offset": 0,
+          "comparison_rule": "integer-equality.v1"
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+        "execution_id": "execution",
+        "kind": "DAAS_TIMELINE",
+        "captured_at": "2026-11-13T03:05:06.027209+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6",
+        "content": {
+          "request_id": "request-1",
+          "config_id": "config-new",
+          "events": [
+            {
+              "kind": "REQUEST",
+              "tick": 1,
+              "sequence": 0,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "SENT",
+              "tick": 2,
+              "sequence": 1,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "ACK",
+              "tick": 3,
+              "sequence": 2,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "ACCEPTED"
+            }
+          ],
+          "sample_tick": 10
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "3b053001-8860-5520-952b-ccc62a6488fc",
+        "execution_id": "execution",
+        "kind": "APPLIED_STATE",
+        "captured_at": "2026-11-13T03:05:06.027209+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "9b495490e0998876860d9444e9cb331d0b149cc22e9c00c173debd0063d31580",
+        "content": {
+          "sample_tick": 10,
+          "request_id": "request-1",
+          "effective": {
+            "config_id": "config-new",
+            "gain": 2,
+            "sample_rate": 30
+          },
+          "applied_events": [
+            {
+              "kind": "APPLIED",
+              "tick": 4,
+              "sequence": 3,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            }
+          ]
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+        "execution_id": "execution",
+        "kind": "EXECUTION_RECEIPT",
+        "captured_at": "2026-11-13T03:05:06.027209+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "95db86696e6ea5e0530719ba7d49b06c3362408246830e88183451888237503d",
+        "content": {
+          "actual": 15,
+          "expected": 14,
+          "outcome": "FAIL",
+          "reference": {
+            "reference_id": "integer-reference",
+            "version": "1"
+          },
+          "comparison_rule": "integer-equality.v1",
+          "stages": [
+            {
+              "stage": "PRECHECK",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "L1",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "COMPARISON",
+              "status": "EXECUTED",
+              "error": "OUTPUT_REFERENCE_DIVERGENCE"
+            }
+          ]
+        },
+        "missing_reason": null
+      }
+    ],
+    "evidence_digest": "4670abb5bcb8dc70dc723e4528c983a2545298b125af1bfd6df7cc2cd7f0203c"
+  },
+  {
+    "input": {
+      "schema_version": "baseband-input.v2",
+      "software_version": "baseband-2.0",
+      "environment_condition": "nominal",
+      "constraint": {
+        "rule_id": "ddt-kdt-sampling",
+        "version": "2"
+      },
+      "ddt": {
+        "source": "synthetic-ddt",
+        "revision": "2",
+        "sample_rate": 30,
+        "gain": 2
+      },
+      "kdt": {
+        "source": "synthetic-kdt",
+        "revision": "2",
+        "sample_rate": 30,
+        "gain": 2
+      },
+      "stimulus": 7,
+      "reference": {
+        "reference_id": "integer-reference",
+        "version": "2"
+      },
+      "daas": {
+        "request_id": "request-1",
+        "requested": {
+          "config_id": "config-new",
+          "gain": 2,
+          "sample_rate": 30
+        },
+        "initial": {
+          "config_id": "config-old",
+          "gain": 1,
+          "sample_rate": 30
+        },
+        "events": [
+          {
+            "kind": "REQUEST",
+            "tick": 1,
+            "sequence": 0,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          },
+          {
+            "kind": "SENT",
+            "tick": 2,
+            "sequence": 1,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          },
+          {
+            "kind": "ACK",
+            "tick": 3,
+            "sequence": 2,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "ACCEPTED"
+          },
+          {
+            "kind": "APPLIED",
+            "tick": 12,
+            "sequence": 3,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          }
+        ],
+        "sample_tick": 10
+      },
+      "implementation": {
+        "version": "integer-l1.v1",
+        "offset": 0
+      },
+      "capture": {
+        "applied_state": true
+      }
+    },
+    "ground_truth": {
+      "version": "baseband-truth.v2",
+      "visibility": "DEVELOPMENT_VISIBLE",
+      "input_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+      "decidability": "SUPPORTED",
+      "required_findings": [
+        {
+          "category": "SIMULATION_CHAIN",
+          "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+          "finding_status": "CONFIRMED",
+          "failure_relation": "SUPPORTED",
+          "owner_role": "DAAS_OWNER",
+          "recommended_actions": [
+            "REVIEW_DAAS_APPLICATION"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT",
+            "DAAS_TIMELINE",
+            "APPLIED_STATE"
+          ],
+          "counter_kinds": []
+        }
+      ],
+      "allowed_findings": [
+        {
+          "category": "REFERENCE",
+          "mechanism": "REFERENCE_NOT_APPLICABLE",
+          "finding_status": "REFUTED",
+          "failure_relation": "NOT_SUPPORTED",
+          "owner_role": "UNKNOWN",
+          "recommended_actions": [
+            "NONE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        },
+        {
+          "category": "PRODUCT_L1_CANDIDATE",
+          "mechanism": "OUTPUT_REFERENCE_DIVERGENCE",
+          "finding_status": "REFUTED",
+          "failure_relation": "NOT_SUPPORTED",
+          "owner_role": "UNKNOWN",
+          "recommended_actions": [
+            "NONE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        }
+      ],
+      "forbidden_confirmed_mechanisms": [
+        "OUTPUT_REFERENCE_DIVERGENCE"
+      ]
+    },
+    "report": {
+      "schema_version": "baseband-diagnosis.v2",
+      "incident_id": "incident",
+      "execution_id": "execution",
+      "input_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+      "evidence_summary": "逐项核验参考适用范围、ACK 与采样状态及原始比较；不证明真实代码缺陷或唯一原因。",
+      "decidability": "SUPPORTED",
+      "candidate_findings": [
+        {
+          "category": "SIMULATION_CHAIN",
+          "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+          "finding_status": "CONFIRMED",
+          "failure_relation": "SUPPORTED",
+          "owner_role": "DAAS_OWNER",
+          "recommended_action": "REVIEW_DAAS_APPLICATION",
+          "supporting_evidence": [
+            {
+              "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+              "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8"
+            },
+            {
+              "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+              "digest": "d9554a2313c7af8b52e0efefbb20c5440a6a53b353748070f74d899ea7399b36"
+            },
+            {
+              "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+              "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6"
+            },
+            {
+              "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+              "digest": "7337db1ed17accdbd358a42b810f12d621b513ae94abb82ede34e43ce3311f78"
+            },
+            {
+              "evidence_id": "3b053001-8860-5520-952b-ccc62a6488fc",
+              "digest": "6076bf9349fc81fa76c0079ba6f712534bcbc56710da5b1886158f9bda53006e"
+            }
+          ],
+          "counter_evidence": [],
+          "uncertainties": []
+        }
+      ],
+      "uncertainties": []
+    },
+    "evidence": [
+      {
+        "evidence_id": "5ea64439-f18b-5095-b3cb-f49d82060d3d",
+        "execution_id": "execution",
+        "kind": "CI_SUMMARY",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "061803194eb4c1ade8f3bea426b522d8dbbe8e5a23406263b272e676e58d344b",
+        "content": {
+          "schema_version": "baseband-execution.v2",
+          "execution_id": "execution",
+          "environment_id": "env-oracle",
+          "case_id": "integer-primary",
+          "outcome": "FAIL",
+          "input_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+          "completed_at": "2026-11-13T03:05:06.028211+00:00",
+          "sample_tick": 10,
+          "stages": [
+            {
+              "stage": "PRECHECK",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "L1",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "COMPARISON",
+              "status": "EXECUTED",
+              "error": "OUTPUT_REFERENCE_DIVERGENCE"
+            }
+          ]
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+        "execution_id": "execution",
+        "kind": "INPUT_MANIFEST",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8",
+        "content": {
+          "schema_version": "baseband-input.v2",
+          "software_version": "baseband-2.0",
+          "environment_condition": "nominal",
+          "constraint": {
+            "rule_id": "ddt-kdt-sampling",
+            "version": "2"
+          },
+          "ddt": {
+            "source": "synthetic-ddt",
+            "revision": "2",
+            "sample_rate": 30,
+            "gain": 2
+          },
+          "kdt": {
+            "source": "synthetic-kdt",
+            "revision": "2",
+            "sample_rate": 30,
+            "gain": 2
+          },
+          "stimulus": 7,
+          "daas_request": {
+            "request_id": "request-1",
+            "requested": {
+              "config_id": "config-new",
+              "gain": 2,
+              "sample_rate": 30
+            },
+            "sample_tick": 10
+          }
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+        "execution_id": "execution",
+        "kind": "REFERENCE_RECORD",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "d9554a2313c7af8b52e0efefbb20c5440a6a53b353748070f74d899ea7399b36",
+        "content": {
+          "reference_id": "integer-reference",
+          "version": "2",
+          "software_versions": [
+            "baseband-2.0"
+          ],
+          "conditions": [
+            "nominal"
+          ],
+          "offset": 1,
+          "comparison_rule": "integer-equality.v1"
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+        "execution_id": "execution",
+        "kind": "DAAS_TIMELINE",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6",
+        "content": {
+          "request_id": "request-1",
+          "config_id": "config-new",
+          "events": [
+            {
+              "kind": "REQUEST",
+              "tick": 1,
+              "sequence": 0,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "SENT",
+              "tick": 2,
+              "sequence": 1,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "ACK",
+              "tick": 3,
+              "sequence": 2,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "ACCEPTED"
+            }
+          ],
+          "sample_tick": 10
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "3b053001-8860-5520-952b-ccc62a6488fc",
+        "execution_id": "execution",
+        "kind": "APPLIED_STATE",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "6076bf9349fc81fa76c0079ba6f712534bcbc56710da5b1886158f9bda53006e",
+        "content": {
+          "sample_tick": 10,
+          "request_id": "request-1",
+          "effective": {
+            "config_id": "config-old",
+            "gain": 1,
+            "sample_rate": 30
+          },
+          "applied_events": [
+            {
+              "kind": "APPLIED",
+              "tick": 12,
+              "sequence": 3,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            }
+          ]
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+        "execution_id": "execution",
+        "kind": "EXECUTION_RECEIPT",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "7337db1ed17accdbd358a42b810f12d621b513ae94abb82ede34e43ce3311f78",
+        "content": {
+          "actual": 8,
+          "expected": 15,
+          "outcome": "FAIL",
+          "reference": {
+            "reference_id": "integer-reference",
+            "version": "2"
+          },
+          "comparison_rule": "integer-equality.v1",
+          "stages": [
+            {
+              "stage": "PRECHECK",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "L1",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "COMPARISON",
+              "status": "EXECUTED",
+              "error": "OUTPUT_REFERENCE_DIVERGENCE"
+            }
+          ]
+        },
+        "missing_reason": null
+      }
+    ],
+    "evidence_digest": "00a2725b996776bc8275ba58102958410a9fcb42195cca3648701e2f61adf733"
+  },
+  {
+    "input": {
+      "schema_version": "baseband-input.v2",
+      "software_version": "baseband-2.0",
+      "environment_condition": "nominal",
+      "constraint": {
+        "rule_id": "ddt-kdt-sampling",
+        "version": "2"
+      },
+      "ddt": {
+        "source": "synthetic-ddt",
+        "revision": "2",
+        "sample_rate": 30,
+        "gain": 2
+      },
+      "kdt": {
+        "source": "synthetic-kdt",
+        "revision": "2",
+        "sample_rate": 30,
+        "gain": 2
+      },
+      "stimulus": 7,
+      "reference": {
+        "reference_id": "integer-reference",
+        "version": "2"
+      },
+      "daas": {
+        "request_id": "request-1",
+        "requested": {
+          "config_id": "config-new",
+          "gain": 2,
+          "sample_rate": 30
+        },
+        "initial": {
+          "config_id": "config-old",
+          "gain": 1,
+          "sample_rate": 30
+        },
+        "events": [
+          {
+            "kind": "REQUEST",
+            "tick": 1,
+            "sequence": 0,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          },
+          {
+            "kind": "SENT",
+            "tick": 2,
+            "sequence": 1,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          },
+          {
+            "kind": "ACK",
+            "tick": 3,
+            "sequence": 2,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "ACCEPTED"
+          },
+          {
+            "kind": "APPLIED",
+            "tick": 4,
+            "sequence": 3,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          }
+        ],
+        "sample_tick": 10
+      },
+      "implementation": {
+        "version": "integer-l1.v1",
+        "offset": 2
+      },
+      "capture": {
+        "applied_state": true
+      }
+    },
+    "ground_truth": {
+      "version": "baseband-truth.v2",
+      "visibility": "DEVELOPMENT_VISIBLE",
+      "input_digest": "d23baf5ff6283a585467fdf67861d2bed50fc1d629065b4df74b8a6fcd30f612",
+      "decidability": "SUPPORTED",
+      "required_findings": [
+        {
+          "category": "PRODUCT_L1_CANDIDATE",
+          "mechanism": "OUTPUT_REFERENCE_DIVERGENCE",
+          "finding_status": "CANDIDATE",
+          "failure_relation": "SUPPORTED",
+          "owner_role": "PRODUCT_OWNER",
+          "recommended_actions": [
+            "REVIEW_PRODUCT_OUTPUT"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT",
+            "APPLIED_STATE"
+          ],
+          "counter_kinds": []
+        }
+      ],
+      "allowed_findings": [
+        {
+          "category": "REFERENCE",
+          "mechanism": "REFERENCE_NOT_APPLICABLE",
+          "finding_status": "REFUTED",
+          "failure_relation": "NOT_SUPPORTED",
+          "owner_role": "UNKNOWN",
+          "recommended_actions": [
+            "NONE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        },
+        {
+          "category": "SIMULATION_CHAIN",
+          "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+          "finding_status": "REFUTED",
+          "failure_relation": "NOT_SUPPORTED",
+          "owner_role": "UNKNOWN",
+          "recommended_actions": [
+            "NONE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        }
+      ],
+      "forbidden_confirmed_mechanisms": [
+        "OUTPUT_REFERENCE_DIVERGENCE"
+      ]
+    },
+    "report": {
+      "schema_version": "baseband-diagnosis.v2",
+      "incident_id": "incident",
+      "execution_id": "execution",
+      "input_digest": "d23baf5ff6283a585467fdf67861d2bed50fc1d629065b4df74b8a6fcd30f612",
+      "evidence_summary": "逐项核验参考适用范围、ACK 与采样状态及原始比较；不证明真实代码缺陷或唯一原因。",
+      "decidability": "SUPPORTED",
+      "candidate_findings": [
+        {
+          "category": "PRODUCT_L1_CANDIDATE",
+          "mechanism": "OUTPUT_REFERENCE_DIVERGENCE",
+          "finding_status": "CANDIDATE",
+          "failure_relation": "SUPPORTED",
+          "owner_role": "PRODUCT_OWNER",
+          "recommended_action": "REVIEW_PRODUCT_OUTPUT",
+          "supporting_evidence": [
+            {
+              "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+              "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8"
+            },
+            {
+              "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+              "digest": "d9554a2313c7af8b52e0efefbb20c5440a6a53b353748070f74d899ea7399b36"
+            },
+            {
+              "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+              "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6"
+            },
+            {
+              "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+              "digest": "cfb77885b3ddc90f4be6e48c3d746c5c1e3d64b6c87863239044acc5e68bcb68"
+            },
+            {
+              "evidence_id": "3b053001-8860-5520-952b-ccc62a6488fc",
+              "digest": "9b495490e0998876860d9444e9cb331d0b149cc22e9c00c173debd0063d31580"
+            }
+          ],
+          "counter_evidence": [],
+          "uncertainties": []
+        }
+      ],
+      "uncertainties": []
+    },
+    "evidence": [
+      {
+        "evidence_id": "5ea64439-f18b-5095-b3cb-f49d82060d3d",
+        "execution_id": "execution",
+        "kind": "CI_SUMMARY",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "c52f4a9650aee73de0d499cbb87b956df1f6d5de22bd5040244f4569140f83d8",
+        "content": {
+          "schema_version": "baseband-execution.v2",
+          "execution_id": "execution",
+          "environment_id": "env-oracle",
+          "case_id": "integer-primary",
+          "outcome": "FAIL",
+          "input_digest": "d23baf5ff6283a585467fdf67861d2bed50fc1d629065b4df74b8a6fcd30f612",
+          "completed_at": "2026-11-13T03:05:06.028211+00:00",
+          "sample_tick": 10,
+          "stages": [
+            {
+              "stage": "PRECHECK",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "L1",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "COMPARISON",
+              "status": "EXECUTED",
+              "error": "OUTPUT_REFERENCE_DIVERGENCE"
+            }
+          ]
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+        "execution_id": "execution",
+        "kind": "INPUT_MANIFEST",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8",
+        "content": {
+          "schema_version": "baseband-input.v2",
+          "software_version": "baseband-2.0",
+          "environment_condition": "nominal",
+          "constraint": {
+            "rule_id": "ddt-kdt-sampling",
+            "version": "2"
+          },
+          "ddt": {
+            "source": "synthetic-ddt",
+            "revision": "2",
+            "sample_rate": 30,
+            "gain": 2
+          },
+          "kdt": {
+            "source": "synthetic-kdt",
+            "revision": "2",
+            "sample_rate": 30,
+            "gain": 2
+          },
+          "stimulus": 7,
+          "daas_request": {
+            "request_id": "request-1",
+            "requested": {
+              "config_id": "config-new",
+              "gain": 2,
+              "sample_rate": 30
+            },
+            "sample_tick": 10
+          }
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+        "execution_id": "execution",
+        "kind": "REFERENCE_RECORD",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "d9554a2313c7af8b52e0efefbb20c5440a6a53b353748070f74d899ea7399b36",
+        "content": {
+          "reference_id": "integer-reference",
+          "version": "2",
+          "software_versions": [
+            "baseband-2.0"
+          ],
+          "conditions": [
+            "nominal"
+          ],
+          "offset": 1,
+          "comparison_rule": "integer-equality.v1"
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+        "execution_id": "execution",
+        "kind": "DAAS_TIMELINE",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6",
+        "content": {
+          "request_id": "request-1",
+          "config_id": "config-new",
+          "events": [
+            {
+              "kind": "REQUEST",
+              "tick": 1,
+              "sequence": 0,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "SENT",
+              "tick": 2,
+              "sequence": 1,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "ACK",
+              "tick": 3,
+              "sequence": 2,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "ACCEPTED"
+            }
+          ],
+          "sample_tick": 10
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "3b053001-8860-5520-952b-ccc62a6488fc",
+        "execution_id": "execution",
+        "kind": "APPLIED_STATE",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "9b495490e0998876860d9444e9cb331d0b149cc22e9c00c173debd0063d31580",
+        "content": {
+          "sample_tick": 10,
+          "request_id": "request-1",
+          "effective": {
+            "config_id": "config-new",
+            "gain": 2,
+            "sample_rate": 30
+          },
+          "applied_events": [
+            {
+              "kind": "APPLIED",
+              "tick": 4,
+              "sequence": 3,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            }
+          ]
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+        "execution_id": "execution",
+        "kind": "EXECUTION_RECEIPT",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "cfb77885b3ddc90f4be6e48c3d746c5c1e3d64b6c87863239044acc5e68bcb68",
+        "content": {
+          "actual": 17,
+          "expected": 15,
+          "outcome": "FAIL",
+          "reference": {
+            "reference_id": "integer-reference",
+            "version": "2"
+          },
+          "comparison_rule": "integer-equality.v1",
+          "stages": [
+            {
+              "stage": "PRECHECK",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "L1",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "COMPARISON",
+              "status": "EXECUTED",
+              "error": "OUTPUT_REFERENCE_DIVERGENCE"
+            }
+          ]
+        },
+        "missing_reason": null
+      }
+    ],
+    "evidence_digest": "a5b85c01608c5561aa25f7b9639bc80c6310195eb09879b2f0f2cf2682cfa57a"
+  },
+  {
+    "input": {
+      "schema_version": "baseband-input.v2",
+      "software_version": "baseband-2.0",
+      "environment_condition": "nominal",
+      "constraint": {
+        "rule_id": "ddt-kdt-sampling",
+        "version": "2"
+      },
+      "ddt": {
+        "source": "synthetic-ddt",
+        "revision": "2",
+        "sample_rate": 30,
+        "gain": 2
+      },
+      "kdt": {
+        "source": "synthetic-kdt",
+        "revision": "2",
+        "sample_rate": 30,
+        "gain": 2
+      },
+      "stimulus": 7,
+      "reference": {
+        "reference_id": "integer-reference",
+        "version": "1"
+      },
+      "daas": {
+        "request_id": "request-1",
+        "requested": {
+          "config_id": "config-new",
+          "gain": 2,
+          "sample_rate": 30
+        },
+        "initial": {
+          "config_id": "config-old",
+          "gain": 1,
+          "sample_rate": 30
+        },
+        "events": [
+          {
+            "kind": "REQUEST",
+            "tick": 1,
+            "sequence": 0,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          },
+          {
+            "kind": "SENT",
+            "tick": 2,
+            "sequence": 1,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          },
+          {
+            "kind": "ACK",
+            "tick": 3,
+            "sequence": 2,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "ACCEPTED"
+          },
+          {
+            "kind": "APPLIED",
+            "tick": 12,
+            "sequence": 3,
+            "request_id": "request-1",
+            "config_id": "config-new",
+            "status": "RECORDED"
+          }
+        ],
+        "sample_tick": 10
+      },
+      "implementation": {
+        "version": "integer-l1.v1",
+        "offset": 7
+      },
+      "capture": {
+        "applied_state": false
+      }
+    },
+    "ground_truth": {
+      "version": "baseband-truth.v2",
+      "visibility": "DEVELOPMENT_VISIBLE",
+      "input_digest": "f40cd7a2a62b67e033946d8228a2fc3804b0f341f9063cd09802f4ef1ffdfaca",
+      "decidability": "INSUFFICIENT_EVIDENCE",
+      "required_findings": [
+        {
+          "category": "REFERENCE",
+          "mechanism": "REFERENCE_NOT_APPLICABLE",
+          "finding_status": "CONFIRMED",
+          "failure_relation": "UNRESOLVED",
+          "owner_role": "REFERENCE_OWNER",
+          "recommended_actions": [
+            "SELECT_BASEBAND_REFERENCE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        },
+        {
+          "category": "SIMULATION_CHAIN",
+          "mechanism": "APPLICATION_UNCONFIRMED",
+          "finding_status": "CANDIDATE",
+          "failure_relation": "UNRESOLVED",
+          "owner_role": "DAAS_OWNER",
+          "recommended_actions": [
+            "COLLECT_APPLIED_STATE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT",
+            "DAAS_TIMELINE"
+          ],
+          "counter_kinds": []
+        }
+      ],
+      "allowed_findings": [
+        {
+          "category": "SIMULATION_CHAIN",
+          "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+          "finding_status": "REFUTED",
+          "failure_relation": "NOT_SUPPORTED",
+          "owner_role": "UNKNOWN",
+          "recommended_actions": [
+            "NONE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        },
+        {
+          "category": "PRODUCT_L1_CANDIDATE",
+          "mechanism": "OUTPUT_REFERENCE_DIVERGENCE",
+          "finding_status": "REFUTED",
+          "failure_relation": "NOT_SUPPORTED",
+          "owner_role": "UNKNOWN",
+          "recommended_actions": [
+            "NONE"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        }
+      ],
+      "forbidden_confirmed_mechanisms": [
+        "OUTPUT_REFERENCE_DIVERGENCE",
+        "CONFIG_APPLIED_AFTER_SAMPLE"
+      ]
+    },
+    "report": {
+      "schema_version": "baseband-diagnosis.v2",
+      "incident_id": "incident",
+      "execution_id": "execution",
+      "input_digest": "f40cd7a2a62b67e033946d8228a2fc3804b0f341f9063cd09802f4ef1ffdfaca",
+      "evidence_summary": "逐项核验参考适用范围、ACK 与采样状态及原始比较；不证明真实代码缺陷或唯一原因。",
+      "decidability": "INSUFFICIENT_EVIDENCE",
+      "candidate_findings": [
+        {
+          "category": "REFERENCE",
+          "mechanism": "REFERENCE_NOT_APPLICABLE",
+          "finding_status": "CONFIRMED",
+          "failure_relation": "UNRESOLVED",
+          "owner_role": "REFERENCE_OWNER",
+          "recommended_action": "SELECT_BASEBAND_REFERENCE",
+          "supporting_evidence": [
+            {
+              "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+              "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8"
+            },
+            {
+              "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+              "digest": "ae832d4efc358ddfaa53b14b5c988e64cb977068d7b28b16dda11356273027f7"
+            },
+            {
+              "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+              "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6"
+            },
+            {
+              "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+              "digest": "95db86696e6ea5e0530719ba7d49b06c3362408246830e88183451888237503d"
+            }
+          ],
+          "counter_evidence": [],
+          "uncertainties": [
+            "未定位真实产品代码缺陷或唯一根因"
+          ]
+        },
+        {
+          "category": "SIMULATION_CHAIN",
+          "mechanism": "APPLICATION_UNCONFIRMED",
+          "finding_status": "CANDIDATE",
+          "failure_relation": "UNRESOLVED",
+          "owner_role": "DAAS_OWNER",
+          "recommended_action": "COLLECT_APPLIED_STATE",
+          "supporting_evidence": [
+            {
+              "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+              "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8"
+            },
+            {
+              "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+              "digest": "ae832d4efc358ddfaa53b14b5c988e64cb977068d7b28b16dda11356273027f7"
+            },
+            {
+              "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+              "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6"
+            },
+            {
+              "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+              "digest": "95db86696e6ea5e0530719ba7d49b06c3362408246830e88183451888237503d"
+            }
+          ],
+          "counter_evidence": [],
+          "uncertainties": [
+            "未定位真实产品代码缺陷或唯一根因"
+          ]
+        }
+      ],
+      "uncertainties": [
+        "缺 APPLIED_STATE，输出可由多种内部机制产生，无法确认唯一原因"
+      ]
+    },
+    "evidence": [
+      {
+        "evidence_id": "5ea64439-f18b-5095-b3cb-f49d82060d3d",
+        "execution_id": "execution",
+        "kind": "CI_SUMMARY",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "13e63147d80a31b355a69fda1d0d8ece9a7bdea1e1618fb1a6f54465f57fa56b",
+        "content": {
+          "schema_version": "baseband-execution.v2",
+          "execution_id": "execution",
+          "environment_id": "env-oracle",
+          "case_id": "integer-primary",
+          "outcome": "FAIL",
+          "input_digest": "f40cd7a2a62b67e033946d8228a2fc3804b0f341f9063cd09802f4ef1ffdfaca",
+          "completed_at": "2026-11-13T03:05:06.028211+00:00",
+          "sample_tick": 10,
+          "stages": [
+            {
+              "stage": "PRECHECK",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "L1",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "COMPARISON",
+              "status": "EXECUTED",
+              "error": "OUTPUT_REFERENCE_DIVERGENCE"
+            }
+          ]
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+        "execution_id": "execution",
+        "kind": "INPUT_MANIFEST",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8",
+        "content": {
+          "schema_version": "baseband-input.v2",
+          "software_version": "baseband-2.0",
+          "environment_condition": "nominal",
+          "constraint": {
+            "rule_id": "ddt-kdt-sampling",
+            "version": "2"
+          },
+          "ddt": {
+            "source": "synthetic-ddt",
+            "revision": "2",
+            "sample_rate": 30,
+            "gain": 2
+          },
+          "kdt": {
+            "source": "synthetic-kdt",
+            "revision": "2",
+            "sample_rate": 30,
+            "gain": 2
+          },
+          "stimulus": 7,
+          "daas_request": {
+            "request_id": "request-1",
+            "requested": {
+              "config_id": "config-new",
+              "gain": 2,
+              "sample_rate": 30
+            },
+            "sample_tick": 10
+          }
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+        "execution_id": "execution",
+        "kind": "REFERENCE_RECORD",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "ae832d4efc358ddfaa53b14b5c988e64cb977068d7b28b16dda11356273027f7",
+        "content": {
+          "reference_id": "integer-reference",
+          "version": "1",
+          "software_versions": [
+            "baseband-1.0"
+          ],
+          "conditions": [
+            "nominal"
+          ],
+          "offset": 0,
+          "comparison_rule": "integer-equality.v1"
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+        "execution_id": "execution",
+        "kind": "DAAS_TIMELINE",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6",
+        "content": {
+          "request_id": "request-1",
+          "config_id": "config-new",
+          "events": [
+            {
+              "kind": "REQUEST",
+              "tick": 1,
+              "sequence": 0,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "SENT",
+              "tick": 2,
+              "sequence": 1,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "RECORDED"
+            },
+            {
+              "kind": "ACK",
+              "tick": 3,
+              "sequence": 2,
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "status": "ACCEPTED"
+            }
+          ],
+          "sample_tick": 10
+        },
+        "missing_reason": null
+      },
+      {
+        "evidence_id": "3b053001-8860-5520-952b-ccc62a6488fc",
+        "execution_id": "execution",
+        "kind": "APPLIED_STATE",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "MISSING",
+        "media_type": "application/json",
+        "digest": null,
+        "content": null,
+        "missing_reason": "采样状态未采集"
+      },
+      {
+        "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+        "execution_id": "execution",
+        "kind": "EXECUTION_RECEIPT",
+        "captured_at": "2026-11-13T03:05:06.028211+00:00",
+        "availability": "AVAILABLE",
+        "media_type": "application/json",
+        "digest": "95db86696e6ea5e0530719ba7d49b06c3362408246830e88183451888237503d",
+        "content": {
+          "actual": 15,
+          "expected": 14,
+          "outcome": "FAIL",
+          "reference": {
+            "reference_id": "integer-reference",
+            "version": "1"
+          },
+          "comparison_rule": "integer-equality.v1",
+          "stages": [
+            {
+              "stage": "PRECHECK",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "L1",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "COMPARISON",
+              "status": "EXECUTED",
+              "error": "OUTPUT_REFERENCE_DIVERGENCE"
+            }
+          ]
+        },
+        "missing_reason": null
+      }
+    ],
+    "evidence_digest": "740f90945700451ac09eae081fb8c709a5a38514e9c31ae36db545f712085731"
+  }
+]

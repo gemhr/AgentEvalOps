@@ -131,3 +131,7 @@ Target 为 `baseband-sealed-http.v1`，只调用 `/api/ci/quality/baseband/evalu
 基带 Target 的 Subject 现在明确区分 baseband-rule.v1 与 baseband_test_investigator/1.0.0；selectors 不进入 Case Input。评价来源投影提供实际 model_calls、COMMITTED tools、OBSERVED batches；标准 applicability provenance 与业务 Verdict 分开。公开 v1 ENUM 指标和冻结策略保留原定义：Comparison 可以真实完成并返回 BLOCKED，不能将 HTTP/PG PASS 或双方逐案 PASS 自动标记为 Release Gate PASS。
 
 `scripts/prepare-baseband-evaluation.py --version v2` 发布独立 v2 Metric/Evaluator/Policy/Suite，复用原公开 Case/GT 和来源校验。`baseband-deterministic.v2` 输出 `baseband_diagnosis_correctness.v2`（SCALAR [0,1]、HIGHER_IS_BETTER、mean）：可信可评分且全部原业务条件成立为 1，可信业务错误为 0，无法评分仍为 null/INCONCLUSIVE；正确拒判也可得 1。策略保留 Required/PerCase、完整覆盖、最小值 1 和零下降容忍，双方全正确允许 UNCHANGED/PASS，缺失仍 BLOCKED。v1 定义和历史结果保持不变；v2 可通过既有 SERVICE 只读投影重新评价封存 Agent Run，无需新模型调用。
+
+联合诊断开发集为 `go-backend/testdata/oracle_chain_development.json`，以 `--version v3` 正常发布独立 Case/GT/Dataset/Metric/Evaluator/Policy/Suite。`baseband-deterministic.v3` / `baseband_joint_diagnosis_correctness.v3` 采用相同 SCALAR/mean/全覆盖数值策略，按必需/允许 finding 的语义集合、逐项状态/失败关系、角色/安全动作及支持/反证条件判分。合法但错误报告为 0；可信的部分诊断与合理整体拒判为 1；缺 Artifact/来源/GT 为 null。既有 Worker、PG 与 Decision 不变。
+
+`baseband-sealed-http.v2` 明确发送 quality-request.v2，严格读取 output.v2/diagnosis.v2；不放宽 v1 decoder。六类证据中 INPUT_MANIFEST 按完整 recipe 的公开字段投影校验，不把它错误地当作完整输入。完整 recipe 只发给受信 SERVICE 精确绑定，GT 不发往 AgentCore。source.observed_reads 包含真实原文读取的 evidence_id/digest、invocation/action、iteration_no 和 availability。前端沿原 IncidentDetail 展示逐项状态、业务 tick、原始 verdict 与缺失采集；旧 v1/v2 资产和结果不覆盖。

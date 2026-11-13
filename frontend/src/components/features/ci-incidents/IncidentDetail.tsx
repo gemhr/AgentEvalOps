@@ -56,7 +56,7 @@ export default function IncidentDetail({ incidentId }: { incidentId: string }) {
         {investigation.data?.safe_error_code && <p role="alert">{investigation.data.safe_error_code}。可显式启动新调查。</p>}</section>}
       {report && "decidability" in report && <section className="border rounded p-4 space-y-3"><h2>基带调查 · {report.decidability}</h2>
         <p>{report.evidence_summary}</p><p className="break-all">输入摘要：{report.input_digest}</p>
-        {report.candidate_findings.map((finding, index) => <article key={index}><p>类别：{finding.category} · 机制：{finding.mechanism} · 责任：{finding.owner_role}</p><p>建议：{finding.recommended_action}</p>
+        {report.candidate_findings.map((finding, index) => <article key={index}><p>类别：{finding.category} · 机制：{finding.mechanism} · 责任：{finding.owner_role}</p>{finding.finding_status && <p>主张状态：{finding.finding_status} · 本次失败关系：{finding.failure_relation}</p>}<p>建议：{finding.recommended_action}</p>
           <p>不确定性：{finding.uncertainties.join("；")}</p><p>支持证据</p>{finding.supporting_evidence.map(ref => <Button key={ref.evidence_id} onClick={() => read(ref.evidence_id)}>{detail.data?.evidence.find(e => e.evidence_id === ref.evidence_id)?.kind ?? ref.evidence_id}</Button>)}
           <p>反证</p>{finding.counter_evidence.map(ref => <Button key={ref.evidence_id} onClick={() => read(ref.evidence_id)}>{ref.evidence_id}</Button>)}</article>)}<p>{report.uncertainties.join("；")}</p>
       </section>}
@@ -74,7 +74,7 @@ export default function IncidentDetail({ incidentId }: { incidentId: string }) {
         <VerificationPanel key={`verify-${identity.user_id}-${incidentId}`} incidentId={incidentId} detail={detail.data} state={currentState.data} onChanged={refreshBusiness} onRead={readExecution} />
       </>}
       <section className="space-y-3"><h2>原始执行证据</h2>{detail.data.evidence.map((item) => <Button key={item.evidence_id} onClick={() => read(item.evidence_id)}>{item.kind} · {item.availability}</Button>)}</section>
-      {evidence && <section className="border rounded p-4"><h2>{evidence.kind} · {evidence.availability}</h2><p className="break-all">digest: {evidence.digest ?? "未采集"}</p><pre className="whitespace-pre-wrap break-all">{JSON.stringify(evidence.content ?? evidence.missing_reason, null, 2)}</pre></section>}
+      {evidence && <section className="border rounded p-4"><h2>{evidence.kind} · {evidence.availability}</h2>{["DAAS_TIMELINE", "APPLIED_STATE"].includes(evidence.kind) && <p>tick 为本次业务模拟时序；ACK 不等于生效，APPLIED.tick 必须小于 sample_tick。MISSING 表示本次未采集，不表示配置未生效。</p>}<p className="break-all">digest: {evidence.digest ?? "未采集"}</p><pre className="whitespace-pre-wrap break-all">{JSON.stringify(evidence.content ?? evidence.missing_reason, null, 2)}</pre></section>}
       <section><h2>报告版本历史</h2>{detail.data.investigations.map((item) => <p key={item.investigation_id}>v{item.report_version} · {item.projection_status} · {item.run_id}</p>)}</section>
     </>}</>}
   </main>;

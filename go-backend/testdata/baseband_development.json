@@ -1,0 +1,135 @@
+{
+  "version": "baseband-development.v1",
+  "evaluator_version": "baseband-deterministic.v1",
+  "cases": [
+    {
+      "case_key": "baseband_input_mismatch",
+      "input": {
+        "schema_version": "baseband-input.v1",
+        "software_version": "baseband-1.0",
+        "constraint": {
+          "rule_id": "ddt-kdt-sampling",
+          "version": "1",
+          "software_version": "baseband-1.0",
+          "sample_rates": [
+            15,
+            30,
+            60
+          ],
+          "rule": "DDT.sample_rate == KDT.sample_rate; gain 1..4; component READY"
+        },
+        "ddt": {
+          "source": "synthetic-ddt",
+          "revision": "ddt-A",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "kdt": {
+          "source": "synthetic-kdt-aw",
+          "revision": "kdt-B",
+          "sample_rate": 15,
+          "gain": 2
+        },
+        "component": "READY",
+        "stimulus": 7,
+        "receipt_available": true
+      },
+      "ground_truth": {
+        "version": "baseband-truth.v1",
+        "visibility": "DEVELOPMENT_VISIBLE",
+        "input_digest": "e9e5a85fc88503ae69f86a80b91d6a912d445893b0d8c9071b4908c6bd79939d",
+        "decidability": "SUPPORTED",
+        "category": "INPUT_CONFIGURATION",
+        "mechanism": "SAMPLE_RATE_MISMATCH",
+        "owner_role": "TEST_OWNER",
+        "recommended_action": "ALIGN_BASEBAND_INPUT"
+      }
+    },
+    {
+      "case_key": "baseband_compatible",
+      "input": {
+        "schema_version": "baseband-input.v1",
+        "software_version": "baseband-1.0",
+        "constraint": {
+          "rule_id": "ddt-kdt-sampling",
+          "version": "1",
+          "software_version": "baseband-1.0",
+          "sample_rates": [
+            15,
+            30,
+            60
+          ],
+          "rule": "DDT.sample_rate == KDT.sample_rate; gain 1..4; component READY"
+        },
+        "ddt": {
+          "source": "synthetic-ddt",
+          "revision": "ddt-A",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "kdt": {
+          "source": "synthetic-kdt-aw",
+          "revision": "kdt-B",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "component": "READY",
+        "stimulus": 7,
+        "receipt_available": true
+      },
+      "ground_truth": {
+        "version": "baseband-truth.v1",
+        "visibility": "DEVELOPMENT_VISIBLE",
+        "input_digest": "ba4043612aeba3183cb5b1e19dec7c43d91d5e8f6f1370229db720b20d9a7714",
+        "decidability": "SUPPORTED",
+        "category": "UNDETERMINED",
+        "mechanism": "NO_INPUT_FAULT",
+        "owner_role": "UNKNOWN",
+        "recommended_action": "NONE"
+      }
+    },
+    {
+      "case_key": "baseband_missing_receipt",
+      "input": {
+        "schema_version": "baseband-input.v1",
+        "software_version": "baseband-1.0",
+        "constraint": {
+          "rule_id": "ddt-kdt-sampling",
+          "version": "1",
+          "software_version": "baseband-1.0",
+          "sample_rates": [
+            15,
+            30,
+            60
+          ],
+          "rule": "DDT.sample_rate == KDT.sample_rate; gain 1..4; component READY"
+        },
+        "ddt": {
+          "source": "synthetic-ddt",
+          "revision": "ddt-A",
+          "sample_rate": 30,
+          "gain": 2
+        },
+        "kdt": {
+          "source": "synthetic-kdt-aw",
+          "revision": "kdt-B",
+          "sample_rate": 15,
+          "gain": 2
+        },
+        "component": "READY",
+        "stimulus": 7,
+        "receipt_available": false
+      },
+      "ground_truth": {
+        "version": "baseband-truth.v1",
+        "visibility": "DEVELOPMENT_VISIBLE",
+        "input_digest": "ed08514d817f53e16c8dc0712d4592f89180bef172ab4d0b29bdb02b9fa555eb",
+        "decidability": "INSUFFICIENT_EVIDENCE",
+        "category": "UNDETERMINED",
+        "mechanism": "UNDETERMINED",
+        "owner_role": "UNKNOWN",
+        "recommended_action": "COLLECT_EXECUTION_RECEIPT"
+      }
+    }
+  ]
+}

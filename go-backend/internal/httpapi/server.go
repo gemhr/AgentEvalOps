@@ -50,6 +50,7 @@ type Server struct {
 	SupportsEvaluator   func(metric.EvaluatorDefinition) bool
 	CIBusinessTarget    *ev.Target
 	FeatureImpactTarget *ev.Target
+	BasebandTarget      *ev.Target
 	mux                 *http.ServeMux
 	routes              []route
 	limiter             *rateLimiter
@@ -104,6 +105,7 @@ func New(s Server) (*Server, error) {
 	s.productRoutes()
 	s.ciBusinessRoutes()
 	s.featureImpactRoutes()
+	s.basebandRoutes()
 	s.reviewRoutes()
 	s.businessFeedbackRoutes()
 	s.analyticsRoutes()

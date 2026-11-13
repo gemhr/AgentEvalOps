@@ -54,7 +54,13 @@ export default function IncidentDetail({ incidentId }: { incidentId: string }) {
       <label>选择调查报告 <select value={selected} onChange={e => setSelected(e.target.value)}><option value="">请选择具体调查</option>{detail.data.investigations.map(item => <option key={item.investigation_id} value={item.investigation_id}>v{item.report_version} · {item.investigation_id}</option>)}</select></label>
       {latest && <section className="space-y-2"><h2>调查 v{latest.report_version}</h2><p>Run {latest.run_id}</p><p>{investigation.data?.investigation_status ?? "读取中"} · {progress}</p>
         {investigation.data?.safe_error_code && <p role="alert">{investigation.data.safe_error_code}。可显式启动新调查。</p>}</section>}
-      {report && <section className="border rounded p-4 space-y-3"><h2>{report.diagnosis_status === "INSUFFICIENT_EVIDENCE" ? "证据不足 · 待求证" : "证据支持的根因假设"}</h2>
+      {report && "decidability" in report && <section className="border rounded p-4 space-y-3"><h2>基带调查 · {report.decidability}</h2>
+        <p>{report.evidence_summary}</p><p className="break-all">输入摘要：{report.input_digest}</p>
+        {report.candidate_findings.map((finding, index) => <article key={index}><p>类别：{finding.category} · 机制：{finding.mechanism} · 责任：{finding.owner_role}</p><p>建议：{finding.recommended_action}</p>
+          <p>不确定性：{finding.uncertainties.join("；")}</p><p>支持证据</p>{finding.supporting_evidence.map(ref => <Button key={ref.evidence_id} onClick={() => read(ref.evidence_id)}>{detail.data?.evidence.find(e => e.evidence_id === ref.evidence_id)?.kind ?? ref.evidence_id}</Button>)}
+          <p>反证</p>{finding.counter_evidence.map(ref => <Button key={ref.evidence_id} onClick={() => read(ref.evidence_id)}>{ref.evidence_id}</Button>)}</article>)}<p>{report.uncertainties.join("；")}</p>
+      </section>}
+      {report && "diagnosis_status" in report && <section className="border rounded p-4 space-y-3"><h2>{report.diagnosis_status === "INSUFFICIENT_EVIDENCE" ? "证据不足 · 待求证" : "证据支持的根因假设"}</h2>
         <p>失败阶段：{report.failure_stage}</p><p>{report.root_cause_hypothesis}</p><p>推荐责任角色：{report.recommended_owner_role}</p>
         <h3>不确定性</h3><ul>{report.uncertainties.map((item, n) => <li key={n}>{item}</li>)}</ul><h3>建议检查项</h3><ul>{report.recommended_checks.map((item, n) => <li key={n}>{item}</li>)}</ul>
         <h3>报告引用</h3>{report.supporting_evidence.map((ref) => <Button key={ref.evidence_id} onClick={() => read(ref.evidence_id)}>{detail.data?.evidence.find((item) => item.evidence_id === ref.evidence_id)?.kind ?? ref.evidence_id}</Button>)}
@@ -63,7 +69,7 @@ export default function IncidentDetail({ incidentId }: { incidentId: string }) {
       <InvestigationFeedback key={`${identity.user_id}-${incidentId}-${selected}`} incidentId={incidentId} investigation={investigation.data} />
       {currentState.error && <p role="alert">{String(currentState.error)}</p>}
       {currentState.data && <><section className="border rounded p-4 space-y-2"><h2 className="text-lg">当前模拟状态 · 版本 {currentState.data.state_revision}</h2>
-        <p>读取时间 {currentState.data.observed_at}；这是当前状态，不是原失败时的历史证据。</p><pre className="whitespace-pre-wrap break-all">{JSON.stringify({ environment: currentState.data.environment, cases: currentState.data.cases, report_field_revision: currentState.data.report_field_revision }, null, 2)}</pre></section>
+        <p>读取时间 {currentState.data.observed_at}；这是当前状态，不是原失败时的历史证据。</p><pre className="whitespace-pre-wrap break-all">{JSON.stringify({ environment: currentState.data.environment, cases: currentState.data.cases, report_field_revision: currentState.data.report_field_revision, baseband: currentState.data.baseband }, null, 2)}</pre></section>
         <RepairActions key={`repair-${identity.user_id}-${incidentId}`} incidentId={incidentId} detail={detail.data} state={currentState.data} onChanged={refreshBusiness} />
         <VerificationPanel key={`verify-${identity.user_id}-${incidentId}`} incidentId={incidentId} detail={detail.data} state={currentState.data} onChanged={refreshBusiness} onRead={readExecution} />
       </>}

@@ -142,6 +142,9 @@ func NonApplicable(in worker.EvaluationInput, state asset.ApplicabilityState, me
 	return worker.EvaluationOutput{Value: v}
 }
 func DeterministicSupported(d metric.EvaluatorDefinition) bool {
+	if BasebandSupported(d) {
+		return true
+	}
 	if AdaptiveSupported(d) {
 		return true
 	}
@@ -177,6 +180,9 @@ func (DeterministicEvaluator) Evaluate(ctx context.Context, in worker.Evaluation
 		return worker.EvaluationOutput{}, e
 	}
 	d := in.Work.Metadata.Spec.Definition
+	if BasebandSupported(d) {
+		return evaluateBaseband(ctx, in)
+	}
 	if AdaptiveSupported(d) {
 		return evaluateAdaptive(ctx, in)
 	}

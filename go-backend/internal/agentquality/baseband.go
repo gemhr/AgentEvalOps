@@ -188,6 +188,9 @@ func BasebandScore(r BasebandReport, gt BasebandTruth) map[string]bool {
 	return scores
 }
 func BasebandSupported(d metric.EvaluatorDefinition) bool {
+	if CoverageSupported(d) {
+		return true
+	}
 	if JointSupported(d) {
 		return true
 	}

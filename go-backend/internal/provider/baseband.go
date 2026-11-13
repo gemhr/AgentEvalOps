@@ -43,6 +43,9 @@ func NewBasebandTarget(c LocalAgentConfig, reader ev.Reader) (*BasebandTarget, e
 }
 func (t *BasebandTarget) Close() { t.client.CloseIdleConnections() }
 func (t *BasebandTarget) Execute(parent context.Context, s ev.Scope, q ev.Request) (ev.Outcome, error) {
+	if q.Target.Version == aq.CoverageTargetVersion {
+		return t.executeCoverage(parent, s, q)
+	}
 	out := ev.Outcome{Kind: ev.Failure, RequestID: q.ID, Source: BasebandTargetKind, RemoteID: q.AttemptID, Protocol: aq.BasebandOutput, DispatchCertainty: "NOT_DISPATCHED", TerminalCertainty: "NOT_DISPATCHED", ErrorCategory: string(ProtocolError), Reason: "BASEBAND_BINDING_INVALID"}
 	joint := q.Target.Version == JointTargetVersion
 	protocol, requestProtocol := aq.BasebandOutput, "baseband-quality-request.v1"

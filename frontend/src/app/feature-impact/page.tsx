@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import CoverageAssets from "@/components/features/ci-incidents/CoverageAssets";
 import { Textarea } from "@/components/ui/Textarea";
 
 type Doc = { source_ref: string; title: string; content: string; version: string; content_digest: string };
-type Finding = { finding_id: string; historical_feature_id: string; coverage_class: string; rationale: string; uncertainties: string[]; supporting_evidence: { source_ref: string }[]; counter_evidence: { source_ref: string }[]; recommended_tests: { test_id: string; preconditions: string; observation: string; expected: string; operations: unknown[] }[] };
-type Report = { report_id: string; report_version: number; report_digest: string; candidate_kind: string; status: string; rejection: string | null; raw_output: string; report: { findings: Finding[] } | null; coverage_plan?: Plan | null; executions?: { execution_id: string; test_id: string }[] };
+type Finding = { finding_id: string; historical_feature_id: string; coverage_class: string; rationale: string; uncertainties: string[]; supporting_evidence: { source_ref: string }[]; counter_evidence: { source_ref: string }[]; recommended_tests: { test_id: string; preconditions: string; observation: string; expected: string; operations?: unknown[]; test_kind?: string; case_configuration?: Record<string, unknown> }[] };
+type Report = { report_id: string; report_version: number; report_digest: string; candidate_kind: string; status: string; rejection: string | null; raw_output: string; report: { findings: Finding[] } | null; coverage_plan?: Plan | null; executions?: { execution_id: string; test_id: string; execution_kind?: string; incident_id?: string }[] };
 type Task = { task_id: string; title: string; documents: Doc[]; exposed: boolean; reports: { report_id: string; candidate_kind: string; report_version: number }[] };
-type Plan = { plan_id: string; plan_digest: string; tests: { test_id: string; finding_id: string }[]; decisions: (Review & { finding_id: string })[] };
+type Plan = { plan_id: string; plan_digest: string; tests: { test_id: string; finding_id: string; test_kind?: string }[]; decisions: (Review & { finding_id: string })[] };
 type Review = { decision: "ACCEPT" | "REJECT" | "NEEDS_CLARIFICATION"; reason: string };
 
 export default function FeatureImpactPage() {
@@ -35,7 +36,7 @@ export default function FeatureImpactPage() {
     setBusy(true); setError("");
     try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
-  async function loadTasks() { const data = await api<{ items: typeof tasks }>("/tasks"); setTasks(data.items); setVerified(true); }
+  async function loadTasks() { const data = await api<{ items: typeof tasks }>("/tasks"); setTasks(data.items); setVerified(true); const params = new URLSearchParams(window.location.search); const id = params.get("task_id"); if (id && data.items.some(t => t.task_id === id)) { await openTask(id); const rid = params.get("report_id"); if (rid) showReport(await api<Report>(`/reports/${rid}`)); } }
   async function openTask(id: string) { setTask(await api<Task>(`/tasks/${id}`)); setReport(null); setPlan(null); setResult(null); setReviews({}); }
   function showReport(value: Report) {
     setReport(value);
@@ -51,6 +52,7 @@ export default function FeatureImpactPage() {
       <Input aria-label="HUMAN 访问凭据" type="password" autoComplete="off" placeholder="HUMAN Bearer token（仅保存在当前页面内存）" value={credential} disabled={!ready || busy} onChange={(e) => { setCredential(e.target.value); setVerified(false); setTasks([]); setTask(null); setReport(null); setPlan(null); setResult(null); }} />
       <Button disabled={busy || !credential} onClick={() => action(loadTasks)}>验证身份并读取任务</Button>
       {verified && <Button disabled={busy} onClick={() => action(async () => { const t = await api<Task>("/tasks", { request_id: crypto.randomUUID() }); await loadTasks(); await openTask(t.task_id); })}>创建冻结演练任务</Button>}
+      {verified && <Button disabled={busy} onClick={() => action(async () => { const t = await api<Task>("/public-experiment-tasks", { request_id: crypto.randomUUID(), public_task: "sampling-interface" }); await loadTasks(); await openTask(t.task_id); })}>创建接口覆盖合成任务</Button>}
       <div className="flex flex-wrap gap-2">{tasks.map((t) => <Button variant="secondary" key={t.task_id} disabled={busy} onClick={() => action(() => openTask(t.task_id))}>{t.title} · {t.task_id.slice(0, 8)}</Button>)}</div>
     </div></section>
     {error && <p role="alert" className="text-red-600">{error}</p>}
@@ -75,14 +77,15 @@ export default function FeatureImpactPage() {
         <h3 className="font-semibold">{f.historical_feature_id} · {f.coverage_class}</h3><p>{f.rationale}</p>
         <p>支持：{f.supporting_evidence.map((r) => r.source_ref).join("、")}；反证：{f.counter_evidence.map((r) => r.source_ref).join("、") || "无"}</p>
         {f.uncertainties.length > 0 && <p>待澄清：{f.uncertainties.join("；")}</p>}
-        {f.recommended_tests.map((t) => <details key={t.test_id}><summary>{t.test_id} · 建议黑盒测试</summary><p>{t.preconditions}</p><pre>{JSON.stringify(t.operations, null, 2)}</pre><p>{t.observation}；{t.expected}</p></details>)}
+        {f.recommended_tests.map((t) => <details key={t.test_id}><summary>{t.test_id} · 建议黑盒测试</summary><p>{t.preconditions}</p><pre>{JSON.stringify(t.test_kind === "DAAS_CASE" ? t.case_configuration : t.operations, null, 2)}</pre><p>{t.observation}；{t.expected}</p></details>)}
         <select aria-label={`${f.historical_feature_id} 审核决定`} value={reviews[f.finding_id]?.decision ?? "NEEDS_CLARIFICATION"} disabled={busy || !!plan} onChange={(e) => decision(f.finding_id, { decision: e.target.value as Review["decision"] })} className="rounded border p-2"><option value="NEEDS_CLARIFICATION">NEEDS_CLARIFICATION · 需要澄清</option><option value="ACCEPT">ACCEPT · 采纳</option><option value="REJECT">REJECT · 拒绝</option></select>
         <Input aria-label={`${f.historical_feature_id} 审核理由`} placeholder="填写审核理由" value={reviews[f.finding_id]?.reason ?? ""} disabled={busy || !!plan} onChange={(e) => decision(f.finding_id, { reason: e.target.value })} />
       </section>)}
       {report.status === "SEALED" && <Button disabled={busy || !!plan || !!task?.exposed} onClick={() => action(async () => setPlan(await api<Plan>(`/reports/${report.report_id}/reviews`, { request_id: crypto.randomUUID(), report_version: report.report_version, report_digest: report.report_digest, decisions: report.report!.findings.map((f) => ({ finding_id: f.finding_id, ...reviews[f.finding_id] })) })))}>提交审核并封存覆盖计划</Button>}
     </div></section>}
-    {plan && <section className="space-y-3 rounded border border-border p-4"><header><h2 className="text-lg font-semibold">已封存覆盖计划 · 事后验证</h2></header><div className="space-y-3"><p>审核不会自动执行；以下按钮单独触发已获准的操作序列。</p><p>{plan.plan_id}</p>{plan.tests.map((t) => <Button disabled={busy} key={t.test_id} onClick={() => action(async () => { setResult(await api(`/coverage-plans/${plan.plan_id}/executions`, { request_id: crypto.randomUUID(), plan_digest: plan.plan_digest, test_id: t.test_id })); if (task) setTask(await api<Task>(`/tasks/${task.task_id}`)); })}>执行 {t.test_id}</Button>)}{!plan.tests.length && <p>计划没有获准测试；待澄清项不会自动执行。</p>}</div></section>}
-    {!!report?.executions?.length && <section><h2>持久执行记录</h2>{report.executions.map((e) => <Button variant="secondary" disabled={busy} key={e.execution_id} onClick={() => action(async () => setResult(await api(`/executions/${e.execution_id}`)))}>查看 {e.test_id} · {e.execution_id.slice(0, 8)}</Button>)}</section>}
+    {plan && <section className="space-y-3 rounded border border-border p-4"><header><h2 className="text-lg font-semibold">已封存覆盖计划 · 事后验证</h2></header><div className="space-y-3"><p>审核不会自动执行；以下按钮单独触发已获准的操作序列。</p><p>{plan.plan_id}</p>{plan.tests.filter(t => t.test_kind !== "DAAS_CASE").map((t) => <Button disabled={busy} key={t.test_id} onClick={() => action(async () => { setResult(await api(`/coverage-plans/${plan.plan_id}/executions`, { request_id: crypto.randomUUID(), plan_digest: plan.plan_digest, test_id: t.test_id })); if (task) setTask(await api<Task>(`/tasks/${task.task_id}`)); })}>执行 {t.test_id}</Button>)}{!plan.tests.length && <p>计划没有获准测试；待澄清项不会自动执行。</p>}</div></section>}
+    {plan?.tests.some(t => t.test_kind === "DAAS_CASE") && <CoverageAssets key={plan.plan_id} plan={plan} credential={credential} onExecuted={async () => { if (task) setTask(await api<Task>(`/tasks/${task.task_id}`)); }} />}
+    {!!report?.executions?.length && <section><h2>持久执行记录</h2>{report.executions.map((e) => <Button variant="secondary" disabled={busy} key={e.execution_id} onClick={() => action(async () => setResult(e.execution_kind === "CI" ? e : await api(`/executions/${e.execution_id}`)))}>查看 {e.test_id} · {e.execution_id.slice(0, 8)}</Button>)}</section>}
     {result !== null && <section className="space-y-3 rounded border border-border p-4"><header><h2 className="text-lg font-semibold">精确资料 / 业务验证结果</h2></header><div><pre className="overflow-auto whitespace-pre-wrap text-sm">{JSON.stringify(result, null, 2)}</pre></div></section>}
   </main>;
 }

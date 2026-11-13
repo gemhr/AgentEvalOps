@@ -13,6 +13,7 @@ type basebandRunRequest struct {
 }
 
 func (s *Server) basebandRoutes() {
+	s.coverageRoutes()
 	s.add("POST", "/baseband/runs", identity.Execute, true, basebandRunRequest{}, func(r *request) (any, error) {
 		var d basebandRunRequest
 		if r.decode(&d) != nil || s.BasebandTarget == nil {

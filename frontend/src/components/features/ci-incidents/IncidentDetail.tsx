@@ -45,11 +45,12 @@ export default function IncidentDetail({ incidentId }: { incidentId: string }) {
     catch (error) { setError(String(error)); }
   }
   async function refreshBusiness() { await Promise.all([detail.refetch(), currentState.refetch()]); }
-  const report = investigation.data?.report;
+  const report = investigation.data?.report ?? detail.data?.rule_diagnosis;
   return <main className="max-w-5xl mx-auto p-8 space-y-6"><Link className="underline" href="/ci-incidents">← 返回工作台</Link><h1 className="text-2xl">Incident 详情</h1><CIIdentity />
     {identity && <>{detail.error && <p role="alert">{String(detail.error)}</p>}{detail.data && <>
       <section className="border rounded p-4 space-y-2"><h2>{detail.data.title}</h2><p>{incidentId} · {detail.data.status} · 原始 CI {detail.data.execution.outcome}</p><p>原始执行 {detail.data.execution.execution_id}</p>
       <Button disabled={busy || active} onClick={start}>{busy ? "启动中…" : intent ? "重试本次调查" : "启动新调查"}</Button></section>
+      {detail.data.workflow_source && <section className="border rounded p-4 space-y-2"><h2>覆盖计划与资产来源</h2><p>规划 RULE/HUMAN · 诊断 {detail.data.diagnosis_source} · 模型 {detail.data.model_execution}</p><Link className="underline" href={`/feature-impact?task_id=${detail.data.workflow_source.task_id}&plan_id=${detail.data.workflow_source.plan_id}&report_id=${detail.data.workflow_source.report_id}`}>返回 Feature 任务与封存计划</Link><pre className="whitespace-pre-wrap">{JSON.stringify(detail.data.workflow_source, null, 2)}</pre></section>}
       {error && <p role="alert">{error}</p>}{investigation.error && <p role="alert">{String(investigation.error)}</p>}
       <label>选择调查报告 <select value={selected} onChange={e => setSelected(e.target.value)}><option value="">请选择具体调查</option>{detail.data.investigations.map(item => <option key={item.investigation_id} value={item.investigation_id}>v{item.report_version} · {item.investigation_id}</option>)}</select></label>
       {latest && <section className="space-y-2"><h2>调查 v{latest.report_version}</h2><p>Run {latest.run_id}</p><p>{investigation.data?.investigation_status ?? "读取中"} · {progress}</p>

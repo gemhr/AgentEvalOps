@@ -180,6 +180,9 @@ func (DeterministicEvaluator) Evaluate(ctx context.Context, in worker.Evaluation
 		return worker.EvaluationOutput{}, e
 	}
 	d := in.Work.Metadata.Spec.Definition
+	if CoverageSupported(d) {
+		return evaluateCoverage(ctx, in)
+	}
 	if JointSupported(d) {
 		return evaluateJoint(ctx, in)
 	}

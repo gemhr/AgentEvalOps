@@ -21,6 +21,7 @@ import { CIBusinessEvaluation } from "./CIBusinessEvaluation";
 
 export function ProductFacts({ value }: { value: ProductRecord }) {
   const fields: Record<string, string> = {
+    score: "数值评分（工作流评价与原始测试结果独立）",
     pipeline_state: "Pipeline State（流水线状态）",
     execution_outcome: "Execution Outcome（执行结果）",
     task_success: "Task Success（任务成功）",

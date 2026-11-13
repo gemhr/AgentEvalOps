@@ -134,4 +134,8 @@ Target 为 `baseband-sealed-http.v1`，只调用 `/api/ci/quality/baseband/evalu
 
 联合诊断开发集为 `go-backend/testdata/oracle_chain_development.json`，以 `--version v3` 正常发布独立 Case/GT/Dataset/Metric/Evaluator/Policy/Suite。`baseband-deterministic.v3` / `baseband_joint_diagnosis_correctness.v3` 采用相同 SCALAR/mean/全覆盖数值策略，按必需/允许 finding 的语义集合、逐项状态/失败关系、角色/安全动作及支持/反证条件判分。合法但错误报告为 0；可信的部分诊断与合理整体拒判为 1；缺 Artifact/来源/GT 为 null。既有 Worker、PG 与 Decision 不变。
 
+覆盖工作流使用独立 `coverage-execution-input/request/output.v1`、`coverage-execution-deterministic.v1`、`coverage_execution_correctness.v1` 与 `coverage-execution-score.v1`。`prepare-coverage-execution-evaluation.py` 正常发布公开 Case/独立 GT/SCALAR Metric/Required PerCase 绝对门槛 Policy/Suite；`POST /api/v1/projects/{project_id}/coverage-execution/runs` 只选择已封存 RULE/HUMAN→HUMAN 资产执行。复用 BASEBAND_ENABLED 的同一 Target/client/Worker/PG，版本明确为 `coverage-execution-http.v1`，不能与旧输入或 evaluator 混用。GT 留在 Go 评价侧；Target 只传公开输入和受约束 selector。
+
+五项原始判断为 coverage、approval_source、asset、execution、diagnosis，Provenance 还记录 required/matched/missing/unjustified/duplicate。语义/值域判断不用 test_id 作答案；跨域输入、子 baseband、plan/asset/distribution/trigger 分别核对摘要。来源可信且全部正确=1/PASS，可信业务错误=0/FAIL，缺来源/Artifact/GT=null/INCONCLUSIVE。原 CI FAIL 与工作流评价 PASS 是不同事实，不据此声称 Agent 增量价值。公开向量 `coverage_execution_vector.json` 明示 PURE_CONTRACT_VECTOR_NOT_PERSISTED；真实 HTTP/PG 与页面证据另存本地 Handoff，不将向量当真实执行。
+
 `baseband-sealed-http.v2` 明确发送 quality-request.v2，严格读取 output.v2/diagnosis.v2；不放宽 v1 decoder。六类证据中 INPUT_MANIFEST 按完整 recipe 的公开字段投影校验，不把它错误地当作完整输入。完整 recipe 只发给受信 SERVICE 精确绑定，GT 不发往 AgentCore。source.observed_reads 包含真实原文读取的 evidence_id/digest、invocation/action、iteration_no 和 availability。前端沿原 IncidentDetail 展示逐项状态、业务 tick、原始 verdict 与缺失采集；旧 v1/v2 资产和结果不覆盖。

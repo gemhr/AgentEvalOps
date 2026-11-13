@@ -1,0 +1,1557 @@
+{
+  "fixture_kind": "PURE_CONTRACT_VECTOR_NOT_PERSISTED",
+  "input": {
+    "schema_version": "coverage-execution-input.v1",
+    "task": {
+      "analysis_contract": "interface-impact.v1",
+      "task_version": 1,
+      "title": "合成采样接口新增值域覆盖",
+      "feature_id": "sampling-control",
+      "planning_cutoff": "2026-10-02T00:00:00Z",
+      "known_impacts": [],
+      "documents": [
+        {
+          "source_ref": "interface:catalog",
+          "version": "1",
+          "chunk": "whole",
+          "published_at": "2026-10-01T00:00:00Z",
+          "kind": "INTERFACE_CATALOG",
+          "content_digest": "4fe51fe86bc6ff0330e52fd1c5d6804882f7188e1d941a8ad0dcfdc2ae2323a4",
+          "title": "合成采样接口版本定义",
+          "content": "公开有限合成定义，不是真实 DAAS 协议或入库接口。",
+          "facts": {
+            "catalog": {
+              "features": [
+                {
+                  "ref": {
+                    "id": "sampling-control",
+                    "version": "1"
+                  },
+                  "interface_ref": {
+                    "id": "l2-management",
+                    "version": "1"
+                  }
+                },
+                {
+                  "ref": {
+                    "id": "sampling-control",
+                    "version": "2"
+                  },
+                  "interface_ref": {
+                    "id": "l2-management",
+                    "version": "2"
+                  }
+                }
+              ],
+              "interfaces": [
+                {
+                  "ref": {
+                    "id": "l2-management",
+                    "version": "1"
+                  }
+                },
+                {
+                  "ref": {
+                    "id": "l2-management",
+                    "version": "2"
+                  }
+                }
+              ],
+              "tags": [
+                {
+                  "ref": {
+                    "id": "sampling-gain",
+                    "version": "1"
+                  },
+                  "interface_ref": {
+                    "id": "l2-management",
+                    "version": "1"
+                  },
+                  "type": "INTEGER",
+                  "number": 17,
+                  "length": 1,
+                  "allowed_values": [
+                    1
+                  ]
+                },
+                {
+                  "ref": {
+                    "id": "sampling-gain",
+                    "version": "2"
+                  },
+                  "interface_ref": {
+                    "id": "l2-management",
+                    "version": "2"
+                  },
+                  "type": "INTEGER",
+                  "number": 17,
+                  "length": 1,
+                  "allowed_values": [
+                    1,
+                    2
+                  ]
+                }
+              ],
+              "messages": [
+                {
+                  "ref": {
+                    "id": "sample-config",
+                    "version": "1"
+                  },
+                  "interface_ref": {
+                    "id": "l2-management",
+                    "version": "1"
+                  },
+                  "tags": [
+                    {
+                      "id": "sampling-gain",
+                      "version": "1"
+                    }
+                  ],
+                  "required_tags": [
+                    {
+                      "id": "sampling-gain",
+                      "version": "1"
+                    }
+                  ]
+                },
+                {
+                  "ref": {
+                    "id": "sample-config",
+                    "version": "2"
+                  },
+                  "interface_ref": {
+                    "id": "l2-management",
+                    "version": "2"
+                  },
+                  "tags": [
+                    {
+                      "id": "sampling-gain",
+                      "version": "2"
+                    }
+                  ],
+                  "required_tags": [
+                    {
+                      "id": "sampling-gain",
+                      "version": "2"
+                    }
+                  ]
+                }
+              ],
+              "testcases": [
+                {
+                  "ref": {
+                    "id": "sampling-case",
+                    "version": "1"
+                  },
+                  "feature_ref": {
+                    "id": "sampling-control",
+                    "version": "1"
+                  },
+                  "message_ref": {
+                    "id": "sample-config",
+                    "version": "1"
+                  }
+                },
+                {
+                  "ref": {
+                    "id": "sampling-case",
+                    "version": "2"
+                  },
+                  "feature_ref": {
+                    "id": "sampling-control",
+                    "version": "2"
+                  },
+                  "message_ref": {
+                    "id": "sample-config",
+                    "version": "2"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "source_ref": "interface:change",
+          "version": "1",
+          "chunk": "whole",
+          "published_at": "2026-10-01T00:00:00Z",
+          "kind": "DESIGN",
+          "content_digest": "c98b2a6a38bd2a2033e67c331039b6df6a95ed8c40457e69e400d80feeec1c6c",
+          "title": "采样增益值域扩展",
+          "content": "新 Tag/消息支持 gain=1/2；旧版仅 gain=1。需要补充新增值的配置应用及输出观察。",
+          "facts": {
+            "old_tag": {
+              "id": "sampling-gain",
+              "version": "1"
+            },
+            "new_tag": {
+              "id": "sampling-gain",
+              "version": "2"
+            },
+            "target_feature": {
+              "id": "sampling-control",
+              "version": "2"
+            }
+          }
+        },
+        {
+          "source_ref": "interface:history",
+          "version": "1",
+          "chunk": "whole",
+          "published_at": "2026-10-01T00:00:00Z",
+          "kind": "CASE",
+          "content_digest": "64c1a6e005cc927ea0f37b66ee593aa46f5aa527f2315317f7b2cc5018d8ea8a",
+          "title": "旧采样用例覆盖",
+          "content": "旧消息和用例只验证 gain=1，不构成新增值的覆盖证明。",
+          "facts": {
+            "testcase_ref": {
+              "id": "sampling-case",
+              "version": "1"
+            },
+            "message_ref": {
+              "id": "sample-config",
+              "version": "1"
+            },
+            "tested_gains": [
+              1
+            ]
+          }
+        }
+      ],
+      "manifest": [
+        {
+          "source_ref": "interface:catalog",
+          "version": "1",
+          "chunk": "whole",
+          "content_digest": "4fe51fe86bc6ff0330e52fd1c5d6804882f7188e1d941a8ad0dcfdc2ae2323a4"
+        },
+        {
+          "source_ref": "interface:change",
+          "version": "1",
+          "chunk": "whole",
+          "content_digest": "c98b2a6a38bd2a2033e67c331039b6df6a95ed8c40457e69e400d80feeec1c6c"
+        },
+        {
+          "source_ref": "interface:history",
+          "version": "1",
+          "chunk": "whole",
+          "content_digest": "64c1a6e005cc927ea0f37b66ee593aa46f5aa527f2315317f7b2cc5018d8ea8a"
+        }
+      ],
+      "corpus_digest": "171ca77b64fe4bded46862bf01d77ca1756b0bb9d1caee9411e64f4c16197ae2",
+      "development_exposed": true,
+      "input_digest": "57faace5956f727f25918aff04d2fa3e1a980b5b5da7dc9bdffc143fe6da3819"
+    },
+    "executor_ref": "local-integer-executor@1"
+  },
+  "ground_truth": {
+    "version": "coverage-execution-truth.v1",
+    "visibility": "DEVELOPMENT_VISIBLE",
+    "input_digest": "4c933e4a4491f37f2cd6e8de27773b1010c22e9e632db850e689c847bd80622d",
+    "required_gain": 2,
+    "expected_asset": {
+      "schema_version": "daas-case-asset.v1",
+      "feature_ref": {
+        "id": "sampling-control",
+        "version": "2"
+      },
+      "interface_ref": {
+        "id": "l2-management",
+        "version": "2"
+      },
+      "tag_ref": {
+        "id": "sampling-gain",
+        "version": "2"
+      },
+      "message_ref": {
+        "id": "sample-config",
+        "version": "2"
+      },
+      "testcase_ref": {
+        "id": "sampling-case",
+        "version": "2"
+      },
+      "case_configuration": {
+        "gain": 2,
+        "sample_rate": 30,
+        "stimulus": 7,
+        "software_version": "baseband-2.0",
+        "environment_condition": "nominal",
+        "reference_version": "2"
+      },
+      "executor_ref": "local-integer-executor@1",
+      "catalog_digest": "4d5dc0a25c0e6410113986f71fd25d4e7106603cb8b390462bd6bb50bc8234a6"
+    },
+    "expected_asset_digest": "ab8520762eed020c62e9f2d69107a70c5f3d53af873ec176181b712808a471d2",
+    "actual": 8,
+    "expected": 15,
+    "outcome": "FAIL",
+    "diagnosis": {
+      "version": "baseband-truth.v2",
+      "visibility": "DEVELOPMENT_VISIBLE",
+      "input_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+      "decidability": "SUPPORTED",
+      "required_findings": [
+        {
+          "category": "SIMULATION_CHAIN",
+          "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+          "finding_status": "CONFIRMED",
+          "failure_relation": "SUPPORTED",
+          "owner_role": "DAAS_OWNER",
+          "recommended_actions": [
+            "REVIEW_DAAS_APPLICATION"
+          ],
+          "support_kinds": [
+            "INPUT_MANIFEST",
+            "REFERENCE_RECORD",
+            "DAAS_TIMELINE",
+            "APPLIED_STATE",
+            "EXECUTION_RECEIPT"
+          ],
+          "counter_kinds": []
+        }
+      ],
+      "allowed_findings": [],
+      "forbidden_confirmed_mechanisms": [
+        "OUTPUT_REFERENCE_DIVERGENCE"
+      ]
+    }
+  },
+  "selector": {
+    "task_id": "task",
+    "report_id": "report",
+    "plan_id": "plan",
+    "test_id": "gain-coverage-2",
+    "instance_id": "instance",
+    "execution_id": "execution",
+    "incident_id": "incident",
+    "diagnosis_kind": "RULE"
+  },
+  "receipt": {
+    "protocol": "coverage-execution-output.v1",
+    "project_id": "p",
+    "run_id": "r",
+    "attempt_id": "a",
+    "request_id": "q",
+    "case_id": "case",
+    "input": {
+      "schema_version": "coverage-execution-input.v1",
+      "task": {
+        "analysis_contract": "interface-impact.v1",
+        "task_version": 1,
+        "title": "合成采样接口新增值域覆盖",
+        "feature_id": "sampling-control",
+        "planning_cutoff": "2026-10-02T00:00:00Z",
+        "known_impacts": [],
+        "documents": [
+          {
+            "source_ref": "interface:catalog",
+            "version": "1",
+            "chunk": "whole",
+            "published_at": "2026-10-01T00:00:00Z",
+            "kind": "INTERFACE_CATALOG",
+            "content_digest": "4fe51fe86bc6ff0330e52fd1c5d6804882f7188e1d941a8ad0dcfdc2ae2323a4",
+            "title": "合成采样接口版本定义",
+            "content": "公开有限合成定义，不是真实 DAAS 协议或入库接口。",
+            "facts": {
+              "catalog": {
+                "features": [
+                  {
+                    "ref": {
+                      "id": "sampling-control",
+                      "version": "1"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "1"
+                    }
+                  },
+                  {
+                    "ref": {
+                      "id": "sampling-control",
+                      "version": "2"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "2"
+                    }
+                  }
+                ],
+                "interfaces": [
+                  {
+                    "ref": {
+                      "id": "l2-management",
+                      "version": "1"
+                    }
+                  },
+                  {
+                    "ref": {
+                      "id": "l2-management",
+                      "version": "2"
+                    }
+                  }
+                ],
+                "tags": [
+                  {
+                    "ref": {
+                      "id": "sampling-gain",
+                      "version": "1"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "1"
+                    },
+                    "type": "INTEGER",
+                    "number": 17,
+                    "length": 1,
+                    "allowed_values": [
+                      1
+                    ]
+                  },
+                  {
+                    "ref": {
+                      "id": "sampling-gain",
+                      "version": "2"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "2"
+                    },
+                    "type": "INTEGER",
+                    "number": 17,
+                    "length": 1,
+                    "allowed_values": [
+                      1,
+                      2
+                    ]
+                  }
+                ],
+                "messages": [
+                  {
+                    "ref": {
+                      "id": "sample-config",
+                      "version": "1"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "1"
+                    },
+                    "tags": [
+                      {
+                        "id": "sampling-gain",
+                        "version": "1"
+                      }
+                    ],
+                    "required_tags": [
+                      {
+                        "id": "sampling-gain",
+                        "version": "1"
+                      }
+                    ]
+                  },
+                  {
+                    "ref": {
+                      "id": "sample-config",
+                      "version": "2"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "2"
+                    },
+                    "tags": [
+                      {
+                        "id": "sampling-gain",
+                        "version": "2"
+                      }
+                    ],
+                    "required_tags": [
+                      {
+                        "id": "sampling-gain",
+                        "version": "2"
+                      }
+                    ]
+                  }
+                ],
+                "testcases": [
+                  {
+                    "ref": {
+                      "id": "sampling-case",
+                      "version": "1"
+                    },
+                    "feature_ref": {
+                      "id": "sampling-control",
+                      "version": "1"
+                    },
+                    "message_ref": {
+                      "id": "sample-config",
+                      "version": "1"
+                    }
+                  },
+                  {
+                    "ref": {
+                      "id": "sampling-case",
+                      "version": "2"
+                    },
+                    "feature_ref": {
+                      "id": "sampling-control",
+                      "version": "2"
+                    },
+                    "message_ref": {
+                      "id": "sample-config",
+                      "version": "2"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "source_ref": "interface:change",
+            "version": "1",
+            "chunk": "whole",
+            "published_at": "2026-10-01T00:00:00Z",
+            "kind": "DESIGN",
+            "content_digest": "c98b2a6a38bd2a2033e67c331039b6df6a95ed8c40457e69e400d80feeec1c6c",
+            "title": "采样增益值域扩展",
+            "content": "新 Tag/消息支持 gain=1/2；旧版仅 gain=1。需要补充新增值的配置应用及输出观察。",
+            "facts": {
+              "old_tag": {
+                "id": "sampling-gain",
+                "version": "1"
+              },
+              "new_tag": {
+                "id": "sampling-gain",
+                "version": "2"
+              },
+              "target_feature": {
+                "id": "sampling-control",
+                "version": "2"
+              }
+            }
+          },
+          {
+            "source_ref": "interface:history",
+            "version": "1",
+            "chunk": "whole",
+            "published_at": "2026-10-01T00:00:00Z",
+            "kind": "CASE",
+            "content_digest": "64c1a6e005cc927ea0f37b66ee593aa46f5aa527f2315317f7b2cc5018d8ea8a",
+            "title": "旧采样用例覆盖",
+            "content": "旧消息和用例只验证 gain=1，不构成新增值的覆盖证明。",
+            "facts": {
+              "testcase_ref": {
+                "id": "sampling-case",
+                "version": "1"
+              },
+              "message_ref": {
+                "id": "sample-config",
+                "version": "1"
+              },
+              "tested_gains": [
+                1
+              ]
+            }
+          }
+        ],
+        "manifest": [
+          {
+            "source_ref": "interface:catalog",
+            "version": "1",
+            "chunk": "whole",
+            "content_digest": "4fe51fe86bc6ff0330e52fd1c5d6804882f7188e1d941a8ad0dcfdc2ae2323a4"
+          },
+          {
+            "source_ref": "interface:change",
+            "version": "1",
+            "chunk": "whole",
+            "content_digest": "c98b2a6a38bd2a2033e67c331039b6df6a95ed8c40457e69e400d80feeec1c6c"
+          },
+          {
+            "source_ref": "interface:history",
+            "version": "1",
+            "chunk": "whole",
+            "content_digest": "64c1a6e005cc927ea0f37b66ee593aa46f5aa527f2315317f7b2cc5018d8ea8a"
+          }
+        ],
+        "corpus_digest": "171ca77b64fe4bded46862bf01d77ca1756b0bb9d1caee9411e64f4c16197ae2",
+        "development_exposed": true,
+        "input_digest": "57faace5956f727f25918aff04d2fa3e1a980b5b5da7dc9bdffc143fe6da3819"
+      },
+      "executor_ref": "local-integer-executor@1"
+    },
+    "frozen_input_digest": "4c933e4a4491f37f2cd6e8de27773b1010c22e9e632db850e689c847bd80622d",
+    "business": {
+      "task_id": "task",
+      "task_snapshot": {
+        "analysis_contract": "interface-impact.v1",
+        "task_version": 1,
+        "title": "合成采样接口新增值域覆盖",
+        "feature_id": "sampling-control",
+        "planning_cutoff": "2026-10-02T00:00:00Z",
+        "known_impacts": [],
+        "documents": [
+          {
+            "source_ref": "interface:catalog",
+            "version": "1",
+            "chunk": "whole",
+            "published_at": "2026-10-01T00:00:00Z",
+            "kind": "INTERFACE_CATALOG",
+            "content_digest": "4fe51fe86bc6ff0330e52fd1c5d6804882f7188e1d941a8ad0dcfdc2ae2323a4",
+            "title": "合成采样接口版本定义",
+            "content": "公开有限合成定义，不是真实 DAAS 协议或入库接口。",
+            "facts": {
+              "catalog": {
+                "features": [
+                  {
+                    "ref": {
+                      "id": "sampling-control",
+                      "version": "1"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "1"
+                    }
+                  },
+                  {
+                    "ref": {
+                      "id": "sampling-control",
+                      "version": "2"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "2"
+                    }
+                  }
+                ],
+                "interfaces": [
+                  {
+                    "ref": {
+                      "id": "l2-management",
+                      "version": "1"
+                    }
+                  },
+                  {
+                    "ref": {
+                      "id": "l2-management",
+                      "version": "2"
+                    }
+                  }
+                ],
+                "tags": [
+                  {
+                    "ref": {
+                      "id": "sampling-gain",
+                      "version": "1"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "1"
+                    },
+                    "type": "INTEGER",
+                    "number": 17,
+                    "length": 1,
+                    "allowed_values": [
+                      1
+                    ]
+                  },
+                  {
+                    "ref": {
+                      "id": "sampling-gain",
+                      "version": "2"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "2"
+                    },
+                    "type": "INTEGER",
+                    "number": 17,
+                    "length": 1,
+                    "allowed_values": [
+                      1,
+                      2
+                    ]
+                  }
+                ],
+                "messages": [
+                  {
+                    "ref": {
+                      "id": "sample-config",
+                      "version": "1"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "1"
+                    },
+                    "tags": [
+                      {
+                        "id": "sampling-gain",
+                        "version": "1"
+                      }
+                    ],
+                    "required_tags": [
+                      {
+                        "id": "sampling-gain",
+                        "version": "1"
+                      }
+                    ]
+                  },
+                  {
+                    "ref": {
+                      "id": "sample-config",
+                      "version": "2"
+                    },
+                    "interface_ref": {
+                      "id": "l2-management",
+                      "version": "2"
+                    },
+                    "tags": [
+                      {
+                        "id": "sampling-gain",
+                        "version": "2"
+                      }
+                    ],
+                    "required_tags": [
+                      {
+                        "id": "sampling-gain",
+                        "version": "2"
+                      }
+                    ]
+                  }
+                ],
+                "testcases": [
+                  {
+                    "ref": {
+                      "id": "sampling-case",
+                      "version": "1"
+                    },
+                    "feature_ref": {
+                      "id": "sampling-control",
+                      "version": "1"
+                    },
+                    "message_ref": {
+                      "id": "sample-config",
+                      "version": "1"
+                    }
+                  },
+                  {
+                    "ref": {
+                      "id": "sampling-case",
+                      "version": "2"
+                    },
+                    "feature_ref": {
+                      "id": "sampling-control",
+                      "version": "2"
+                    },
+                    "message_ref": {
+                      "id": "sample-config",
+                      "version": "2"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "source_ref": "interface:change",
+            "version": "1",
+            "chunk": "whole",
+            "published_at": "2026-10-01T00:00:00Z",
+            "kind": "DESIGN",
+            "content_digest": "c98b2a6a38bd2a2033e67c331039b6df6a95ed8c40457e69e400d80feeec1c6c",
+            "title": "采样增益值域扩展",
+            "content": "新 Tag/消息支持 gain=1/2；旧版仅 gain=1。需要补充新增值的配置应用及输出观察。",
+            "facts": {
+              "old_tag": {
+                "id": "sampling-gain",
+                "version": "1"
+              },
+              "new_tag": {
+                "id": "sampling-gain",
+                "version": "2"
+              },
+              "target_feature": {
+                "id": "sampling-control",
+                "version": "2"
+              }
+            }
+          },
+          {
+            "source_ref": "interface:history",
+            "version": "1",
+            "chunk": "whole",
+            "published_at": "2026-10-01T00:00:00Z",
+            "kind": "CASE",
+            "content_digest": "64c1a6e005cc927ea0f37b66ee593aa46f5aa527f2315317f7b2cc5018d8ea8a",
+            "title": "旧采样用例覆盖",
+            "content": "旧消息和用例只验证 gain=1，不构成新增值的覆盖证明。",
+            "facts": {
+              "testcase_ref": {
+                "id": "sampling-case",
+                "version": "1"
+              },
+              "message_ref": {
+                "id": "sample-config",
+                "version": "1"
+              },
+              "tested_gains": [
+                1
+              ]
+            }
+          }
+        ],
+        "manifest": [
+          {
+            "source_ref": "interface:catalog",
+            "version": "1",
+            "chunk": "whole",
+            "content_digest": "4fe51fe86bc6ff0330e52fd1c5d6804882f7188e1d941a8ad0dcfdc2ae2323a4"
+          },
+          {
+            "source_ref": "interface:change",
+            "version": "1",
+            "chunk": "whole",
+            "content_digest": "c98b2a6a38bd2a2033e67c331039b6df6a95ed8c40457e69e400d80feeec1c6c"
+          },
+          {
+            "source_ref": "interface:history",
+            "version": "1",
+            "chunk": "whole",
+            "content_digest": "64c1a6e005cc927ea0f37b66ee593aa46f5aa527f2315317f7b2cc5018d8ea8a"
+          }
+        ],
+        "corpus_digest": "171ca77b64fe4bded46862bf01d77ca1756b0bb9d1caee9411e64f4c16197ae2",
+        "development_exposed": true,
+        "input_digest": "57faace5956f727f25918aff04d2fa3e1a980b5b5da7dc9bdffc143fe6da3819"
+      },
+      "exposed_at": "2026-10-03T00:01:00Z",
+      "report_envelope": {
+        "schema_version": "feature-impact-report.v2",
+        "report_id": "report",
+        "report_version": 1,
+        "task_id": "task",
+        "input_digest": "57faace5956f727f25918aff04d2fa3e1a980b5b5da7dc9bdffc143fe6da3819",
+        "corpus_digest": "171ca77b64fe4bded46862bf01d77ca1756b0bb9d1caee9411e64f4c16197ae2",
+        "report_digest": "1876e8a4ac2029ff8a0712b33c54d75c192df54efd3c27da8917b0173c710e9e",
+        "candidate_kind": "RULE",
+        "candidate_version": "interface-coverage.v1"
+      },
+      "report": {
+        "schema_version": "feature-impact-report.v2",
+        "findings": [
+          {
+            "finding_id": "sampling-range",
+            "historical_feature_id": "sampling-control",
+            "impact_mechanism": "INTERFACE_VALUE_RANGE_EXPANSION",
+            "trigger_conditions": [
+              "MESSAGE_REFERENCES_NEW_TAG",
+              "GAIN_RANGE_EXPANDED"
+            ],
+            "coverage_class": "MUST_TEST",
+            "rationale": "根据冻结版本依赖与实际历史值域补充覆盖；不是已发生执行故障的预测。",
+            "supporting_evidence": [
+              {
+                "source_ref": "interface:catalog",
+                "version": "1",
+                "chunk": "whole",
+                "content_digest": "4fe51fe86bc6ff0330e52fd1c5d6804882f7188e1d941a8ad0dcfdc2ae2323a4",
+                "basis": "EVIDENCE_READ"
+              },
+              {
+                "source_ref": "interface:change",
+                "version": "1",
+                "chunk": "whole",
+                "content_digest": "c98b2a6a38bd2a2033e67c331039b6df6a95ed8c40457e69e400d80feeec1c6c",
+                "basis": "EVIDENCE_READ"
+              },
+              {
+                "source_ref": "interface:history",
+                "version": "1",
+                "chunk": "whole",
+                "content_digest": "64c1a6e005cc927ea0f37b66ee593aa46f5aa527f2315317f7b2cc5018d8ea8a",
+                "basis": "EVIDENCE_READ"
+              }
+            ],
+            "counter_evidence": [
+              {
+                "source_ref": "interface:history",
+                "version": "1",
+                "chunk": "whole",
+                "content_digest": "64c1a6e005cc927ea0f37b66ee593aa46f5aa527f2315317f7b2cc5018d8ea8a",
+                "basis": "EVIDENCE_READ"
+              }
+            ],
+            "uncertainties": [],
+            "existing_coverage": "PARTIAL",
+            "recommended_tests": [
+              {
+                "test_kind": "DAAS_CASE",
+                "test_id": "gain-coverage-2",
+                "preconditions": "选择获准的新版本配置",
+                "observation": "采样实际应用状态与输出比较",
+                "expected": "请求配置在采样前生效，输出符合适用参考",
+                "historical_cases": [
+                  "interface:history"
+                ],
+                "coverage_gap": "旧用例未覆盖新增合法值",
+                "feature_ref": {
+                  "id": "sampling-control",
+                  "version": "2"
+                },
+                "interface_ref": {
+                  "id": "l2-management",
+                  "version": "2"
+                },
+                "tag_ref": {
+                  "id": "sampling-gain",
+                  "version": "2"
+                },
+                "message_ref": {
+                  "id": "sample-config",
+                  "version": "2"
+                },
+                "testcase_ref": {
+                  "id": "sampling-case",
+                  "version": "2"
+                },
+                "case_configuration": {
+                  "gain": 2,
+                  "sample_rate": 30,
+                  "stimulus": 7,
+                  "software_version": "baseband-2.0",
+                  "environment_condition": "nominal",
+                  "reference_version": "2"
+                }
+              }
+            ],
+            "clarification_questions": []
+          }
+        ]
+      },
+      "report_source": {
+        "read_sources": [
+          "interface:catalog",
+          "interface:change",
+          "interface:history"
+        ],
+        "rule_version": "interface-coverage.v1",
+        "input_digest": "57faace5956f727f25918aff04d2fa3e1a980b5b5da7dc9bdffc143fe6da3819"
+      },
+      "plan": {
+        "plan_id": "plan",
+        "plan_version": 1,
+        "task_id": "task",
+        "report_id": "report",
+        "report_digest": "1876e8a4ac2029ff8a0712b33c54d75c192df54efd3c27da8917b0173c710e9e",
+        "reviewer": "owner",
+        "sealed_at": "2026-10-03T00:00:00Z",
+        "decisions": [
+          {
+            "finding_id": "sampling-range",
+            "decision": "ACCEPT",
+            "reason": "public fixture"
+          }
+        ],
+        "tests": [
+          {
+            "finding_id": "sampling-range",
+            "source": "CANDIDATE",
+            "test_kind": "DAAS_CASE",
+            "test_id": "gain-coverage-2",
+            "preconditions": "选择获准的新版本配置",
+            "observation": "采样实际应用状态与输出比较",
+            "expected": "请求配置在采样前生效，输出符合适用参考",
+            "historical_cases": [
+              "interface:history"
+            ],
+            "coverage_gap": "旧用例未覆盖新增合法值",
+            "feature_ref": {
+              "id": "sampling-control",
+              "version": "2"
+            },
+            "interface_ref": {
+              "id": "l2-management",
+              "version": "2"
+            },
+            "tag_ref": {
+              "id": "sampling-gain",
+              "version": "2"
+            },
+            "message_ref": {
+              "id": "sample-config",
+              "version": "2"
+            },
+            "testcase_ref": {
+              "id": "sampling-case",
+              "version": "2"
+            },
+            "case_configuration": {
+              "gain": 2,
+              "sample_rate": 30,
+              "stimulus": 7,
+              "software_version": "baseband-2.0",
+              "environment_condition": "nominal",
+              "reference_version": "2"
+            }
+          }
+        ],
+        "plan_digest": "4b5cc63563dd7ce6ba3a870bb0dc79f2ea3f81cff8c0835a6caf41632e92fbd3"
+      },
+      "review_request_id": "review",
+      "test": {
+        "finding_id": "sampling-range",
+        "source": "CANDIDATE",
+        "test_kind": "DAAS_CASE",
+        "test_id": "gain-coverage-2",
+        "preconditions": "选择获准的新版本配置",
+        "observation": "采样实际应用状态与输出比较",
+        "expected": "请求配置在采样前生效，输出符合适用参考",
+        "historical_cases": [
+          "interface:history"
+        ],
+        "coverage_gap": "旧用例未覆盖新增合法值",
+        "feature_ref": {
+          "id": "sampling-control",
+          "version": "2"
+        },
+        "interface_ref": {
+          "id": "l2-management",
+          "version": "2"
+        },
+        "tag_ref": {
+          "id": "sampling-gain",
+          "version": "2"
+        },
+        "message_ref": {
+          "id": "sample-config",
+          "version": "2"
+        },
+        "testcase_ref": {
+          "id": "sampling-case",
+          "version": "2"
+        },
+        "case_configuration": {
+          "gain": 2,
+          "sample_rate": 30,
+          "stimulus": 7,
+          "software_version": "baseband-2.0",
+          "environment_condition": "nominal",
+          "reference_version": "2"
+        }
+      },
+      "instance_id": "instance",
+      "workflow_source": {
+        "task_id": "task",
+        "task_input_digest": "57faace5956f727f25918aff04d2fa3e1a980b5b5da7dc9bdffc143fe6da3819",
+        "corpus_digest": "171ca77b64fe4bded46862bf01d77ca1756b0bb9d1caee9411e64f4c16197ae2",
+        "report_id": "report",
+        "report_version": 1,
+        "report_digest": "1876e8a4ac2029ff8a0712b33c54d75c192df54efd3c27da8917b0173c710e9e",
+        "candidate_kind": "RULE",
+        "candidate_version": "interface-coverage.v1",
+        "plan_id": "plan",
+        "plan_version": 1,
+        "plan_digest": "4b5cc63563dd7ce6ba3a870bb0dc79f2ea3f81cff8c0835a6caf41632e92fbd3",
+        "finding_id": "sampling-range",
+        "test_id": "gain-coverage-2",
+        "test_digest": "95329cc461a1c1d70e9125bfa04e6b0377cae8c0ba296d17c9cc820b6b929fa9",
+        "asset_digest": "ab8520762eed020c62e9f2d69107a70c5f3d53af873ec176181b712808a471d2",
+        "approval_ref": {
+          "plan_id": "plan",
+          "review_request_id": "review",
+          "reviewer": "owner"
+        }
+      },
+      "case_asset": {
+        "schema_version": "daas-case-asset.v1",
+        "feature_ref": {
+          "id": "sampling-control",
+          "version": "2"
+        },
+        "interface_ref": {
+          "id": "l2-management",
+          "version": "2"
+        },
+        "tag_ref": {
+          "id": "sampling-gain",
+          "version": "2"
+        },
+        "message_ref": {
+          "id": "sample-config",
+          "version": "2"
+        },
+        "testcase_ref": {
+          "id": "sampling-case",
+          "version": "2"
+        },
+        "case_configuration": {
+          "gain": 2,
+          "sample_rate": 30,
+          "stimulus": 7,
+          "software_version": "baseband-2.0",
+          "environment_condition": "nominal",
+          "reference_version": "2"
+        },
+        "executor_ref": "local-integer-executor@1",
+        "catalog_digest": "4d5dc0a25c0e6410113986f71fd25d4e7106603cb8b390462bd6bb50bc8234a6",
+        "asset_digest": "ab8520762eed020c62e9f2d69107a70c5f3d53af873ec176181b712808a471d2"
+      },
+      "recipe_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+      "distribution": {
+        "mode": "LOCAL_SIMULATED",
+        "target_ref": "local-integer-executor@1",
+        "distribution_id": "distribution",
+        "request_id": "prepare",
+        "actor_kind": "HUMAN",
+        "actor_user_id": "owner",
+        "recorded_at": "2026-10-03T00:00:00Z",
+        "asset_digest": "ab8520762eed020c62e9f2d69107a70c5f3d53af873ec176181b712808a471d2",
+        "distribution_digest": "2fc0ff71369524d19eab5d4f741d64815e5dce2fcad94b4ee36489ec7fe1a2d3"
+      },
+      "trigger": {
+        "request_id": "trigger",
+        "case_id": "integer-primary",
+        "state_revision": 1,
+        "asset_digest": "ab8520762eed020c62e9f2d69107a70c5f3d53af873ec176181b712808a471d2",
+        "executor_ref": "local-integer-executor@1",
+        "actor_kind": "HUMAN",
+        "actor_user_id": "owner",
+        "tenant_id": "tenant",
+        "verification_ref": null,
+        "intent_digest": "c63b8655611ae82426a45c637062335754c53b4d4c1930d6b55abd8dbe55ca7a",
+        "triggered_at": "2026-10-03T00:01:00Z"
+      },
+      "execution": {
+        "execution_id": "execution",
+        "instance_id": "instance",
+        "incident_id": "incident",
+        "request_id": "trigger",
+        "state_revision": 1,
+        "outcome": "FAIL",
+        "summary": {
+          "schema_version": "baseband-execution.v2",
+          "execution_id": "execution",
+          "environment_id": "env-oracle",
+          "case_id": "integer-primary",
+          "outcome": "FAIL",
+          "input_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+          "completed_at": "2026-11-13T05:20:02.034305+00:00",
+          "sample_tick": 10,
+          "stages": [
+            {
+              "stage": "PRECHECK",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "L1",
+              "status": "EXECUTED",
+              "error": null
+            },
+            {
+              "stage": "COMPARISON",
+              "status": "EXECUTED",
+              "error": "OUTPUT_REFERENCE_DIVERGENCE"
+            }
+          ],
+          "workflow_source": {
+            "task_id": "task",
+            "report_id": "report",
+            "plan_id": "plan",
+            "plan_digest": "4b5cc63563dd7ce6ba3a870bb0dc79f2ea3f81cff8c0835a6caf41632e92fbd3",
+            "test_id": "gain-coverage-2",
+            "test_digest": "95329cc461a1c1d70e9125bfa04e6b0377cae8c0ba296d17c9cc820b6b929fa9",
+            "asset_digest": "ab8520762eed020c62e9f2d69107a70c5f3d53af873ec176181b712808a471d2",
+            "instance_id": "instance",
+            "distribution_id": "distribution",
+            "trigger_id": "trigger",
+            "state_revision": 1,
+            "actual_configuration_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+            "derivation": null
+          }
+        }
+      },
+      "joint": {
+        "protocol": "baseband-quality-output.v2",
+        "project_id": "p",
+        "run_id": "r",
+        "attempt_id": "a",
+        "request_id": "q",
+        "case_id": "case",
+        "frozen_input_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+        "input": {
+          "schema_version": "baseband-input.v2",
+          "software_version": "baseband-2.0",
+          "environment_condition": "nominal",
+          "constraint": {
+            "rule_id": "ddt-kdt-sampling",
+            "version": "2"
+          },
+          "ddt": {
+            "source": "synthetic-ddt",
+            "revision": "2",
+            "sample_rate": 30,
+            "gain": 2
+          },
+          "kdt": {
+            "source": "synthetic-kdt",
+            "revision": "2",
+            "sample_rate": 30,
+            "gain": 2
+          },
+          "stimulus": 7,
+          "reference": {
+            "reference_id": "integer-reference",
+            "version": "2"
+          },
+          "daas": {
+            "request_id": "request-1",
+            "requested": {
+              "config_id": "config-new",
+              "gain": 2,
+              "sample_rate": 30
+            },
+            "initial": {
+              "config_id": "config-old",
+              "gain": 1,
+              "sample_rate": 30
+            },
+            "events": [
+              {
+                "kind": "REQUEST",
+                "tick": 1,
+                "sequence": 0,
+                "request_id": "request-1",
+                "config_id": "config-new",
+                "status": "RECORDED"
+              },
+              {
+                "kind": "SENT",
+                "tick": 2,
+                "sequence": 1,
+                "request_id": "request-1",
+                "config_id": "config-new",
+                "status": "RECORDED"
+              },
+              {
+                "kind": "ACK",
+                "tick": 3,
+                "sequence": 2,
+                "request_id": "request-1",
+                "config_id": "config-new",
+                "status": "ACCEPTED"
+              },
+              {
+                "kind": "APPLIED",
+                "tick": 12,
+                "sequence": 3,
+                "request_id": "request-1",
+                "config_id": "config-new",
+                "status": "RECORDED"
+              }
+            ],
+            "sample_tick": 10
+          },
+          "implementation": {
+            "version": "integer-l1.v1",
+            "offset": 0
+          },
+          "capture": {
+            "applied_state": true
+          }
+        },
+        "source": {
+          "candidate_kind": "RULE",
+          "incident_id": "incident",
+          "execution_id": "execution",
+          "input_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+          "evidence_digest": "b8771e6b1dee051908483c2bfd97c7cf1814942177c362ac85b61c9721697f4e",
+          "agent_id": null,
+          "agent_version": null,
+          "investigation_id": null,
+          "run_id": null,
+          "session_id": null,
+          "final_status": null,
+          "raw_output_digest": null,
+          "model_calls": 0,
+          "committed_tools": 0,
+          "observed_batches": 0,
+          "observed_reads": [],
+          "rule_version": "baseband-rule.v2"
+        },
+        "report": {
+          "schema_version": "baseband-diagnosis.v2",
+          "incident_id": "incident",
+          "execution_id": "execution",
+          "input_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+          "evidence_summary": "逐项核验参考适用范围、ACK 与采样状态及原始比较；不证明真实代码缺陷或唯一原因。",
+          "decidability": "SUPPORTED",
+          "candidate_findings": [
+            {
+              "category": "SIMULATION_CHAIN",
+              "mechanism": "CONFIG_APPLIED_AFTER_SAMPLE",
+              "finding_status": "CONFIRMED",
+              "failure_relation": "SUPPORTED",
+              "owner_role": "DAAS_OWNER",
+              "recommended_action": "REVIEW_DAAS_APPLICATION",
+              "supporting_evidence": [
+                {
+                  "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+                  "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8"
+                },
+                {
+                  "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+                  "digest": "d9554a2313c7af8b52e0efefbb20c5440a6a53b353748070f74d899ea7399b36"
+                },
+                {
+                  "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+                  "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6"
+                },
+                {
+                  "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+                  "digest": "7337db1ed17accdbd358a42b810f12d621b513ae94abb82ede34e43ce3311f78"
+                },
+                {
+                  "evidence_id": "3b053001-8860-5520-952b-ccc62a6488fc",
+                  "digest": "6076bf9349fc81fa76c0079ba6f712534bcbc56710da5b1886158f9bda53006e"
+                }
+              ],
+              "counter_evidence": [],
+              "uncertainties": []
+            }
+          ],
+          "uncertainties": []
+        },
+        "report_digest": "1f2d5b232edbbffd32ee0db8a1fe93ef78257e66ed34c5ff7cfdcb669a3987e6",
+        "evidence": [
+          {
+            "evidence_id": "5ea64439-f18b-5095-b3cb-f49d82060d3d",
+            "execution_id": "execution",
+            "kind": "CI_SUMMARY",
+            "captured_at": "2026-11-13T05:20:02.034305+00:00",
+            "availability": "AVAILABLE",
+            "media_type": "application/json",
+            "digest": "d5750b59a870865b668d88d48f76e87d5630204085b5d88f2d89dececa16631a",
+            "content": {
+              "schema_version": "baseband-execution.v2",
+              "execution_id": "execution",
+              "environment_id": "env-oracle",
+              "case_id": "integer-primary",
+              "outcome": "FAIL",
+              "input_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+              "completed_at": "2026-11-13T05:20:02.034305+00:00",
+              "sample_tick": 10,
+              "stages": [
+                {
+                  "stage": "PRECHECK",
+                  "status": "EXECUTED",
+                  "error": null
+                },
+                {
+                  "stage": "L1",
+                  "status": "EXECUTED",
+                  "error": null
+                },
+                {
+                  "stage": "COMPARISON",
+                  "status": "EXECUTED",
+                  "error": "OUTPUT_REFERENCE_DIVERGENCE"
+                }
+              ],
+              "workflow_source": {
+                "task_id": "task",
+                "report_id": "report",
+                "plan_id": "plan",
+                "plan_digest": "4b5cc63563dd7ce6ba3a870bb0dc79f2ea3f81cff8c0835a6caf41632e92fbd3",
+                "test_id": "gain-coverage-2",
+                "test_digest": "95329cc461a1c1d70e9125bfa04e6b0377cae8c0ba296d17c9cc820b6b929fa9",
+                "asset_digest": "ab8520762eed020c62e9f2d69107a70c5f3d53af873ec176181b712808a471d2",
+                "instance_id": "instance",
+                "distribution_id": "distribution",
+                "trigger_id": "trigger",
+                "state_revision": 1,
+                "actual_configuration_digest": "238de6203de10770a068d209462ef0b5bfac031b746cd3640f9ebe757064dddb",
+                "derivation": null
+              }
+            },
+            "missing_reason": null
+          },
+          {
+            "evidence_id": "4911fb51-de57-5759-850c-41ca13e99a6d",
+            "execution_id": "execution",
+            "kind": "INPUT_MANIFEST",
+            "captured_at": "2026-11-13T05:20:02.034305+00:00",
+            "availability": "AVAILABLE",
+            "media_type": "application/json",
+            "digest": "2cf98039b6b0289728181b0a1c85ebaf1a7861c543c1dfa34a025ef3d15148b8",
+            "content": {
+              "schema_version": "baseband-input.v2",
+              "software_version": "baseband-2.0",
+              "environment_condition": "nominal",
+              "constraint": {
+                "rule_id": "ddt-kdt-sampling",
+                "version": "2"
+              },
+              "ddt": {
+                "source": "synthetic-ddt",
+                "revision": "2",
+                "sample_rate": 30,
+                "gain": 2
+              },
+              "kdt": {
+                "source": "synthetic-kdt",
+                "revision": "2",
+                "sample_rate": 30,
+                "gain": 2
+              },
+              "stimulus": 7,
+              "daas_request": {
+                "request_id": "request-1",
+                "requested": {
+                  "config_id": "config-new",
+                  "gain": 2,
+                  "sample_rate": 30
+                },
+                "sample_tick": 10
+              }
+            },
+            "missing_reason": null
+          },
+          {
+            "evidence_id": "9da211be-12c3-548c-8563-b22b24bd3968",
+            "execution_id": "execution",
+            "kind": "REFERENCE_RECORD",
+            "captured_at": "2026-11-13T05:20:02.034305+00:00",
+            "availability": "AVAILABLE",
+            "media_type": "application/json",
+            "digest": "d9554a2313c7af8b52e0efefbb20c5440a6a53b353748070f74d899ea7399b36",
+            "content": {
+              "reference_id": "integer-reference",
+              "version": "2",
+              "software_versions": [
+                "baseband-2.0"
+              ],
+              "conditions": [
+                "nominal"
+              ],
+              "offset": 1,
+              "comparison_rule": "integer-equality.v1"
+            },
+            "missing_reason": null
+          },
+          {
+            "evidence_id": "9e90db64-3daa-5ab5-95bb-eb35f6938222",
+            "execution_id": "execution",
+            "kind": "DAAS_TIMELINE",
+            "captured_at": "2026-11-13T05:20:02.034305+00:00",
+            "availability": "AVAILABLE",
+            "media_type": "application/json",
+            "digest": "17bfe183acce2a7b38e7e1b0a04dca72d97c6e53be07177d775915a5e64840a6",
+            "content": {
+              "request_id": "request-1",
+              "config_id": "config-new",
+              "events": [
+                {
+                  "kind": "REQUEST",
+                  "tick": 1,
+                  "sequence": 0,
+                  "request_id": "request-1",
+                  "config_id": "config-new",
+                  "status": "RECORDED"
+                },
+                {
+                  "kind": "SENT",
+                  "tick": 2,
+                  "sequence": 1,
+                  "request_id": "request-1",
+                  "config_id": "config-new",
+                  "status": "RECORDED"
+                },
+                {
+                  "kind": "ACK",
+                  "tick": 3,
+                  "sequence": 2,
+                  "request_id": "request-1",
+                  "config_id": "config-new",
+                  "status": "ACCEPTED"
+                }
+              ],
+              "sample_tick": 10
+            },
+            "missing_reason": null
+          },
+          {
+            "evidence_id": "3b053001-8860-5520-952b-ccc62a6488fc",
+            "execution_id": "execution",
+            "kind": "APPLIED_STATE",
+            "captured_at": "2026-11-13T05:20:02.034305+00:00",
+            "availability": "AVAILABLE",
+            "media_type": "application/json",
+            "digest": "6076bf9349fc81fa76c0079ba6f712534bcbc56710da5b1886158f9bda53006e",
+            "content": {
+              "sample_tick": 10,
+              "request_id": "request-1",
+              "effective": {
+                "config_id": "config-old",
+                "gain": 1,
+                "sample_rate": 30
+              },
+              "applied_events": [
+                {
+                  "kind": "APPLIED",
+                  "tick": 12,
+                  "sequence": 3,
+                  "request_id": "request-1",
+                  "config_id": "config-new",
+                  "status": "RECORDED"
+                }
+              ]
+            },
+            "missing_reason": null
+          },
+          {
+            "evidence_id": "ecf98b28-e54b-51f4-9e3a-43aade492b07",
+            "execution_id": "execution",
+            "kind": "EXECUTION_RECEIPT",
+            "captured_at": "2026-11-13T05:20:02.034305+00:00",
+            "availability": "AVAILABLE",
+            "media_type": "application/json",
+            "digest": "7337db1ed17accdbd358a42b810f12d621b513ae94abb82ede34e43ce3311f78",
+            "content": {
+              "actual": 8,
+              "expected": 15,
+              "outcome": "FAIL",
+              "reference": {
+                "reference_id": "integer-reference",
+                "version": "2"
+              },
+              "comparison_rule": "integer-equality.v1",
+              "stages": [
+                {
+                  "stage": "PRECHECK",
+                  "status": "EXECUTED",
+                  "error": null
+                },
+                {
+                  "stage": "L1",
+                  "status": "EXECUTED",
+                  "error": null
+                },
+                {
+                  "stage": "COMPARISON",
+                  "status": "EXECUTED",
+                  "error": "OUTPUT_REFERENCE_DIVERGENCE"
+                }
+              ]
+            },
+            "missing_reason": null
+          }
+        ]
+      },
+      "model_calls": 0,
+      "planning_kind": "RULE",
+      "diagnosis_kind": "RULE"
+    },
+    "business_digest": "36177098f49acc65a1654a96711e1e7d9e7abb7c9000da6a9f531877e4ebf3f7"
+  }
+}

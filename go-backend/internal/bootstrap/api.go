@@ -82,7 +82,9 @@ func API(ctx context.Context, config httpapi.Config, controlledDev, fixtureOnly 
 		frozen, _ := asset.Freeze(c)
 		capabilities, _ := asset.Freeze(map[string]any{"mode": "SEALED_RUN_REPLAY", "input_contract": agentquality.BasebandInput})
 		basebandTarget = &evaluation.Target{ID: provider.BasebandTargetID, Kind: provider.BasebandTargetKind, Version: provider.BasebandTargetVersion, Config: frozen, Capabilities: capabilities, TimeoutMilliseconds: c.CallMilliseconds}
-		supported = agentquality.BasebandSupported
+		supported = func(d metric.EvaluatorDefinition) bool {
+			return agentquality.BasebandSupported(d) || agentquality.RepairSupported(d)
+		}
 	}
 	if os.Getenv("FEATURE_IMPACT_ENABLED") == "1" {
 		if fixtureOnly || os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {

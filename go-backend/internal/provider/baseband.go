@@ -43,6 +43,9 @@ func NewBasebandTarget(c LocalAgentConfig, reader ev.Reader) (*BasebandTarget, e
 }
 func (t *BasebandTarget) Close() { t.client.CloseIdleConnections() }
 func (t *BasebandTarget) Execute(parent context.Context, s ev.Scope, q ev.Request) (ev.Outcome, error) {
+	if q.Target.Version == aq.RepairTargetVersion {
+		return t.executeRepair(parent, s, q)
+	}
 	if q.Target.Version == aq.CoverageTargetVersion {
 		return t.executeCoverage(parent, s, q)
 	}

@@ -106,6 +106,7 @@ func New(s Server) (*Server, error) {
 	s.ciBusinessRoutes()
 	s.featureImpactRoutes()
 	s.basebandRoutes()
+	s.repairRoutes()
 	s.reviewRoutes()
 	s.businessFeedbackRoutes()
 	s.analyticsRoutes()

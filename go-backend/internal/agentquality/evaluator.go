@@ -180,6 +180,9 @@ func (DeterministicEvaluator) Evaluate(ctx context.Context, in worker.Evaluation
 		return worker.EvaluationOutput{}, e
 	}
 	d := in.Work.Metadata.Spec.Definition
+	if RepairSupported(d) {
+		return evaluateRepair(ctx, in)
+	}
 	if CoverageSupported(d) {
 		return evaluateCoverage(ctx, in)
 	}

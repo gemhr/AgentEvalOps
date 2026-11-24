@@ -1,0 +1,10 @@
+# CI Repair 只读证据评测
+
+在已授权 Go Product Project 中启用 `BASEBAND_ENABLED=1`。为 API 和 Worker 配置同一 `BASEBAND_TARGET_CONFIG`，其 `base_url` 指向部署者固定的 AgentCore Origin，`token_env` 指向有 `localagent:ci-repair:evidence` 的窄权限 SERVICE token。启用 Worker 的 Execution 与 Evaluator 容量并关闭 Online 模式。Worker 需要本地 Git，在隔离临时目录校验 Patch 字节。Go PostgreSQL 需要应用当前项目迁移，API/Worker 分别使用既有受限角色。
+
+1. 使用 `scripts/prepare-ci-repair-evaluation.py --project <ID> --base-url <Origin> --token-env <变量名> --output <文件>` 发布公开开发 Dataset、Suite、独立 Ground Truth、两个数值指标及固定策略。发布者具有既有目录发布与策略权限。
+2. 用已完成 Workflow 和 Evidence SHA-256 发起两次 `POST /api/v1/projects/{project_id}/ci-repair/runs`。正文为 `suite`、`workflow_run_id`、`evidence_digest` 和 `role`，角色分别为 `BASELINE`、`CANDIDATE`。按 Product API 提供 `Idempotency-Key`。
+3. 两个 Run 终态后向 `POST /api/v1/projects/{project_id}/ci-repair/gates` 提交 `baseline`、`candidate` 两个单 Run `RUN_SET` 及已发布 `policy`，门禁沿原引擎比较相同业务样本。策略要求两项必需指标和两个关键用例覆盖率均为 100%，候选值的绝对门槛为 1。
+4. 通过现有 `/gates/{id}`、`/cases` 与 `/regressions` 读取持久决策。机器只读关联使用 `/ci-repair/gates/{id}`，返回项目、两侧 Run、Workflow 和 Evidence 定位。Workspace 通过 Project `Read` API Key 读取关联，Gate 状态由 Go 持有。
+
+该 Target 只 GET 已封存的 Python 证据。证据 SHA-256 被复算于原始 HTTP 字节，业务判分使用 Go 发布的 Ground Truth 与本地 TLV 解析。网络失败或缺件保存 `UNKNOWN`，身份、Patch、批准关系或 Oracle 不一致阻断 Gate。证据完整且业务值错误时，候选得到 0 分并触发 FAIL。已签发 Go Gate 不改变 Python Workflow 或 Incident。

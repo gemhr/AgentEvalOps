@@ -106,6 +106,11 @@ function ProductResources({ area }: { area: string }) {
   const principal = useProductPrincipal();
   const [cursor, setCursor] = useState<string | null>(null);
   const [id, setID] = useState("");
+  useEffect(() => {
+    if (area !== "gates") return;
+    const gate = new URLSearchParams(window.location.search).get("gate_id");
+    if (gate && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(gate)) setID(gate);
+  }, [area]);
   const path = productPath(
     params.projectId,
     area + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""),

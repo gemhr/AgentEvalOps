@@ -90,7 +90,9 @@ func Worker(ctx context.Context, url string, config worker.Config, fixtureOnly b
 		}
 		target = t
 		evaluator = agentquality.DeterministicEvaluator{}
-		supported = agentquality.BasebandSupported
+		supported = func(d metric.EvaluatorDefinition) bool {
+			return agentquality.BasebandSupported(d) || agentquality.RepairSupported(d)
+		}
 		closeAdapters = t.Close
 	} else if os.Getenv("FEATURE_IMPACT_ENABLED") == "1" {
 		if os.Getenv("LOCALAGENT_CI_SYNTHETIC_ENABLED") == "1" || fixtureOnly || config.OnlineConcurrency != 0 || os.Getenv("CI_BUSINESS_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_LOOP_ENABLED") == "1" || os.Getenv("LOCALAGENT_AGENT_QUALITY_ENABLED") == "1" || os.Getenv("LOCALAGENT_STAGE13_ENABLED") == "1" {

@@ -28,6 +28,12 @@ func versionSchema(body any) any {
 
 func (s *Server) responseSchema(r route) any {
 	path := strings.TrimPrefix(r.Path, "/api/v1/projects/{project_id}")
+	if path == "/ci-repair/gates/{id}" {
+		return fieldSchema(repairGateResponse{})
+	}
+	if path == "/ci-repair/runs" || path == "/ci-repair/gates" {
+		path = strings.TrimPrefix(path, "/ci-repair")
+	}
 	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	kind := parts[0]
 	if kind == "ci-business" || (kind == "results" && strings.HasSuffix(path, "/business-quality")) {

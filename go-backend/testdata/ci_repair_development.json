@@ -1,0 +1,7 @@
+{
+  "version": "ci-repair-development.v1",
+  "cases": [
+    {"case_id": "case-tlv-report", "ground_truth": {"version":"tlv-ground-truth.v1", "expected_value":7, "revision":2, "type":17, "length":2, "baseline_reason":"TLV_INPUT_REVISION_STALE"}},
+    {"case_id": "case-report-health", "ground_truth": {"version":"tlv-ground-truth.v1", "expected_value":9, "revision":2, "type":17, "length":2, "baseline_reason":""}}
+  ]
+}
